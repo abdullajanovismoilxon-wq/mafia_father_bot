@@ -635,8 +635,7 @@ def broadcast_create_view(request):
         target_user_id=target_user_id,
         photo_url=photo_url,
         button_text=button_text,
-        button_url=button_url,
-        created_by=request.user.username
+        button_url=button_url
     )
 
     # Run dispatch in background thread
