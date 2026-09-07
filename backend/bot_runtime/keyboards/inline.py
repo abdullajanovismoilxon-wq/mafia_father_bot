@@ -8,6 +8,7 @@ Compact callback_data (under 64 bytes limit):
   - Hanging:       hg:{game12}:kill:{player12} / hg:{game12}:save:{player12}
   - Economy/Shop:  eco:...
 """
+import os
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, WebAppInfo
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 

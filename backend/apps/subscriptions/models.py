@@ -191,7 +191,7 @@ class Coupon(BaseEntityModel):
     class Meta:
         ordering = ['-created_at']
 
-    def is_valid() -> bool:
+    def is_valid(self) -> bool:
         from django.utils import timezone
         now = timezone.now()
         if not self.is_active:

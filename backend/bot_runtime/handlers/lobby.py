@@ -6,6 +6,7 @@ Aligned with Telegram Mafia Bot UI Screenshots:
 - Registered Telegram group commands.
 - Deep-link join handling and role delivery for all 38 roles.
 """
+import os
 import asyncio
 import html
 import random
@@ -138,13 +139,6 @@ async def sync_group_info(bot: Bot, chat: types.Chat, bot_record: BotModel):
         await sync_to_async(_db_save)()
     except Exception as e:
         logger.debug(f"Error syncing group info: {e}")
-
-
-
-    except Exception as e:
-        logger.warning(f"Error checking group admin status for user {user_id} in {chat_id}: {e}")
-        return True, ""
-
 
 
 async def _run_lobby_timer(game_id: str, chat_id: int, bot: Bot, timeout: int = 300):

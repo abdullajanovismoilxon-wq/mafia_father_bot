@@ -13,6 +13,7 @@ CALLBACK DATA (under 64 bytes):
 """
 import html
 import asyncio
+import random
 import logging
 from aiogram import Router, Bot
 from aiogram.types import CallbackQuery
@@ -21,6 +22,7 @@ from apps.games.models import Game, Player, GamePhase, RoleTeam
 from apps.games.engine.voting import VotingService, VoteValidationError
 from apps.games.engine.game_service import GameService
 from apps.games.engine.win_conditions import WinConditionService
+from apps.superadmin.services import TextService
 from bot_runtime.keyboards.inline import (
     build_night_target_keyboard,
     build_hanging_keyboard,
