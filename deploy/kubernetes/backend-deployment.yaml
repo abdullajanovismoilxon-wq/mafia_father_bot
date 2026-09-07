@@ -1,0 +1,66 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mafiabotfather-backend
+  namespace: mafiabotfather
+  labels:
+    app: mafiabotfather-backend
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: mafiabotfather-backend
+  template:
+    metadata:
+      labels:
+        app: mafiabotfather-backend
+    spec:
+      containers:
+        - name: backend
+          image: mafiabotfather/backend:latest
+          imagePullPolicy: IfNotPresent
+          command: ["sh", "-c", "python manage.py migrate && gunicorn config.wsgi:application --bind 0.0.0.0:8000 --workers 3"]
+          ports:
+            - containerPort: 8000
+          envFrom:
+            - configMapRef:
+                name: mafiabotfather-config
+            - secretRef:
+                name: mafiabotfather-secrets
+          resources:
+            requests:
+              cpu: 250m
+              memory: 512Mi
+            limits:
+              cpu: 1000m
+              memory: 1024Mi
+          livenessProbe:
+            httpGet:
+              path: /health/live/
+              port: 8000
+            initialDelaySeconds: 20
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /health/ready/
+              port: 8000
+            initialDelaySeconds: 10
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 2
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: backend-service
+  namespace: mafiabotfather
+spec:
+  selector:
+    app: mafiabotfather-backend
+  ports:
+    - protocol: TCP
+      port: 8000
+      targetPort: 8000
+  type: ClusterIP

@@ -1,0 +1,69 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mafiabotfather-celery-worker
+  namespace: mafiabotfather
+  labels:
+    app: mafiabotfather-celery-worker
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: mafiabotfather-celery-worker
+  template:
+    metadata:
+      labels:
+        app: mafiabotfather-celery-worker
+    spec:
+      containers:
+        - name: celery-worker
+          image: mafiabotfather/backend:latest
+          imagePullPolicy: IfNotPresent
+          command: ["celery", "-A", "config", "worker", "--loglevel=info", "-c", "4"]
+          envFrom:
+            - configMapRef:
+                name: mafiabotfather-config
+            - secretRef:
+                name: mafiabotfather-secrets
+          resources:
+            requests:
+              cpu: 250m
+              memory: 512Mi
+            limits:
+              cpu: 1000m
+              memory: 1024Mi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mafiabotfather-celery-beat
+  namespace: mafiabotfather
+  labels:
+    app: mafiabotfather-celery-beat
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mafiabotfather-celery-beat
+  template:
+    metadata:
+      labels:
+        app: mafiabotfather-celery-beat
+    spec:
+      containers:
+        - name: celery-beat
+          image: mafiabotfather/backend:latest
+          imagePullPolicy: IfNotPresent
+          command: ["celery", "-A", "config", "beat", "--loglevel=info"]
+          envFrom:
+            - configMapRef:
+                name: mafiabotfather-config
+            - secretRef:
+                name: mafiabotfather-secrets
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 250m
+              memory: 512Mi

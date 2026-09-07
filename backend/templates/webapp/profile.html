@@ -1,0 +1,3356 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Mafia Father Bot — Mini App</title>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        :root {
+            --bg-primary: #07090E;
+            --bg-card: #0F1420;
+            --bg-card-hover: #171F32;
+            --border-color: rgba(255, 255, 255, 0.08);
+            --border-glow: rgba(99, 102, 241, 0.3);
+            --accent-blue: #3B82F6;
+            --accent-purple: #8B5CF6;
+            --accent-gold: #F59E0B;
+            --accent-green: #10B981;
+            --accent-red: #EF4444;
+            --accent-cyan: #06B6D4;
+            --text-main: #F8FAFC;
+            --text-muted: #94A3B8;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            -webkit-tap-highlight-color: transparent;
+            user-select: none;
+        }
+
+        body {
+            background-color: var(--bg-primary);
+            background-image: 
+                radial-gradient(circle at 15% 15%, rgba(59, 130, 246, 0.08) 0%, transparent 40%),
+                radial-gradient(circle at 85% 85%, rgba(139, 92, 246, 0.08) 0%, transparent 40%);
+            color: var(--text-main);
+            min-height: 100vh;
+            padding-bottom: 95px;
+            overflow-x: hidden;
+        }
+
+        /* 🌟 TOP HEADER */
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 18px;
+            position: sticky;
+            top: 0;
+            background: rgba(7, 9, 14, 0.88);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            z-index: 100;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .header-left {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .brand-badge {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 16px;
+            font-weight: 800;
+            letter-spacing: -0.3px;
+            background: linear-gradient(135deg, #FFF 30%, #94A3B8 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .header-balance-bar {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .header-pill {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 20px;
+            padding: 5px 10px;
+            font-size: 13px;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.1);
+        }
+        .header-pill.money { color: #10B981; }
+        .header-pill.dia { color: #38BDF8; }
+        .header-pill.vip {
+            background: rgba(245, 158, 11, 0.15);
+            border-color: rgba(245, 158, 11, 0.4);
+            color: #F59E0B;
+            box-shadow: 0 0 12px rgba(245, 158, 11, 0.2);
+        }
+
+        .notif-bell {
+            position: relative;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 36px;
+            height: 36px;
+            border-radius: 12px;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid var(--border-color);
+            color: #F8FAFC;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .notif-bell:active { transform: scale(0.92); }
+
+        .container {
+            padding: 14px 16px;
+        }
+
+        .tab-content {
+            display: none;
+            animation: fadeIn 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+        .tab-content.active {
+            display: block;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(6px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* 🔘 FILTER CHIPS / PILLS */
+        .filter-scroll {
+            display: flex;
+            gap: 8px;
+            overflow-x: auto;
+            padding-bottom: 4px;
+            scrollbar-width: none;
+            margin-bottom: 16px;
+        }
+        .filter-scroll::-webkit-scrollbar { display: none; }
+        .filter-chip {
+            padding: 8px 16px;
+            background: rgba(255, 255, 255, 0.04);
+            border: 1px solid var(--border-color);
+            border-radius: 14px;
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--text-muted);
+            white-space: nowrap;
+            cursor: pointer;
+            transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+        .filter-chip.active {
+            background: linear-gradient(135deg, rgba(59, 130, 246, 0.25) 0%, rgba(139, 92, 246, 0.25) 100%);
+            border-color: rgba(99, 102, 241, 0.6);
+            color: #FFF;
+            box-shadow: 0 4px 14px rgba(99, 102, 241, 0.25);
+        }
+        .filter-chip:active { transform: scale(0.95); }
+
+        /* 🎴 SECTION TITLES */
+        .section-title {
+            font-size: 15px;
+            font-weight: 800;
+            color: var(--text-main);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin: 18px 0 12px 0;
+            letter-spacing: -0.2px;
+        }
+
+        /* ===================================================================
+           👤 PROFIL TAB STYLES
+           =================================================================== */
+        /* Dynamic Rank Badges & Avatars */
+        .rank-tag {
+            font-size: 10px;
+            font-weight: 800;
+            padding: 3px 8px;
+            border-radius: 8px;
+            letter-spacing: 0.4px;
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            text-transform: uppercase;
+        }
+        .rank-tag.rank-owner {
+            background: linear-gradient(135deg, #F59E0B, #D97706);
+            color: #000;
+            box-shadow: 0 0 10px rgba(245, 158, 11, 0.4);
+        }
+        .rank-tag.rank-legend {
+            background: linear-gradient(135deg, #EF4444, #F97316);
+            color: #FFF;
+            box-shadow: 0 0 10px rgba(239, 68, 68, 0.4);
+        }
+        .rank-tag.rank-pro {
+            background: linear-gradient(135deg, #8B5CF6, #06B6D4);
+            color: #FFF;
+            box-shadow: 0 0 10px rgba(139, 92, 246, 0.4);
+        }
+        .rank-tag.rank-veteran {
+            background: linear-gradient(135deg, #3B82F6, #10B981);
+            color: #FFF;
+            box-shadow: 0 0 10px rgba(59, 130, 246, 0.4);
+        }
+        .rank-tag.rank-novice {
+            background: linear-gradient(135deg, rgba(255,255,255,0.1), rgba(255,255,255,0.05));
+            color: #94A3B8;
+            border: 1px solid rgba(255, 255, 255, 0.15);
+        }
+
+        .avatar.rank-owner {
+            background: linear-gradient(135deg, #F59E0B, #D97706);
+            border: 2px solid #FDE68A;
+            box-shadow: 0 0 20px rgba(245, 158, 11, 0.5);
+        }
+        .avatar.rank-legend {
+            background: linear-gradient(135deg, #EF4444, #EA580C);
+            border: 2px solid #FCA5A5;
+            box-shadow: 0 0 20px rgba(239, 68, 68, 0.5);
+        }
+        .avatar.rank-pro {
+            background: linear-gradient(135deg, #8B5CF6, #06B6D4);
+            border: 2px solid #C4B5FD;
+            box-shadow: 0 0 20px rgba(139, 92, 246, 0.5);
+        }
+        .avatar.rank-veteran {
+            background: linear-gradient(135deg, #3B82F6, #10B981);
+            border: 2px solid #93C5FD;
+            box-shadow: 0 0 15px rgba(59, 130, 246, 0.4);
+        }
+        .avatar.rank-novice {
+            background: linear-gradient(135deg, #334155, #1E293B);
+            border: 1px solid rgba(255, 255, 255, 0.12);
+        }
+
+        .winrate-container {
+            margin-top: 12px;
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            padding: 12px 14px;
+        }
+        .winrate-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+            font-size: 12px;
+            font-weight: 700;
+        }
+        .winrate-track {
+            width: 100%;
+            height: 8px;
+            background: rgba(255, 255, 255, 0.08);
+            border-radius: 10px;
+            overflow: hidden;
+            position: relative;
+        }
+        .winrate-fill {
+            height: 100%;
+            border-radius: 10px;
+            background: linear-gradient(90deg, #3B82F6 0%, #10B981 100%);
+            box-shadow: 0 0 10px rgba(16, 185, 129, 0.5);
+            transition: width 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+
+        .user-card {
+            background: linear-gradient(145deg, #131A29 0%, #0D131F 100%);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 22px;
+            padding: 18px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.4);
+            position: relative;
+            overflow: hidden;
+        }
+        .user-card.vip-card {
+            background: linear-gradient(145deg, #1C1917 0%, #0F1420 100%);
+            border-color: rgba(245, 158, 11, 0.4);
+            box-shadow: 0 10px 30px rgba(245, 158, 11, 0.15);
+        }
+        .user-info {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+        }
+        .avatar {
+            width: 52px;
+            height: 52px;
+            border-radius: 18px;
+            background: linear-gradient(135deg, #3B82F6 0%, #8B5CF6 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 22px;
+            font-weight: 800;
+            color: #FFF;
+            box-shadow: 0 4px 15px rgba(59, 130, 246, 0.3);
+            flex-shrink: 0;
+        }
+        .avatar.vip-avatar {
+            background: linear-gradient(135deg, #F59E0B, #D97706);
+            border: 2px solid #FDE68A;
+            box-shadow: 0 0 20px rgba(245, 158, 11, 0.5);
+        }
+        .user-details h2 {
+            font-size: 17px;
+            font-weight: 800;
+            color: #FFF;
+            letter-spacing: -0.3px;
+            margin-bottom: 3px;
+        }
+        .balance-badge {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 13px;
+            font-weight: 700;
+            color: #10B981;
+        }
+        .balance-badge .diamonds {
+            color: #38BDF8;
+        }
+        .vip-title-tag {
+            background: linear-gradient(135deg, #F59E0B, #D97706);
+            color: #000;
+            font-size: 10px;
+            font-weight: 900;
+            padding: 2px 7px;
+            border-radius: 8px;
+            letter-spacing: 0.5px;
+        }
+
+        /* 🥷 GEROY SHOWCASE CARD */
+        .hero-banner-card {
+            background: linear-gradient(145deg, #17162E 0%, #0F111E 100%);
+            border: 1px solid rgba(139, 92, 246, 0.3);
+            border-radius: 22px;
+            padding: 16px;
+            margin-top: 14px;
+            box-shadow: 0 10px 30px rgba(139, 92, 246, 0.15);
+            position: relative;
+            overflow: hidden;
+        }
+        .hero-banner-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            right: 0;
+            width: 120px;
+            height: 120px;
+            background: radial-gradient(circle, rgba(139, 92, 246, 0.2) 0%, transparent 70%);
+            pointer-events: none;
+        }
+        .hero-header-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 14px;
+        }
+        .hero-title-box {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .hero-avatar-box {
+            width: 44px;
+            height: 44px;
+            border-radius: 14px;
+            background: rgba(139, 92, 246, 0.2);
+            border: 1px solid rgba(139, 92, 246, 0.4);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 22px;
+        }
+        .hero-name {
+            font-size: 16px;
+            font-weight: 800;
+            color: #FFF;
+        }
+        .hero-sub {
+            font-size: 12px;
+            color: #C084FC;
+            font-weight: 600;
+        }
+        .hero-status-tag {
+            font-size: 11px;
+            font-weight: 800;
+            padding: 4px 10px;
+            border-radius: 10px;
+            background: rgba(16, 185, 129, 0.15);
+            color: #34D399;
+            border: 1px solid rgba(16, 185, 129, 0.3);
+        }
+        .hero-status-tag.inactive {
+            background: rgba(239, 68, 68, 0.15);
+            color: #F87171;
+            border-color: rgba(239, 68, 68, 0.3);
+        }
+
+        .hero-meter-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+            margin-bottom: 12px;
+        }
+        .hero-meter-card {
+            background: rgba(255, 255, 255, 0.04);
+            border: 1px solid rgba(255, 255, 255, 0.06);
+            border-radius: 14px;
+            padding: 10px;
+        }
+        .hero-meter-label {
+            font-size: 11px;
+            font-weight: 600;
+            color: var(--text-muted);
+            margin-bottom: 4px;
+        }
+        .hero-meter-val {
+            font-size: 15px;
+            font-weight: 800;
+            color: #FFF;
+        }
+
+        .hero-actions-grid {
+            display: grid;
+            grid-template-columns: 1.2fr 1fr 1fr;
+            gap: 8px;
+        }
+        .hero-btn {
+            background: rgba(255, 255, 255, 0.06);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            padding: 8px 0;
+            font-size: 12px;
+            font-weight: 700;
+            color: #FFF;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .hero-btn:active { transform: scale(0.94); }
+        .hero-btn.primary {
+            background: linear-gradient(135deg, #8B5CF6 0%, #6366F1 100%);
+            border: none;
+            box-shadow: 0 4px 14px rgba(139, 92, 246, 0.3);
+        }
+
+        /* Stats Grid */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            margin-top: 14px;
+        }
+        .stat-card {
+            background: #0F1420;
+            border: 1px solid var(--border-color);
+            border-radius: 18px;
+            padding: 14px;
+        }
+        .stat-label {
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--text-muted);
+            margin-bottom: 4px;
+        }
+        .stat-val {
+            font-size: 18px;
+            font-weight: 800;
+            color: #FFF;
+        }
+        .stat-val.green { color: #10B981; }
+
+        /* Clan Card */
+        .clan-card {
+            background: #0F1420;
+            border: 1px solid var(--border-color);
+            border-radius: 18px;
+            padding: 14px 16px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-top: 10px;
+        }
+        .clan-icon {
+            font-size: 24px;
+        }
+        .clan-sub {
+            font-size: 11px;
+            color: var(--text-muted);
+        }
+        .clan-title {
+            font-size: 14px;
+            font-weight: 700;
+            color: #FFF;
+        }
+
+        /* Defense Cards */
+        .defense-list {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        .defense-card {
+            background: #0F1420;
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            padding: 12px 14px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        .defense-info {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        .def-icon-box {
+            font-size: 20px;
+        }
+        .def-details h4 {
+            font-size: 14px;
+            font-weight: 700;
+            color: #FFF;
+            margin-bottom: 2px;
+        }
+        .def-details p {
+            font-size: 11px;
+            color: var(--text-muted);
+        }
+        .def-status-badge {
+            font-size: 12px;
+            font-weight: 800;
+            color: #34D399;
+            background: rgba(16, 185, 129, 0.1);
+            padding: 4px 10px;
+            border-radius: 10px;
+            border: 1px solid rgba(16, 185, 129, 0.2);
+        }
+        .def-status-badge.inactive {
+            color: var(--text-muted);
+            background: rgba(255, 255, 255, 0.05);
+            border-color: transparent;
+        }
+
+        
+        /* ===================================================================
+           📊 GURUH BOSHQARUV KABINETI — ANALYTICS, CHART & TOP 10 PLAYERS
+           =================================================================== */
+        .cabinet-filter-bar {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 14px;
+            background: rgba(255, 255, 255, 0.04);
+            padding: 4px;
+            border-radius: 14px;
+            border: 1px solid var(--border-color);
+        }
+        .cabinet-filter-chip {
+            flex: 1;
+            text-align: center;
+            padding: 9px 0;
+            font-size: 12px;
+            font-weight: 800;
+            color: var(--text-muted);
+            border-radius: 10px;
+            cursor: pointer;
+            background: transparent;
+            border: none;
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+            outline: none;
+        }
+        .cabinet-filter-chip.active {
+            background: linear-gradient(135deg, #6366F1 0%, #4F46E5 100%);
+            color: #FFF;
+            box-shadow: 0 4px 14px rgba(99, 102, 241, 0.4);
+        }
+        .cabinet-filter-chip:active {
+            transform: scale(0.96);
+        }
+        .cabinet-chart-card {
+            background: linear-gradient(165deg, #0F1420 0%, #090D16 100%);
+            border: 1px solid rgba(99, 102, 241, 0.25);
+            border-radius: 20px;
+            padding: 16px;
+            margin-bottom: 16px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+        }
+        .cabinet-chart-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 14px;
+        }
+        .cabinet-chart-title {
+            font-size: 13px;
+            font-weight: 800;
+            color: #FFF;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .cabinet-chart-badge {
+            font-size: 11px;
+            font-weight: 700;
+            background: rgba(99, 102, 241, 0.15);
+            color: #A5B4FC;
+            border: 1px solid rgba(99, 102, 241, 0.3);
+            padding: 3px 10px;
+            border-radius: 10px;
+        }
+        .top-player-row {
+            background: #0F1420;
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            padding: 12px 14px;
+            margin-bottom: 8px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+            transition: all 0.2s ease;
+        }
+        .top-player-row.rank-1 {
+            border-color: rgba(245, 158, 11, 0.5);
+            background: linear-gradient(135deg, rgba(245, 158, 11, 0.1) 0%, #0F1420 100%);
+            box-shadow: 0 6px 18px rgba(245, 158, 11, 0.15);
+        }
+        .top-player-row.rank-2 {
+            border-color: rgba(156, 163, 175, 0.4);
+            background: linear-gradient(135deg, rgba(156, 163, 175, 0.08) 0%, #0F1420 100%);
+        }
+        .top-player-row.rank-3 {
+            border-color: rgba(217, 119, 6, 0.4);
+            background: linear-gradient(135deg, rgba(217, 119, 6, 0.08) 0%, #0F1420 100%);
+        }
+        .top-player-main {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        .top-player-left {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .rank-badge-box {
+            width: 32px;
+            height: 32px;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 13px;
+            font-weight: 900;
+            background: rgba(255, 255, 255, 0.05);
+            color: var(--text-muted);
+        }
+        .rank-badge-box.r1 {
+            background: rgba(245, 158, 11, 0.25);
+            color: #F59E0B;
+            font-size: 16px;
+        }
+        .rank-badge-box.r2 {
+            background: rgba(156, 163, 175, 0.25);
+            color: #E5E7EB;
+            font-size: 16px;
+        }
+        .rank-badge-box.r3 {
+            background: rgba(217, 119, 6, 0.25);
+            color: #FBBF24;
+            font-size: 16px;
+        }
+        .top-player-avatar {
+            width: 36px;
+            height: 36px;
+            border-radius: 12px;
+            background: linear-gradient(135deg, #4F46E5, #06B6D4);
+            color: #FFF;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 800;
+            font-size: 14px;
+        }
+        .top-player-info h4 {
+            font-size: 13px;
+            font-weight: 800;
+            color: #FFF;
+            margin-bottom: 2px;
+        }
+        .top-player-info p {
+            font-size: 11px;
+            color: var(--text-muted);
+        }
+        .top-player-stats-right {
+            text-align: right;
+        }
+        .top-player-winrate-text {
+            font-size: 13px;
+            font-weight: 900;
+            color: #10B981;
+        }
+        .top-player-sub-text {
+            font-size: 10px;
+            color: var(--text-muted);
+        }
+        .top-player-progress-bg {
+            width: 100%;
+            height: 6px;
+            background: rgba(255, 255, 255, 0.06);
+            border-radius: 999px;
+            overflow: hidden;
+        }
+        .top-player-progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #10B981 0%, #34D399 100%);
+            border-radius: 999px;
+            transition: width 0.5s ease;
+        }
+
+        
+        .cabinet-select {
+            width: 100%;
+            background: #07090E;
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 10px 12px;
+            color: #FFF;
+            font-size: 13px;
+            font-weight: 600;
+            outline: none;
+            transition: all 0.2s ease;
+        }
+        .cabinet-select:focus {
+            border-color: #6366F1;
+            box-shadow: 0 0 10px rgba(99, 102, 241, 0.25);
+        }
+
+        /* ===================================================================
+           🎒 DO'KON TAB STYLES
+           =================================================================== */
+        .shop-grid {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        .shop-card {
+            background: #0F1420;
+            border: 1px solid var(--border-color);
+            border-radius: 18px;
+            padding: 14px 16px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+        }
+        .shop-item-left {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+        }
+        .shop-icon-box {
+            width: 44px;
+            height: 44px;
+            border-radius: 14px;
+            background: rgba(255, 255, 255, 0.04);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 22px;
+        }
+        .shop-item-details h4 {
+            font-size: 15px;
+            font-weight: 700;
+            color: #FFF;
+            margin-bottom: 2px;
+        }
+        .shop-item-details p {
+            font-size: 11px;
+            color: var(--text-muted);
+        }
+        .buy-action-btn {
+            background: rgba(59, 130, 246, 0.15);
+            border: 1px solid rgba(59, 130, 246, 0.3);
+            border-radius: 12px;
+            padding: 8px 14px;
+            font-size: 13px;
+            font-weight: 800;
+            color: #60A5FA;
+            cursor: pointer;
+            white-space: nowrap;
+            transition: all 0.2s;
+        }
+        .buy-action-btn.dia {
+            background: rgba(56, 189, 248, 0.15);
+            border-color: rgba(56, 189, 248, 0.3);
+            color: #38BDF8;
+        }
+        .buy-action-btn:active { transform: scale(0.92); }
+
+        /* ===================================================================
+           🎰 KAZINO (ROULETTE & CHESTS)
+           =================================================================== */
+        .roulette-vip-card {
+            background: linear-gradient(165deg, #161A29 0%, #0D101C 100%);
+            border: 1px solid rgba(99, 102, 241, 0.3);
+            border-radius: 24px;
+            padding: 18px;
+            box-shadow: 0 15px 40px rgba(0, 0, 0, 0.5), 0 0 30px rgba(99, 102, 241, 0.15);
+        }
+        .history-bar-wrap {
+            margin-bottom: 14px;
+        }
+        .history-title-row {
+            display: flex;
+            justify-content: space-between;
+            font-size: 11px;
+            font-weight: 700;
+            color: var(--text-muted);
+            margin-bottom: 6px;
+        }
+        .history-pills-row {
+            display: flex;
+            gap: 6px;
+            overflow-x: auto;
+            scrollbar-width: none;
+        }
+        .history-pills-row::-webkit-scrollbar { display: none; }
+        .roll-badge {
+            width: 28px;
+            height: 28px;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+            font-weight: 800;
+            color: #FFF;
+            flex-shrink: 0;
+        }
+        .roll-badge.red { background: #EF4444; }
+        .roll-badge.black { background: #1E293B; border: 1px solid rgba(255, 255, 255, 0.15); }
+        .roll-badge.green { background: #10B981; }
+
+        .roulette-stage-box {
+            position: relative;
+            background: #07090E;
+            border: 2px solid rgba(99, 102, 241, 0.4);
+            border-radius: 18px;
+            height: 90px;
+            overflow: hidden;
+            margin-bottom: 16px;
+            box-shadow: inset 0 0 20px rgba(0, 0, 0, 0.8);
+        }
+        .stage-pointer {
+            position: absolute;
+            left: 50%;
+            top: 0;
+            bottom: 0;
+            width: 3px;
+            background: #F59E0B;
+            transform: translateX(-50%);
+            z-index: 10;
+            box-shadow: 0 0 10px #F59E0B, 0 0 20px #F59E0B;
+        }
+        .pointer-triangle-top {
+            position: absolute;
+            left: 50%;
+            top: 0;
+            transform: translateX(-50%);
+            width: 0;
+            height: 0;
+            border-left: 8px solid transparent;
+            border-right: 8px solid transparent;
+            border-top: 10px solid #F59E0B;
+            z-index: 11;
+        }
+        .pointer-triangle-bottom {
+            position: absolute;
+            left: 50%;
+            bottom: 0;
+            transform: translateX(-50%);
+            width: 0;
+            height: 0;
+            border-left: 8px solid transparent;
+            border-right: 8px solid transparent;
+            border-bottom: 10px solid #F59E0B;
+            z-index: 11;
+        }
+        .roulette-track {
+            display: flex;
+            align-items: center;
+            height: 100%;
+            gap: 8px;
+            padding: 0 10px;
+            will-change: transform;
+        }
+        .r-tile {
+            width: 64px;
+            height: 64px;
+            border-radius: 14px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+            font-weight: 900;
+            color: #FFF;
+            flex-shrink: 0;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.2);
+            border: 1px solid rgba(255,255,255,0.15);
+        }
+        .r-tile.red { background: linear-gradient(145deg, #EF4444, #B91C1C); }
+        .r-tile.black { background: linear-gradient(145deg, #1E293B, #0F172A); }
+        .r-tile.green { background: linear-gradient(145deg, #10B981, #047857); border-color: #34D399; }
+        .r-tile-sub { font-size: 9px; opacity: 0.85; text-transform: uppercase; letter-spacing: 0.5px; margin-top: 2px; }
+
+        .bet-control-container {
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 16px;
+            padding: 12px 16px;
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        .bet-input-wrap {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex: 1;
+        }
+        .bet-symbol {
+            font-size: 22px;
+            font-weight: 800;
+            color: #10B981;
+        }
+        .bet-input {
+            background: transparent;
+            border: none;
+            outline: none;
+            font-size: 22px;
+            font-weight: 900;
+            color: #FFF;
+            width: 100%;
+        }
+
+        .quick-chips-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 6px;
+            margin-bottom: 18px;
+        }
+        .chip-btn {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid var(--border-color);
+            border-radius: 10px;
+            padding: 8px 0;
+            font-size: 12px;
+            font-weight: 700;
+            color: var(--text-muted);
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.15s;
+        }
+        .chip-btn:active {
+            transform: scale(0.92);
+            background: rgba(59, 130, 246, 0.2);
+            color: #FFF;
+            border-color: #3B82F6;
+        }
+
+        .roulette-bet-actions {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 10px;
+        }
+        .bet-action-card {
+            border-radius: 16px;
+            padding: 16px 8px;
+            text-align: center;
+            color: #FFF;
+            cursor: pointer;
+            transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+            position: relative;
+            overflow: hidden;
+            border: 1px solid transparent;
+        }
+        .bet-action-card:active { transform: scale(0.94); }
+        .bet-action-card.red-bet {
+            background: linear-gradient(145deg, #EF4444 0%, #B91C1C 100%);
+            box-shadow: 0 6px 20px rgba(239, 68, 68, 0.4);
+            border-color: rgba(255, 255, 255, 0.2);
+        }
+        .bet-action-card.green-bet {
+            background: linear-gradient(145deg, #10B981 0%, #047857 100%);
+            box-shadow: 0 6px 20px rgba(16, 185, 129, 0.4);
+            border-color: rgba(52, 211, 153, 0.4);
+        }
+        .bet-action-card.black-bet {
+            background: linear-gradient(145deg, #1E293B 0%, #0F172A 100%);
+            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.6);
+            border-color: rgba(255, 255, 255, 0.15);
+        }
+        .action-main-title { font-size: 16px; font-weight: 900; margin-bottom: 2px; }
+        .action-mult-badge { font-size: 11px; font-weight: 700; opacity: 0.9; }
+        .roulette-status-text { margin-top: 14px; text-align: center; font-size: 14px; font-weight: 700; min-height: 24px; }
+
+        /* Chests */
+        .chests-container { display: flex; flex-direction: column; gap: 14px; }
+        .chest-card { border-radius: 20px; padding: 18px; position: relative; overflow: hidden; box-shadow: 0 10px 30px rgba(0,0,0,0.35); transition: transform 0.2s; }
+        .chest-card:active { transform: scale(0.98); }
+        .chest-silver { background: linear-gradient(135deg, rgba(30, 41, 59, 0.8) 0%, rgba(15, 23, 42, 0.95) 100%); border: 1px solid rgba(148, 163, 184, 0.3); }
+        .chest-gold { background: linear-gradient(135deg, rgba(245, 158, 11, 0.15) 0%, rgba(15, 23, 42, 0.95) 100%); border: 1px solid rgba(245, 158, 11, 0.4); box-shadow: 0 10px 30px rgba(245, 158, 11, 0.15); }
+        .chest-mythic { background: linear-gradient(135deg, rgba(239, 68, 68, 0.2) 0%, rgba(139, 92, 246, 0.25) 50%, rgba(15, 23, 42, 0.95) 100%); border: 1px solid rgba(239, 68, 68, 0.5); box-shadow: 0 12px 35px rgba(239, 68, 68, 0.2); }
+        .chest-inner-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+        .chest-info-group { display: flex; align-items: center; gap: 14px; }
+        .chest-icon-box { width: 56px; height: 56px; border-radius: 16px; display: flex; align-items: center; justify-content: center; font-size: 30px; flex-shrink: 0; }
+        .chest-silver .chest-icon-box { background: rgba(148, 163, 184, 0.15); border: 1px solid rgba(148, 163, 184, 0.3); }
+        .chest-gold .chest-icon-box { background: rgba(245, 158, 11, 0.2); border: 1px solid rgba(245, 158, 11, 0.4); }
+        .chest-mythic .chest-icon-box { background: rgba(239, 68, 68, 0.25); border: 1px solid rgba(239, 68, 68, 0.5); }
+        .chest-details h4 { font-size: 16px; font-weight: 800; color: #FFF; margin-bottom: 4px; }
+        .chest-details p { font-size: 12px; color: var(--text-muted); line-height: 1.3; }
+        .chest-open-btn { padding: 10px 16px; border-radius: 12px; font-size: 13px; font-weight: 800; border: none; color: #FFF; cursor: pointer; white-space: nowrap; box-shadow: 0 4px 14px rgba(0,0,0,0.3); }
+        .chest-open-btn:active { transform: scale(0.92); }
+        .chest-silver .chest-open-btn { background: #3B82F6; }
+        .chest-gold .chest-open-btn { background: linear-gradient(135deg, #F59E0B, #D97706); }
+        .chest-mythic .chest-open-btn { background: linear-gradient(135deg, #EF4444, #9333EA); }
+        .chest-highlight-badge { background: rgba(0,0,0,0.35); border-radius: 10px; padding: 6px 10px; font-size: 11px; font-weight: 700; color: #F87171; text-align: center; margin-top: 10px; border: 1px dashed rgba(239, 68, 68, 0.3); }
+
+        /* ===================================================================
+           🎭 ROLLAR & 👥 GURUHIM STYLES
+           =================================================================== */
+        .search-box {
+            background: #0F1420;
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            padding: 10px 14px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 12px;
+        }
+        .search-box input {
+            background: transparent;
+            border: none;
+            outline: none;
+            color: #FFF;
+            font-size: 14px;
+            width: 100%;
+        }
+        .role-cards-grid { display: flex; flex-direction: column; gap: 10px; }
+        .role-card { background: #0F1420; border: 1px solid var(--border-color); border-radius: 16px; padding: 14px; }
+        .role-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+        .role-identity { display: flex; align-items: center; gap: 10px; }
+        .role-icon-box { width: 36px; height: 36px; border-radius: 10px; background: rgba(255, 255, 255, 0.04); display: flex; align-items: center; justify-content: center; font-size: 18px; }
+        .role-name { font-size: 15px; font-weight: 800; color: #FFF; }
+        .role-badge { font-size: 11px; font-weight: 700; padding: 4px 8px; border-radius: 8px; }
+        .role-badge.badge-town { background: rgba(16, 185, 129, 0.15); color: #10B981; }
+        .role-badge.badge-mafia { background: rgba(239, 68, 68, 0.15); color: #EF4444; }
+        .role-badge.badge-solo { background: rgba(245, 158, 11, 0.15); color: #F59E0B; }
+        .role-desc { font-size: 12px; color: var(--text-muted); line-height: 1.4; }
+
+        /* Group Cabinet UI */
+        .group-login-card {
+            background: #0F1420;
+            border: 1px solid var(--border-color);
+            border-radius: 20px;
+            padding: 22px 18px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+        }
+        .group-item-card {
+            background: #0F1420;
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            padding: 14px;
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .group-item-card:hover { border-color: rgba(99, 102, 241, 0.5); transform: translateY(-2px); }
+        .group-item-card:active { transform: scale(0.98); }
+
+        /* 📱 BOTTOM NAVIGATION BAR */
+        .bottom-nav {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            height: 70px;
+            background: rgba(7, 9, 14, 0.92);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border-top: 1px solid var(--border-color);
+            display: flex;
+            justify-content: space-around;
+            align-items: center;
+            z-index: 100;
+            padding-bottom: env(safe-area-inset-bottom);
+        }
+        .nav-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 4px;
+            color: var(--text-muted);
+            font-size: 11px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+            padding: 6px 12px;
+            border-radius: 14px;
+        }
+        .nav-item .nav-icon { font-size: 20px; transition: transform 0.2s; }
+        .nav-item.active { color: #38BDF8; }
+        .nav-item.active .nav-icon { transform: scale(1.15) translateY(-2px); }
+        .nav-item:active { transform: scale(0.92); }
+
+        /* MODALS */
+        .modal-overlay {
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0, 0, 0, 0.85);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 200;
+            padding: 20px;
+        }
+        .modal-overlay.active { display: flex; animation: modalFadeIn 0.3s cubic-bezier(0.16, 1, 0.3, 1); }
+        @keyframes modalFadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+        .modal-card {
+            background: linear-gradient(165deg, #161F36 0%, #0D1322 100%);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            border-radius: 26px;
+            padding: 24px 20px;
+            width: 100%;
+            max-width: 350px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.8);
+            position: relative;
+        }
+
+        .modal-action-btn {
+            width: 100%;
+            padding: 12px 0;
+            border-radius: 14px;
+            background: linear-gradient(135deg, #3B82F6 0%, #8B5CF6 100%);
+            border: none;
+            color: #FFF;
+            font-size: 15px;
+            font-weight: 800;
+            cursor: pointer;
+            box-shadow: 0 6px 20px rgba(59, 130, 246, 0.4);
+            transition: all 0.2s;
+            margin-top: 10px;
+        }
+        .modal-action-btn:active { transform: scale(0.95); }
+
+        /* Toast Notifications */
+        .toast-container {
+            position: fixed;
+            top: 65px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 300;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            pointer-events: none;
+            width: 90%;
+            max-width: 360px;
+        }
+        .toast {
+            background: rgba(15, 23, 42, 0.95);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 14px;
+            padding: 12px 16px;
+            font-size: 13px;
+            font-weight: 700;
+            color: #FFF;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            animation: toastSlideDown 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+        .toast.success { border-color: rgba(16, 185, 129, 0.5); color: #34D399; }
+        .toast.error { border-color: rgba(239, 68, 68, 0.5); color: #F87171; }
+        @keyframes toastSlideDown { from { transform: translateY(-20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+    </style>
+</head>
+<body>
+
+    <!-- 🌟 TOP FLOATING HEADER -->
+    <div class="header">
+        <div class="header-left">
+            <div class="brand-badge">
+                <span>🕵🏻‍♂️</span> Mafia Father
+            </div>
+        </div>
+        <div class="header-balance-bar">
+            {% if is_owner %}
+            <div class="header-pill vip" id="topHeaderMoney">
+                <span>👑 VIP (Cheksiz)</span>
+            </div>
+            <div class="header-pill vip" id="topHeaderDiamonds">
+                <span>💎 VIP (Cheksiz)</span>
+            </div>
+            {% else %}
+            <div class="header-pill money" id="topHeaderMoney">
+                <span>💶</span> <span id="topMoneyVal">{{ money|default:"0" }}</span>
+            </div>
+            <div class="header-pill dia" id="topHeaderDiamonds">
+                <span>💎</span> <span id="topDiaVal">{{ diamonds|default:"0" }}</span>
+            </div>
+            {% endif %}
+            <div class="notif-bell" onclick="showNotificationCenter()">
+                <span>🔔</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- 🍞 TOAST CONTAINER -->
+    <div class="toast-container" id="toastContainer"></div>
+
+    <!-- 📦 MAIN CONTAINER -->
+    <div class="container">
+
+        <!-- ===================================================================
+             👤 TAB 1: PROFIL
+             =================================================================== -->
+        <div id="tabProfile" class="tab-content {% if active_tab == 'profile' or not active_tab %}active{% endif %}">
+            
+            <!-- User Basic Identity Card -->
+            <div class="user-card {% if is_owner %}vip-card{% endif %}">
+                <div class="user-info">
+                    <div class="avatar {{ rank_badge|default:'rank-novice' }}" id="profileAvatar">
+                        {{ avatar_letter|default:"👤" }}
+                    </div>
+                    <div class="user-details">
+                        <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
+                            <h2>{{ display_name|default:"O'yinchi" }}</h2>
+                            <span class="rank-tag {{ rank_badge|default:'rank-novice' }}" id="userRankTag">{{ rank_title|default:"🌱 YOSH FUQARO" }}</span>
+                        </div>
+                        <div class="balance-badge">
+                            {% if is_owner %}
+                            <span style="color: #F59E0B; font-weight: 800;">$ VIP (Cheksiz)</span>
+                            <span>•</span>
+                            <span style="color: #38BDF8; font-weight: 800;">💎 VIP (Cheksiz)</span>
+                            {% else %}
+                            <span id="userMoney">$ {{ money|default:"0" }}</span>
+                            <span>•</span>
+                            <span class="diamonds" id="userDiamonds">💎 {{ diamonds|default:"0" }}</span>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+                <div class="header-pill" style="font-size: 11px; background: rgba(59, 130, 246, 0.15); color: #60A5FA; border-color: rgba(59, 130, 246, 0.3);">
+                    ID: {{ tg_id }}
+                </div>
+            </div>
+
+            <!-- 📊 CREATIVE WIN RATE PROGRESS BAR -->
+            <div class="winrate-container">
+                <div class="winrate-header">
+                    <span style="color: var(--text-muted); display: flex; align-items: center; gap: 5px;">
+                        <span>🎯</span> G'alaba ko'rsatkichi
+                    </span>
+                    <span style="color: #10B981; font-weight: 800;">{{ win_rate|default:"0%" }}</span>
+                </div>
+                <div class="winrate-track">
+                    <div class="winrate-fill" style="width: {{ win_rate_num|default:0 }}%;"></div>
+                </div>
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 8px; font-size: 11px; color: var(--text-muted);">
+                    <span>🎮 O'yinlar: <b>{{ total_games|default:"0" }}</b></span>
+                    <span>🏆 G'alabalar: <b style="color: #34D399;">{{ total_wins|default:"0" }}</b></span>
+                </div>
+            </div>
+
+            <!-- 💸 FUNDS TRANSFER ACTION BUTTONS -->
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 12px; margin-bottom: 4px;">
+                <div onclick="openTransferModal('MONEY')" style="background: linear-gradient(135deg, rgba(16, 185, 129, 0.15) 0%, rgba(5, 150, 105, 0.25) 100%); border: 1px solid rgba(16, 185, 129, 0.35); border-radius: 16px; padding: 12px 14px; display: flex; align-items: center; justify-content: space-between; cursor: pointer; transition: all 0.2s;">
+                    <div style="display: flex; align-items: center; gap: 10px;">
+                        <span style="font-size: 22px;">💸</span>
+                        <div>
+                            <div style="font-size: 13px; font-weight: 800; color: #34D399;">Dollar Ulashish</div>
+                            <div style="font-size: 10px; color: var(--text-muted);">Boshqa o'yinchiga</div>
+                        </div>
+                    </div>
+                    <span style="color: #34D399; font-size: 14px; font-weight: 900;">➔</span>
+                </div>
+                <div onclick="openTransferModal('DIAMONDS')" style="background: linear-gradient(135deg, rgba(56, 189, 248, 0.15) 0%, rgba(14, 165, 233, 0.25) 100%); border: 1px solid rgba(56, 189, 248, 0.35); border-radius: 16px; padding: 12px 14px; display: flex; align-items: center; justify-content: space-between; cursor: pointer; transition: all 0.2s;">
+                    <div style="display: flex; align-items: center; gap: 10px;">
+                        <span style="font-size: 22px;">💎</span>
+                        <div>
+                            <div style="font-size: 13px; font-weight: 800; color: #38BDF8;">Olmos Ulashish</div>
+                            <div style="font-size: 10px; color: var(--text-muted);">Boshqa o'yinchiga</div>
+                        </div>
+                    </div>
+                    <span style="color: #38BDF8; font-size: 14px; font-weight: 900;">➔</span>
+                </div>
+            </div>
+
+            <!-- 🥷 GEROY SHOWCASE CARD -->
+            <div class="hero-banner-card" id="heroShowcaseCard" style="{% if not hero %}display: none;{% endif %}">
+                <div class="hero-header-row">
+                    <div class="hero-title-box">
+                        <div class="hero-avatar-box">🥷</div>
+                        <div>
+                            <div class="hero-name" id="heroCardName">{% if hero %}{{ hero.name }}{% else %}Mening Geroyim{% endif %}</div>
+                            <div class="hero-sub" id="heroCardLevel">{% if hero %}{{ hero.level }}-Daraja ({{ hero.power_min }}%-{{ hero.power_max }}% otish){% else %}1-Daraja (50%-60% otish){% endif %}</div>
+                        </div>
+                    </div>
+                    <div class="hero-status-tag {% if hero and not hero.is_active %}inactive{% endif %}" id="heroCardStatusTag">
+                        {% if hero %}{% if hero.is_active %}Faol{% else %}O'chirilgan{% endif %}{% else %}Mavjud emas{% endif %}
+                    </div>
+                </div>
+
+                <div class="hero-meter-row">
+                    <div class="hero-meter-card">
+                        <div class="hero-meter-label">⚡️ Qolgan Zaryad</div>
+                        <div class="hero-meter-val" id="heroCardCharges">{% if hero %}{{ hero.charges }} / 10{% else %}0 / 10{% endif %}</div>
+                    </div>
+                    <div class="hero-meter-card">
+                        <div class="hero-meter-label">🎯 O'ldirilganlar bali</div>
+                        <div class="hero-meter-val" id="heroCardScore">{% if hero %}{{ hero.score }} Ball{% else %}0 Ball{% endif %}</div>
+                    </div>
+                </div>
+
+                <div class="hero-actions-grid">
+                    <div class="hero-btn primary" onclick="rechargeHeroAction()">🔋 Zaryadlash (+1 💎)</div>
+                    <div class="hero-btn" onclick="renameHeroPrompt()">✏️ Nomlash (5💎)</div>
+                    <div class="hero-btn" onclick="transferHeroPrompt()">🎁 Berish</div>
+                </div>
+            </div>
+
+            <!-- Stats Grid -->
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-label">G'alabalar</div>
+                    <div class="stat-val green">{{ total_wins|default:"0" }}</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Jami O'yinlar</div>
+                    <div class="stat-val">{{ total_games|default:"0" }}</div>
+                </div>
+            </div>
+
+            <!-- Clan Card -->
+            <div class="clan-card">
+                <div class="clan-icon">🛡</div>
+                <div class="clan-details">
+                    <div class="clan-sub">A'zo bo'lgan klan / maqom</div>
+                    <div class="clan-title">{{ clan_name|default:"Mavjud emas" }}</div>
+                </div>
+            </div>
+
+            <!-- Active Defenses -->
+            <div class="section-title">
+                <span>🛡 Faol Himoyalar</span>
+            </div>
+            <div class="defense-list">
+                <div class="defense-card">
+                    <div class="defense-info">
+                        <div class="def-icon-box">🛡</div>
+                        <div class="def-details">
+                            <h4>Asosiy Himoya</h4>
+                            <p>Tungi otishmalardan 1 martalik qalqon</p>
+                        </div>
+                    </div>
+                    <div class="def-status-badge {% if not inv_state.himoya.count %}inactive{% endif %}">
+                        {% if inv_state.himoya.count %}{{ inv_state.himoya.count }} ta{% else %}Yo'q{% endif %}
+                    </div>
+                </div>
+                <div class="defense-card">
+                    <div class="defense-info">
+                        <div class="def-icon-box">📁</div>
+                        <div class="def-details">
+                            <h4>Soxta Hujjat</h4>
+                            <p>Komissar tekshirganda tinch aholi bo'lib ko'rinish</p>
+                        </div>
+                    </div>
+                    <div class="def-status-badge {% if not inv_state.hujjat.count %}inactive{% endif %}">
+                        {% if inv_state.hujjat.count %}{{ inv_state.hujjat.count }} ta{% else %}Yo'q{% endif %}
+                    </div>
+                </div>
+                <div class="defense-card">
+                    <div class="defense-info">
+                        <div class="def-icon-box">🔰</div>
+                        <div class="def-details">
+                            <h4>Geroydan Himoya</h4>
+                            <p>Kunduzgi Geroy o'qlaridan 100% zararsizlanish</p>
+                        </div>
+                    </div>
+                    <div class="def-status-badge {% if not inv_state.geroy_himoya.count %}inactive{% endif %}">
+                        {% if inv_state.geroy_himoya.count %}{{ inv_state.geroy_himoya.count }} ta{% else %}Yo'q{% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+
+                <!-- ===================================================================
+             🎒 TAB 2: DO'KON (DYNAMIC PRICES FROM SUPERADMIN)
+             =================================================================== -->
+        <div id="tabShop" class="tab-content {% if active_tab == 'shop' %}active{% endif %}">
+            <div class="filter-scroll">
+                <div class="filter-chip active" onclick="filterShopCategory('all', this)">Barchasi</div>
+                <div class="filter-chip" onclick="filterShopCategory('special', this)">🥷 Geroy & VIP</div>
+                <div class="filter-chip" onclick="filterShopCategory('items', this)">🛡 Himoyalar</div>
+                <div class="filter-chip" onclick="filterShopCategory('town', this)">🏛 Tinch Rollar</div>
+                <div class="filter-chip" onclick="filterShopCategory('mafia', this)">🤵🏻 Mafia Rollar</div>
+                <div class="filter-chip" onclick="filterShopCategory('solo', this)">🃏 Yakka Rollar</div>
+            </div>
+
+            <div class="shop-grid" id="shopItemsGrid">
+                <!-- 🥷 GEROY & VIP -->
+                <div class="shop-card" data-shop-cat="special">
+                    <div class="shop-item-left">
+                        <div class="shop-icon-box" style="background: rgba(139, 92, 246, 0.2); color: #C084FC;">🥷</div>
+                        <div class="shop-item-details">
+                            <h4>Shaxsiy Geroy Yaratish</h4>
+                            <p>Kunduzgi otish, maxsus nom va qudratli darajalar</p>
+                        </div>
+                    </div>
+                    <button class="buy-action-btn dia" onclick="buyHeroPrompt()">{{ prices.geroy|default:80 }} 💎</button>
+                </div>
+
+                <div class="shop-card" data-shop-cat="special">
+                    <div class="shop-item-left">
+                        <div class="shop-icon-box" style="background: rgba(239, 68, 68, 0.2); color: #F87171;">🔰</div>
+                        <div class="shop-item-details">
+                            <h4>Geroydan Himoya</h4>
+                            <p>Kunduzi Geroy otganda 100% zararni qaytaradi</p>
+                        </div>
+                    </div>
+                    <button class="buy-action-btn dia" onclick="buyItem('geroy_himoya')">{{ prices.geroy_himoya|default:3 }} 💎</button>
+                </div>
+
+                <div class="shop-card" data-shop-cat="special">
+                    <div class="shop-item-left">
+                        <div class="shop-icon-box" style="background: rgba(245, 158, 11, 0.2); color: #FBBF24;">⭐️</div>
+                        <div class="shop-item-details">
+                            <h4>VIP Obuna (30 kun)</h4>
+                            <p>0% komissiya, oltin nishon va eksklyuziv imkoniyatlar</p>
+                        </div>
+                    </div>
+                    <button class="buy-action-btn dia" onclick="buyItem('vip_30')">{{ prices.vip_30|default:30 }} 💎</button>
+                </div>
+
+                <!-- 🛡 HIMOYALAR VA BUYUMLAR -->
+                <div class="shop-card" data-shop-cat="items">
+                    <div class="shop-item-left">
+                        <div class="shop-icon-box">🛡</div>
+                        <div class="shop-item-details">
+                            <h4>Asosiy Himoya</h4>
+                            <p>Tungi suiqasdlardan 1 marta hayotingizni saqlaydi</p>
+                        </div>
+                    </div>
+                    <button class="buy-action-btn" onclick="buyItem('himoya')">{{ prices.himoya|default:300 }} 💶</button>
+                </div>
+
+                <div class="shop-card" data-shop-cat="items">
+                    <div class="shop-item-left">
+                        <div class="shop-icon-box">📁</div>
+                        <div class="shop-item-details">
+                            <h4>Soxta Hujjat</h4>
+                            <p>Komissar tekshirganda tinch aholi bo'lib ko'rinish</p>
+                        </div>
+                    </div>
+                    <button class="buy-action-btn" onclick="buyItem('hujjat')">{{ prices.hujjat|default:200 }} 💶</button>
+                </div>
+
+                <div class="shop-card" data-shop-cat="items">
+                    <div class="shop-item-left">
+                        <div class="shop-icon-box">⚖️</div>
+                        <div class="shop-item-details">
+                            <h4>Ovozdan Himoya</h4>
+                            <p>Kunduzgi ovoz berishda osilishdan 1 marta qutqaradi</p>
+                        </div>
+                    </div>
+                    <button class="buy-action-btn dia" onclick="buyItem('osish_himoya')">{{ prices.osish_himoya|default:1 }} 💎</button>
+                </div>
+
+                <div class="shop-card" data-shop-cat="items">
+                    <div class="shop-item-left">
+                        <div class="shop-icon-box">💊</div>
+                        <div class="shop-item-details">
+                            <h4>Doridan Himoya</h4>
+                            <p>Kimyogar zahari va dorisidan 100% himoya qiladi</p>
+                        </div>
+                    </div>
+                    <button class="buy-action-btn" onclick="buyItem('dori_himoya')">{{ prices.dori_himoya|default:130 }} 💶</button>
+                </div>
+
+                <div class="shop-card" data-shop-cat="items">
+                    <div class="shop-item-left">
+                        <div class="shop-icon-box">💉</div>
+                        <div class="shop-item-details">
+                            <h4>Zombi Vaksinasi</h4>
+                            <p>Zombi tishlaganda zombiga aylanmasdan davolanish</p>
+                        </div>
+                    </div>
+                    <button class="buy-action-btn" onclick="buyItem('vaksina')">{{ prices.vaksina|default:150 }} 💶</button>
+                </div>
+
+                <div class="shop-card" data-shop-cat="items">
+                    <div class="shop-item-left">
+                        <div class="shop-icon-box">⛸</div>
+                        <div class="shop-item-details">
+                            <h4>Sirpanishdan Himoya</h4>
+                            <p>Tungi tuzoq va sirpanishlardan xavfsiz o'tish</p>
+                        </div>
+                    </div>
+                    <button class="buy-action-btn" onclick="buyItem('sirpanish_himoya')">{{ prices.sirpanish_himoya|default:150 }} 💶</button>
+                </div>
+
+                <!-- 🏛 TINCH AHOLI ROLLARI -->
+                <div class="shop-card" data-shop-cat="town">
+                    <div class="shop-item-left">
+                        <div class="shop-icon-box">👨🏼</div>
+                        <div class="shop-item-details">
+                            <h4>Tinch aholi Roli</h4>
+                            <p>Oddiy fuqaro sifatida o'yin boshlash</p>
+                        </div>
+                    </div>
+                    <button class="buy-action-btn" onclick="buyItem('role_citizen')">{{ prices.role_citizen|default:100 }} 💶</button>
+                </div>
+
+                <div class="shop-card" data-shop-cat="town">
+                    <div class="shop-item-left">
+                        <div class="shop-icon-box">👨🏼‍⚕️</div>
+                        <div class="shop-item-details">
+                            <h4>Shifokor Roli</h4>
+                            <p>Har tunda bir begunohni o'limdan davolash</p>
+                        </div>
+                    </div>
+                    <button class="buy-action-btn" onclick="buyItem('role_doctor')">{{ prices.role_doctor|default:400 }} 💶</button>
+                </div>
+
+                <div class="shop-card" data-shop-cat="town">
+                    <div class="shop-item-left">
+                        <div class="shop-icon-box">🕵🏻‍♂️</div>
+                        <div class="shop-item-details">
+                            <h4>Komissar Roli</h4>
+                            <p>Shahar himoyachisi, tekshirish va otish vakolati</p>
+                        </div>
+                    </div>
+                    <button class="buy-action-btn dia" onclick="buyItem('role_detective')">{{ prices.role_detective|default:8 }} 💎</button>
+                </div>
+
+                <div class="shop-card" data-shop-cat="town">
+                    <div class="shop-item-left">
+                        <div class="shop-icon-box">👮🏼‍♂️</div>
+                        <div class="shop-item-details">
+                            <h4>Serjant Roli</h4>
+                            <p>Komissarning o'rinbosari va vorisi</p>
+                        </div>
+                    </div>
+                    <button class="buy-action-btn" onclick="buyItem('role_serjant')">{{ prices.role_serjant|default:300 }} 💶</button>
+                </div>
+
+                <div class="shop-card" data-shop-cat="town">
+                    <div class="shop-item-left">
+                        <div class="shop-icon-box">👩🏼‍⚕️</div>
+                        <div class="shop-item-details">
+                            <h4>Hamshira Roli</h4>
+                            <p>Shifokor yordamchisi va vorisi</p>
+                        </div>
+                    </div>
+                    <button class="buy-action-btn" onclick="buyItem('role_hamshira')">{{ prices.role_hamshira|default:250 }} 💶</button>
+                </div>
+
+                <div class="shop-card" data-shop-cat="town">
+                    <div class="shop-item-left">
+                        <div class="shop-icon-box">🤞🏼</div>
+                        <div class="shop-item-details">
+                            <h4>Omadli Roli</h4>
+                            <p>50% ehtimol bilan tungi o'limdan tirik qolish</p>
+                        </div>
+                    </div>
+                    <button class="buy-action-btn" onclick="buyItem('role_omadli')">{{ prices.role_omadli|default:350 }} 💶</button>
+                </div>
+
+                <div class="shop-card" data-shop-cat="town">
+                    <div class="shop-item-left">
+                        <div class="shop-icon-box">🎖</div>
+                        <div class="shop-item-details">
+                            <h4>Janob Roli</h4>
+                            <p>Ovozi 2 ta hisoblanadigan sharafli fuqaro</p>
+                        </div>
+                    </div>
+                    <button class="buy-action-btn dia" onclick="buyItem('role_janob')">{{ prices.role_janob|default:5 }} 💎</button>
+                </div>
+
+                <div class="shop-card" data-shop-cat="town">
+                    <div class="shop-item-left">
+                        <div class="shop-icon-box">🤓</div>
+                        <div class="shop-item-details">
+                            <h4>Sotqin Roli</h4>
+                            <p>Tunda josuslik qilib ertalab fosh qilish</p>
+                        </div>
+                    </div>
+                    <button class="buy-action-btn" onclick="buyItem('role_sotqin')">{{ prices.role_sotqin|default:300 }} 💶</button>
+                </div>
+
+                <div class="shop-card" data-shop-cat="town">
+                    <div class="shop-item-left">
+                        <div class="shop-icon-box">🧑🏻‍✈️</div>
+                        <div class="shop-item-details">
+                            <h4>Admiral Roli</h4>
+                            <p>Komissar tirik ekan o'lmas himoyaga ega</p>
+                        </div>
+                    </div>
+                    <button class="buy-action-btn dia" onclick="buyItem('role_admiral')">{{ prices.role_admiral|default:6 }} 💎</button>
+                </div>
+
+                <div class="shop-card" data-shop-cat="town">
+                    <div class="shop-item-left">
+                        <div class="shop-icon-box">🏹</div>
+                        <div class="shop-item-details">
+                            <h4>Robin Gud Roli</h4>
+                            <p>Tunda dushmanlarga kamon o'qi uzish</p>
+                        </div>
+                    </div>
+                    <button class="buy-action-btn" onclick="buyItem('role_robingud')">{{ prices.role_robingud|default:450 }} 💶</button>
+                </div>
+
+                <div class="shop-card" data-shop-cat="town">
+                    <div class="shop-item-left">
+                        <div class="shop-icon-box">📸</div>
+                        <div class="shop-item-details">
+                            <h4>Fotoparatchi Roli</h4>
+                            <p>Tungi mehmonlarni rasmga olib shahar ahlini ogohlantirish</p>
+                        </div>
+                    </div>
+                    <button class="buy-action-btn" onclick="buyItem('role_fotoparatchi')">{{ prices.role_fotoparatchi|default:250 }} 💶</button>
+                </div>
+
+                <div class="shop-card" data-shop-cat="town">
+                    <div class="shop-item-left">
+                        <div class="shop-icon-box">🍾</div>
+                        <div class="shop-item-details">
+                            <h4>Daydi Roli</h4>
+                            <p>Tunda mehmondorchilik va hodisalarga guvohlik</p>
+                        </div>
+                    </div>
+                    <button class="buy-action-btn" onclick="buyItem('role_daydi')">{{ prices.role_daydi|default:200 }} 💶</button>
+                </div>
+
+                <div class="shop-card" data-shop-cat="town">
+                    <div class="shop-item-left">
+                        <div class="shop-icon-box">💃</div>
+                        <div class="shop-item-details">
+                            <h4>Kezuvchi Roli</h4>
+                            <p>Tanlangan shaxsning tungi va kunduzgi harakatini bloklash</p>
+                        </div>
+                    </div>
+                    <button class="buy-action-btn" onclick="buyItem('role_kezuvchi')">{{ prices.role_kezuvchi|default:300 }} 💶</button>
+                </div>
+
+                <!-- 🤵🏻 MAFIA ROLLARI -->
+                <div class="shop-card" data-shop-cat="mafia">
+                    <div class="shop-item-left">
+                        <div class="shop-icon-box">🤵🏻</div>
+                        <div class="shop-item-details">
+                            <h4>Don Roli</h4>
+                            <p>Mafiyalar yetakchisi, tekshiruvda begunoh ko'rinish</p>
+                        </div>
+                    </div>
+                    <button class="buy-action-btn dia" onclick="buyItem('role_don')">{{ prices.role_don|default:10 }} 💎</button>
+                </div>
+
+                <div class="shop-card" data-shop-cat="mafia">
+                    <div class="shop-item-left">
+                        <div class="shop-icon-box">🤵🏼</div>
+                        <div class="shop-item-details">
+                            <h4>Mafia Roli</h4>
+                            <p>Klan a'zosi va Donning sodiq jangchisi</p>
+                        </div>
+                    </div>
+                    <button class="buy-action-btn" onclick="buyItem('role_mafia')">{{ prices.role_mafia|default:400 }} 💶</button>
+                </div>
+
+                <div class="shop-card" data-shop-cat="mafia">
+                    <div class="shop-item-left">
+                        <div class="shop-icon-box">💼</div>
+                        <div class="shop-item-details">
+                            <h4>Advokat Roli</h4>
+                            <p>Mafiya a'zolarini Komissar tekshiruvidan himoya qilish</p>
+                        </div>
+                    </div>
+                    <button class="buy-action-btn" onclick="buyItem('role_advokat')">{{ prices.role_advokat|default:350 }} 💶</button>
+                </div>
+
+                <div class="shop-card" data-shop-cat="mafia">
+                    <div class="shop-item-left">
+                        <div class="shop-icon-box">🥷</div>
+                        <div class="shop-item-details">
+                            <h4>Ubiytsa Roli</h4>
+                            <p>Yollanma qotil, har tunda bitta nishonni yo'q qilish</p>
+                        </div>
+                    </div>
+                    <button class="buy-action-btn" onclick="buyItem('role_ubiytsa')">{{ prices.role_ubiytsa|default:500 }} 💶</button>
+                </div>
+
+                <div class="shop-card" data-shop-cat="mafia">
+                    <div class="shop-item-left">
+                        <div class="shop-icon-box">👩🏼‍💻</div>
+                        <div class="shop-item-details">
+                            <h4>Jurnalist Roli</h4>
+                            <p>Mehmonga kelganlarni kuzatib Mafiyaga xabar berish</p>
+                        </div>
+                    </div>
+                    <button class="buy-action-btn" onclick="buyItem('role_jurnalist')">{{ prices.role_jurnalist|default:350 }} 💶</button>
+                </div>
+
+                <div class="shop-card" data-shop-cat="mafia">
+                    <div class="shop-item-left">
+                        <div class="shop-icon-box">🦇</div>
+                        <div class="shop-item-details">
+                            <h4>Ayg'oqchi Roli</h4>
+                            <p>Tunda istalgan o'yinchining rolini aniqlab berish</p>
+                        </div>
+                    </div>
+                    <button class="buy-action-btn dia" onclick="buyItem('role_aygoqchi')">{{ prices.role_aygoqchi|default:6 }} 💎</button>
+                </div>
+
+                <div class="shop-card" data-shop-cat="mafia">
+                    <div class="shop-item-left">
+                        <div class="shop-icon-box">👩‍⚕️</div>
+                        <div class="shop-item-details">
+                            <h4>Laborant Roli</h4>
+                            <p>Mafiyani himoyalash va dushmanlarni zaharlash</p>
+                        </div>
+                    </div>
+                    <button class="buy-action-btn" onclick="buyItem('role_laborant')">{{ prices.role_laborant|default:400 }} 💶</button>
+                </div>
+
+                <!-- 🃏 YAKKA / NEUTRAL ROLLARI -->
+                <div class="shop-card" data-shop-cat="solo">
+                    <div class="shop-item-left">
+                        <div class="shop-icon-box">👨‍🔬</div>
+                        <div class="shop-item-details">
+                            <h4>Kimyogar Roli</h4>
+                            <p>Erkin shifokor va zaharlar ustasi</p>
+                        </div>
+                    </div>
+                    <button class="buy-action-btn" onclick="buyItem('role_kimyogar')">{{ prices.role_kimyogar|default:450 }} 💶</button>
+                </div>
+
+                <div class="shop-card" data-shop-cat="solo">
+                    <div class="shop-item-left">
+                        <div class="shop-icon-box">💰</div>
+                        <div class="shop-item-details">
+                            <h4>Rais Roli</h4>
+                            <p>Har tunda o'yinchilarga pul tarqatish, omon qolsa yutadi</p>
+                        </div>
+                    </div>
+                    <button class="buy-action-btn dia" onclick="buyItem('role_rais')">{{ prices.role_rais|default:8 }} 💎</button>
+                </div>
+
+                <div class="shop-card" data-shop-cat="solo">
+                    <div class="shop-item-left">
+                        <div class="shop-icon-box">🐺</div>
+                        <div class="shop-item-details">
+                            <h4>Bo'ri Roli</h4>
+                            <p>Mafiya o'ldirsa mafiyaga, komissar otsa serjantga aylanadi</p>
+                        </div>
+                    </div>
+                    <button class="buy-action-btn" onclick="buyItem('role_bori')">{{ prices.role_bori|default:500 }} 💶</button>
+                </div>
+
+                <div class="shop-card" data-shop-cat="solo">
+                    <div class="shop-item-left">
+                        <div class="shop-icon-box">🤹🏻</div>
+                        <div class="shop-item-details">
+                            <h4>Aferist Roli</h4>
+                            <p>Boshqalarning ovoz berish huquqini o'g'irlash</p>
+                        </div>
+                    </div>
+                    <button class="buy-action-btn dia" onclick="buyItem('role_aferist')">{{ prices.role_aferist|default:5 }} 💎</button>
+                </div>
+
+                <div class="shop-card" data-shop-cat="solo">
+                    <div class="shop-item-left">
+                        <div class="shop-icon-box">🧌</div>
+                        <div class="shop-item-details">
+                            <h4>G'azabkor Roli</h4>
+                            <p>O'lganida belgilangan barcha o'yinchilarni olib ketadi</p>
+                        </div>
+                    </div>
+                    <button class="buy-action-btn dia" onclick="buyItem('role_gazabkor')">{{ prices.role_gazabkor|default:6 }} 💎</button>
+                </div>
+
+                <div class="shop-card" data-shop-cat="solo">
+                    <div class="shop-item-left">
+                        <div class="shop-icon-box">🧙</div>
+                        <div class="shop-item-details">
+                            <h4>Sehrgar Roli</h4>
+                            <p>O'q o'tmas afsonaviy jodugar</p>
+                        </div>
+                    </div>
+                    <button class="buy-action-btn dia" onclick="buyItem('role_sehrgar')">{{ prices.role_sehrgar|default:10 }} 💎</button>
+                </div>
+
+                <div class="shop-card" data-shop-cat="solo">
+                    <div class="shop-item-left">
+                        <div class="shop-icon-box">🔪</div>
+                        <div class="shop-item-details">
+                            <h4>Qotil Roli</h4>
+                            <p>Yakka ovchi, har tunda 1 kishini qatl qilish</p>
+                        </div>
+                    </div>
+                    <button class="buy-action-btn dia" onclick="buyItem('role_qotil')">{{ prices.role_qotil|default:7 }} 💎</button>
+                </div>
+
+                <div class="shop-card" data-shop-cat="solo">
+                    <div class="shop-item-left">
+                        <div class="shop-icon-box">👷🏻‍♂️</div>
+                        <div class="shop-item-details">
+                            <h4>Konchi Roli</h4>
+                            <p>10 ta konda xazina izlash va boylik to'plash</p>
+                        </div>
+                    </div>
+                    <button class="buy-action-btn" onclick="buyItem('role_konchi')">{{ prices.role_konchi|default:300 }} 💶</button>
+                </div>
+
+                <div class="shop-card" data-shop-cat="solo">
+                    <div class="shop-item-left">
+                        <div class="shop-icon-box">⚔️</div>
+                        <div class="shop-item-details">
+                            <h4>Qaroqchi Roli</h4>
+                            <p>Tunda pullarni o'g'irlash va qochish</p>
+                        </div>
+                    </div>
+                    <button class="buy-action-btn" onclick="buyItem('role_qaroqchi')">{{ prices.role_qaroqchi|default:400 }} 💶</button>
+                </div>
+
+                <div class="shop-card" data-shop-cat="solo">
+                    <div class="shop-item-left">
+                        <div class="shop-icon-box">🎅🏻</div>
+                        <div class="shop-item-details">
+                            <h4>Qorbobo Roli</h4>
+                            <p>Har tunda aholiga sovg'alar va rollar ulashish</p>
+                        </div>
+                    </div>
+                    <button class="buy-action-btn dia" onclick="buyItem('role_qorbobo')">{{ prices.role_qorbobo|default:5 }} 💎</button>
+                </div>
+
+                <div class="shop-card" data-shop-cat="solo">
+                    <div class="shop-item-left">
+                        <div class="shop-icon-box">👨🏼‍🍳</div>
+                        <div class="shop-item-details">
+                            <h4>Oshpaz Roli</h4>
+                            <p>Maxsus taom orqali ovozlarni adashtirib yuborish</p>
+                        </div>
+                    </div>
+                    <button class="buy-action-btn" onclick="buyItem('role_oshpaz')">{{ prices.role_oshpaz|default:350 }} 💶</button>
+                </div>
+
+                <div class="shop-card" data-shop-cat="solo">
+                    <div class="shop-item-left">
+                        <div class="shop-icon-box">🧙🏼</div>
+                        <div class="shop-item-details">
+                            <h4>Afsungar Roli</h4>
+                            <p>O'ldirgan shaxsni birga olib ketadigan jodugar</p>
+                        </div>
+                    </div>
+                    <button class="buy-action-btn dia" onclick="buyItem('role_afsungar')">{{ prices.role_afsungar|default:5 }} 💎</button>
+                </div>
+
+                <div class="shop-card" data-shop-cat="solo">
+                    <div class="shop-item-left">
+                        <div class="shop-icon-box">🕸</div>
+                        <div class="shop-item-details">
+                            <h4>Tuzoqchi Roli</h4>
+                            <p>Uyiga kelgan har qanday mehmonni halok qilish</p>
+                        </div>
+                    </div>
+                    <button class="buy-action-btn" onclick="buyItem('role_tuzoqchi')">{{ prices.role_tuzoqchi|default:400 }} 💶</button>
+                </div>
+
+                <div class="shop-card" data-shop-cat="solo">
+                    <div class="shop-item-left">
+                        <div class="shop-icon-box">🤪</div>
+                        <div class="shop-item-details">
+                            <h4>Axmoq Roli</h4>
+                            <p>Tunda kalla qo'yish, Mafiyaga teginsa u o'ladi</p>
+                        </div>
+                    </div>
+                    <button class="buy-action-btn" onclick="buyItem('role_axmoq')">{{ prices.role_axmoq|default:250 }} 💶</button>
+                </div>
+
+                <div class="shop-card" data-shop-cat="solo">
+                    <div class="shop-item-left">
+                        <div class="shop-icon-box">🦎</div>
+                        <div class="shop-item-details">
+                            <h4>Buqalamun Roli</h4>
+                            <p>1-tunda tanlagan odamining roliga aylanadi</p>
+                        </div>
+                    </div>
+                    <button class="buy-action-btn dia" onclick="buyItem('role_buqalamun')">{{ prices.role_buqalamun|default:5 }} 💎</button>
+                </div>
+
+                <div class="shop-card" data-shop-cat="solo">
+                    <div class="shop-item-left">
+                        <div class="shop-icon-box">🃏</div>
+                        <div class="shop-item-details">
+                            <h4>Joker Roli</h4>
+                            <p>Qutilarga bomba joylab aholini sinovdan o'tkazish</p>
+                        </div>
+                    </div>
+                    <button class="buy-action-btn dia" onclick="buyItem('role_joker')">{{ prices.role_joker|default:8 }} 💎</button>
+                </div>
+
+                <div class="shop-card" data-shop-cat="solo">
+                    <div class="shop-item-left">
+                        <div class="shop-icon-box">🤡</div>
+                        <div class="shop-item-details">
+                            <h4>Suidsid Roli</h4>
+                            <p>Kunduzi o'zini osdirib yakka g'alaba qilish</p>
+                        </div>
+                    </div>
+                    <button class="buy-action-btn" onclick="buyItem('role_suidsid')">{{ prices.role_suidsid|default:300 }} 💶</button>
+                </div>
+
+                <div class="shop-card" data-shop-cat="solo">
+                    <div class="shop-item-left">
+                        <div class="shop-icon-box">🧟</div>
+                        <div class="shop-item-details">
+                            <h4>Zombi Roli</h4>
+                            <p>Har tunda boshqalarni tishlab zombiga aylantirish</p>
+                        </div>
+                    </div>
+                    <button class="buy-action-btn dia" onclick="buyItem('role_zombi')">{{ prices.role_zombi|default:5 }} 💎</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- ===================================================================
+             🎰 TAB 3: KAZINO (NEON ROULETTE & 3D LOOT BOXES)
+             =================================================================== -->
+        <div id="tabCasino" class="tab-content {% if active_tab == 'casino' %}active{% endif %}">
+            <div class="filter-scroll" style="margin-bottom: 16px;">
+                <div class="filter-chip active" id="chipRoulette" onclick="switchCasinoSub('roulette', this)">🎲 Neon Ruletka</div>
+                <div class="filter-chip" id="chipChests" onclick="switchCasinoSub('chests', this)">🎁 Omad Sandiqlari</div>
+            </div>
+
+            <!-- 🎲 SECTION 1: NEON ROULETTE -->
+            <div id="casinoRouletteSection">
+                <div class="roulette-vip-card">
+                    <div class="history-bar-wrap">
+                        <div class="history-title-row">
+                            <span>Oxirgi Tushganlar</span>
+                            <span style="color: #F59E0B; font-weight: 800;">🔥 HOT STREAK</span>
+                        </div>
+                        <div class="history-pills-row" id="rouletteHistoryRow">
+                            <div class="roll-badge red">32</div>
+                            <div class="roll-badge black">15</div>
+                            <div class="roll-badge red">19</div>
+                            <div class="roll-badge green">0</div>
+                            <div class="roll-badge red">21</div>
+                            <div class="roll-badge black">4</div>
+                            <div class="roll-badge red">25</div>
+                            <div class="roll-badge black">17</div>
+                        </div>
+                    </div>
+
+                    <div class="roulette-stage-box">
+                        <div class="pointer-triangle-top"></div>
+                        <div class="stage-pointer"></div>
+                        <div class="pointer-triangle-bottom"></div>
+                        <div class="roulette-track" id="rouletteTrack"></div>
+                    </div>
+
+                    <div class="bet-control-container">
+                        <div class="bet-input-wrap">
+                            <span class="bet-symbol">$</span>
+                            <input type="number" id="rouletteBetAmount" value="100" min="10" step="50" class="bet-input">
+                        </div>
+                    </div>
+
+                    <div class="quick-chips-grid">
+                        <div class="chip-btn" onclick="setRouletteBet(100)">+100</div>
+                        <div class="chip-btn" onclick="setRouletteBet(500)">+500</div>
+                        <div class="chip-btn" onclick="setRouletteBet(1000)">+1K</div>
+                        <div class="chip-btn" onclick="setRouletteBet(5000)">+5K</div>
+                        <div class="chip-btn" onclick="setRouletteBet(25000)">+25K</div>
+                        <div class="chip-btn" onclick="multiplyRouletteBet(0.5)">½</div>
+                        <div class="chip-btn" onclick="multiplyRouletteBet(2)">2X</div>
+                        <div class="chip-btn" onclick="setMaxRouletteBet()">MAX</div>
+                    </div>
+
+                    <div class="roulette-bet-actions">
+                        <div class="bet-action-card red-bet" id="btnBetRed" onclick="spinRouletteAction('red')">
+                            <div class="action-main-title">QIZIL</div>
+                            <div class="action-mult-badge">YUTUQ 2X</div>
+                        </div>
+                        <div class="bet-action-card green-bet" id="btnBetGreen" onclick="spinRouletteAction('green')">
+                            <div class="action-main-title">0 CROWN</div>
+                            <div class="action-mult-badge">MEGA 14X</div>
+                        </div>
+                        <div class="bet-action-card black-bet" id="btnBetBlack" onclick="spinRouletteAction('black')">
+                            <div class="action-main-title">QORA</div>
+                            <div class="action-mult-badge">YUTUQ 2X</div>
+                        </div>
+                    </div>
+
+                    <div id="rouletteResultBox" class="roulette-status-text"></div>
+                </div>
+            </div>
+
+            <!-- 🎁 SECTION 2: 3D OMAD SANDIQLARI -->
+            <div id="casinoChestsSection" style="display: none;">
+                <div class="chests-container">
+                    <div class="chest-card chest-silver">
+                        <div class="chest-inner-row">
+                            <div class="chest-info-group">
+                                <div class="chest-icon-box">🧰</div>
+                                <div class="chest-details">
+                                    <h4>1-Sandiq (Kumush)</h4>
+                                    <p>10k-60k $, 1-5 💎, Himoyalar</p>
+                                </div>
+                            </div>
+                            <button class="chest-open-btn" onclick="openChestAction(1)">20 000 💶</button>
+                        </div>
+                    </div>
+
+                    <div class="chest-card chest-gold">
+                        <div class="chest-inner-row">
+                            <div class="chest-info-group">
+                                <div class="chest-icon-box">📦✨</div>
+                                <div class="chest-details">
+                                    <h4 style="color: #F59E0B;">2-Sandiq (Oltin)</h4>
+                                    <p>20-45 💎, 500k $, Rollar, VIP 7 kun</p>
+                                </div>
+                            </div>
+                            <button class="chest-open-btn" onclick="openChestAction(2)">15 💎</button>
+                        </div>
+                    </div>
+
+                    <div class="chest-card chest-mythic">
+                        <div class="chest-inner-row">
+                            <div class="chest-info-group">
+                                <div class="chest-icon-box">👑🥷</div>
+                                <div class="chest-details">
+                                    <h4 style="color: #EF4444;">3-Sandiq (Afsonaviy)</h4>
+                                    <p style="color: #FCA5A5;">VIP 7 kun, 12-40 💎, 450k $, 2x Himoya</p>
+                                </div>
+                            </div>
+                            <button class="chest-open-btn" onclick="openChestAction(3)">20 💎</button>
+                        </div>
+                        <div class="chest-highlight-badge">
+                            🌟 Omadli Jekpot: <b>Afsonaviy Geroy</b> yutib olish imkoniyati!
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ===================================================================
+             🎭 TAB 4: ROLLAR
+             =================================================================== -->
+        <div id="tabRoles" class="tab-content {% if active_tab == 'roles' %}active{% endif %}">
+            <div class="search-box">
+                <span>🔍</span>
+                <input type="text" id="roleSearchInput" placeholder="Rol nomini qidirish..." oninput="filterRoles()">
+            </div>
+
+            <div class="filter-scroll">
+                <div class="filter-chip active" onclick="setRoleCategory('all', this)">Hammasi ({{ roles_total_count|default:"25" }})</div>
+                <div class="filter-chip" onclick="setRoleCategory('town', this)">🏛 Tinch aholi ({{ roles_town_count|default:"10" }})</div>
+                <div class="filter-chip" onclick="setRoleCategory('mafia', this)">🤵🏻 Mafia ({{ roles_mafia_count|default:"8" }})</div>
+                <div class="filter-chip" onclick="setRoleCategory('solo', this)">🃏 Yakka ({{ roles_solo_count|default:"7" }})</div>
+            </div>
+
+            <div class="role-cards-grid" id="rolesGrid">
+                {% for role in roles %}
+                <div class="role-card" data-category="{{ role.category }}" data-name="{{ role.name|lower }}" data-desc="{{ role.description|lower }}">
+                    <div class="role-header">
+                        <div class="role-identity">
+                            <div class="role-icon-box">{{ role.icon }}</div>
+                            <div class="role-name">{{ role.name }}</div>
+                        </div>
+                        <div class="role-badge {{ role.category_badge }}">{{ role.category_label }}</div>
+                    </div>
+                    <div class="role-desc">{{ role.description }}</div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+
+        <!-- ===================================================================
+             👥 TAB 5: GURUHIM (GROUP CABINET WITH SEARCH & ALWAYS-ASK LOGIN)
+             =================================================================== -->
+        <div id="tabGroup" class="tab-content {% if active_tab == 'group' %}active{% endif %}">
+            
+            <!-- VIEW 1: Groups List & Search & Login Card -->
+            <div id="groupListView">
+                <div class="search-box">
+                    <span>🔍</span>
+                    <input type="text" id="groupSearchInput" placeholder="Guruh nomi yoki ID bo'yicha qidirish..." oninput="filterUserGroups()">
+                </div>
+
+                <div class="group-login-card" style="margin-bottom: 14px;">
+                    <div style="text-align: center; margin-bottom: 16px;">
+                        <div style="width: 52px; height: 52px; border-radius: 16px; background: rgba(59, 130, 246, 0.15); color: #60A5FA; display: inline-flex; align-items: center; justify-content: center; font-size: 24px; margin-bottom: 8px;">
+                            👥
+                        </div>
+                        <h2 style="font-size: 17px; font-weight: 800; color: #FFF; margin-bottom: 4px;">Guruh Boshqaruv Kabineti</h2>
+                        <p style="font-size: 11px; color: var(--text-muted);">Guruh sozlamalari va statistikasini boshqarish uchun login va parolni kiriting</p>
+                    </div>
+
+                    <div style="margin-bottom: 10px;">
+                        <label style="display: block; font-size: 11px; font-weight: 700; color: var(--text-muted); margin-bottom: 4px;">Guruhni tanlang:</label>
+                        <select id="groupSelectBox" onchange="onGroupSelectChange()" style="width: 100%; background: #07090E; border: 1px solid var(--border-color); border-radius: 12px; padding: 10px; color: #FFF; font-size: 13px; outline: none;">
+                            <option value="">Guruhlar yuklanmoqda...</option>
+                        </select>
+                    </div>
+
+                    <div style="margin-bottom: 10px;">
+                        <label style="display: block; font-size: 11px; font-weight: 700; color: var(--text-muted); margin-bottom: 4px;">Kabinet Logini:</label>
+                        <input type="text" id="groupLoginInput" placeholder="Masalan: test_gruh" style="width: 100%; background: #07090E; border: 1px solid var(--border-color); border-radius: 12px; padding: 10px; color: #FFF; font-size: 13px; outline: none;">
+                    </div>
+
+                    <div style="margin-bottom: 14px;">
+                        <label style="display: block; font-size: 11px; font-weight: 700; color: var(--text-muted); margin-bottom: 4px;">Kabinet Paroli:</label>
+                        <input type="password" id="groupPasswordInput" placeholder="Parol kiriting" style="width: 100%; background: #07090E; border: 1px solid var(--border-color); border-radius: 12px; padding: 10px; color: #FFF; font-size: 13px; outline: none;">
+                    </div>
+
+                    <button class="modal-action-btn" onclick="submitGroupCabinetLogin()">Kabinetga Kirish 🚀</button>
+                </div>
+
+                <div class="section-title">
+                    <span>📋 Faol Guruhlaringiz</span>
+                </div>
+                <div id="groupsListContainer"></div>
+            </div>
+
+            <!-- VIEW 2: Authenticated Group Dashboard & Settings -->
+            <div id="groupDashboardView" style="display: none;">
+                <!-- Header -->
+                <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px;">
+                    <div>
+                        <h2 id="dashGroupTitle" style="font-size: 17px; font-weight: 800; color: #FFF;">Guruh Nomi</h2>
+                        <div id="dashGroupSub" style="font-size: 11px; color: var(--text-muted);">Bot & Chat ID</div>
+                    </div>
+                    <button onclick="logoutGroupCabinet()" style="background: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.3); color: #F87171; border-radius: 10px; padding: 6px 12px; font-size: 11px; font-weight: 700; cursor: pointer;">Chiqish 🚪</button>
+                </div>
+
+                <!-- 📅 TIMEFRAME FILTERS: Bugun, 1 Oy, 1 Yil -->
+                <div class="cabinet-filter-bar">
+                    <button id="tfBtnToday" class="cabinet-filter-chip active" onclick="switchCabinetTimeframe('today', this)">📅 Bugun</button>
+                    <button id="tfBtnMonth" class="cabinet-filter-chip" onclick="switchCabinetTimeframe('month', this)">🗓 1 Oy</button>
+                    <button id="tfBtnYear" class="cabinet-filter-chip" onclick="switchCabinetTimeframe('year', this)">📊 1 Yil</button>
+                </div>
+
+                <!-- 📊 4 STAT SUMMARY METRICS -->
+                <div class="stats-grid" style="margin-top: 0; margin-bottom: 14px; grid-template-columns: repeat(2, 1fr); gap: 10px;">
+                    <div class="stat-card">
+                        <div class="stat-label">Jami O'yinlar</div>
+                        <div class="stat-val" id="dashTotalGames">0</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-label">Tugallangan</div>
+                        <div class="stat-val" id="dashCompletedGames" style="color: #60A5FA;">0</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-label">Unikal O'yinchilar</div>
+                        <div class="stat-val green" id="dashUniquePlayers">0</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-label">O'rtacha G'alaba</div>
+                        <div class="stat-val" id="dashAvgWinRate" style="color: #F59E0B;">0%</div>
+                    </div>
+                </div>
+
+                <!-- 📈 INTERACTIVE GAMES TIMELINE GRAPH -->
+                <div class="cabinet-chart-card">
+                    <div class="cabinet-chart-header">
+                        <div class="cabinet-chart-title">
+                            <span>📈</span>
+                            <span>O'tkazilgan O'yinlar Grafigi</span>
+                        </div>
+                        <div class="cabinet-chart-badge" id="dashChartBadge">Bugun bo'yicha</div>
+                    </div>
+                    <div style="position: relative; width: 100%; height: 200px;">
+                        <canvas id="cabinetGamesChart"></canvas>
+                    </div>
+                </div>
+
+                <!-- 🏆 TOP 10 BEST & MOST ACTIVE PLAYERS -->
+                <div class="section-title">
+                    <span>🏆 Top 10 Eng Yaxshi & Faol O'yinchilar</span>
+                </div>
+                <div id="dashTopPlayersList" style="margin-bottom: 16px;"></div>
+
+                <!-- ⚙️ GROUP SETTINGS & COMMAND PERMISSIONS FORM -->
+                <div class="group-login-card">
+                    <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px;">
+                        <h3 style="font-size: 15px; font-weight: 800; color: #FFF;">⚙️ Guruh Sozlamalari & Buyruqlar</h3>
+                        <span style="font-size: 10px; font-weight: 700; color: #38BDF8; background: rgba(56, 189, 248, 0.15); padding: 3px 8px; border-radius: 8px;">Faqat Ushbu Guruh</span>
+                    </div>
+                    <p style="font-size: 11px; color: var(--text-muted); margin-bottom: 14px;">Ushbu sozlamalar faqat sizning guruh (@<span id="dashGroupNick">guruh</span>) uchun alohida amal qiladi.</p>
+
+                    <!-- Section A: Vaqtlar -->
+                    <div style="font-size: 12px; font-weight: 800; color: #A5B4FC; margin-bottom: 8px;">⏳ O'yin Vaqti Sozlamalari:</div>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 14px;">
+                        <div>
+                            <label style="font-size: 10px; font-weight: 700; color: var(--text-muted);">🌙 Tun (sekund):</label>
+                            <input type="number" id="setNightDuration" class="bet-input" style="font-size: 13px; background: #07090E; border: 1px solid var(--border-color); border-radius: 10px; padding: 8px 10px; margin-top: 3px;">
+                        </div>
+                        <div>
+                            <label style="font-size: 10px; font-weight: 700; color: var(--text-muted);">⚖️ Ovoz berish (sek):</label>
+                            <input type="number" id="setVotingDuration" class="bet-input" style="font-size: 13px; background: #07090E; border: 1px solid var(--border-color); border-radius: 10px; padding: 8px 10px; margin-top: 3px;">
+                        </div>
+                        <div>
+                            <label style="font-size: 10px; font-weight: 700; color: var(--text-muted);">🌅 Tong e'loni (sek):</label>
+                            <input type="number" id="setDawnDuration" class="bet-input" style="font-size: 13px; background: #07090E; border: 1px solid var(--border-color); border-radius: 10px; padding: 8px 10px; margin-top: 3px;">
+                        </div>
+                        <div>
+                            <label style="font-size: 10px; font-weight: 700; color: var(--text-muted);">💬 So'nggi so'z (sek):</label>
+                            <input type="number" id="setLastWordsDuration" class="bet-input" style="font-size: 13px; background: #07090E; border: 1px solid var(--border-color); border-radius: 10px; padding: 8px 10px; margin-top: 3px;">
+                        </div>
+                    </div>
+
+                    <!-- Section B: Buyruqlar Ruxsati -->
+                    <div style="border-top: 1px solid rgba(255, 255, 255, 0.08); padding-top: 12px; margin-bottom: 14px;">
+                        <div style="font-size: 12px; font-weight: 800; color: #34D399; margin-bottom: 4px;">🔐 Guruh Buyruqlari Ruxsatlari:</div>
+                        <p style="font-size: 10px; color: var(--text-muted); margin-bottom: 10px;">Har bir buyruqni kimlar bajara olishini belgilang (Ega, Adminlar, Hamma):</p>
+
+                        <!-- /game perm -->
+                        <div style="margin-bottom: 10px;">
+                            <label style="display: block; font-size: 11px; font-weight: 700; color: #FFF; margin-bottom: 3px;">🎮 /game (Yangi o'yin ochish):</label>
+                            <select id="permCmdGame" class="cabinet-select">
+                                <option value="ALL">👥 Barcha a'zolar (Hamma)</option>
+                                <option value="ADMINS">🛡 Guruh adminlari va Ega</option>
+                                <option value="OWNER">👑 Faqat Guruh Egasi (Ega)</option>
+                            </select>
+                        </div>
+
+                        <!-- /start_game perm -->
+                        <div style="margin-bottom: 10px;">
+                            <label style="display: block; font-size: 11px; font-weight: 700; color: #FFF; margin-bottom: 3px;">🚀 /start_game (O'yinni boshlash):</label>
+                            <select id="permCmdStartGame" class="cabinet-select">
+                                <option value="ADMINS">🛡 Guruh adminlari va Ega</option>
+                                <option value="OWNER">👑 Faqat Guruh Egasi (Ega)</option>
+                                <option value="ALL">👥 Barcha a'zolar (Hamma)</option>
+                            </select>
+                        </div>
+
+                        <!-- /cancel perm -->
+                        <div style="margin-bottom: 10px;">
+                            <label style="display: block; font-size: 11px; font-weight: 700; color: #FFF; margin-bottom: 3px;">🛑 /cancel va /stop (O'yinni to'xtatish):</label>
+                            <select id="permCmdStopGame" class="cabinet-select">
+                                <option value="ADMINS">🛡 Guruh adminlari va Ega</option>
+                                <option value="OWNER">👑 Faqat Guruh Egasi (Ega)</option>
+                                <option value="ALL">👥 Barcha a'zolar (Hamma)</option>
+                            </select>
+                        </div>
+
+                        <!-- @utag perm -->
+                        <div style="margin-bottom: 10px;">
+                            <label style="display: block; font-size: 11px; font-weight: 700; color: #FFF; margin-bottom: 3px;">📢 @utag (A'zolarni chaqirish):</label>
+                            <select id="permCmdUtag" class="cabinet-select">
+                                <option value="ADMINS">🛡 Guruh adminlari va Ega</option>
+                                <option value="OWNER">👑 Faqat Guruh Egasi (Ega)</option>
+                                <option value="ALL">👥 Barcha a'zolar (Hamma)</option>
+                            </select>
+                        </div>
+
+                        <!-- /stop_tag perm -->
+                        <div style="margin-bottom: 10px;">
+                            <label style="display: block; font-size: 11px; font-weight: 700; color: #FFF; margin-bottom: 3px;">⛔️ /stop_tag (Chaqirishni to'xtatish):</label>
+                            <select id="permCmdStopTag" class="cabinet-select">
+                                <option value="ADMINS">🛡 Guruh adminlari va Ega</option>
+                                <option value="OWNER">👑 Faqat Guruh Egasi (Ega)</option>
+                                <option value="ALL">👥 Barcha a'zolar (Hamma)</option>
+                            </select>
+                        </div>
+
+                        <!-- /roles & /rules perm -->
+                        <div style="margin-bottom: 12px;">
+                            <label style="display: block; font-size: 11px; font-weight: 700; color: #FFF; margin-bottom: 3px;">🎭 /roles va /qoidalar (Rollar katalogi):</label>
+                            <select id="permCmdRules" class="cabinet-select">
+                                <option value="ALL">👥 Barcha a'zolar (Hamma)</option>
+                                <option value="ADMINS">🛡 Guruh adminlari va Ega</option>
+                                <option value="OWNER">👑 Faqat Guruh Egasi (Ega)</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <button class="modal-action-btn" onclick="saveGroupSettingsAction()">Faqat Ushbu Guruh Uchun Saqlash 💾</button>
+                </div>
+            </div>
+
+        </div>
+
+    </div>
+
+    <!-- 📱 FLOATING BOTTOM NAVIGATION DOCK -->
+    <div class="bottom-nav">
+        <div class="nav-item {% if active_tab == 'profile' or not active_tab %}active{% endif %}" onclick="switchMainTab('profile', this)">
+            <div class="nav-icon">👤</div>
+            <div>Profil</div>
+        </div>
+        <div class="nav-item {% if active_tab == 'shop' %}active{% endif %}" onclick="switchMainTab('shop', this)">
+            <div class="nav-icon">🎒</div>
+            <div>Do'kon</div>
+        </div>
+        <div class="nav-item {% if active_tab == 'casino' %}active{% endif %}" onclick="switchMainTab('casino', this)">
+            <div class="nav-icon">🎰</div>
+            <div>Kazino</div>
+        </div>
+        <div class="nav-item {% if active_tab == 'roles' %}active{% endif %}" onclick="switchMainTab('roles', this)">
+            <div class="nav-icon">🎭</div>
+            <div>Rollar</div>
+        </div>
+        <div class="nav-item {% if active_tab == 'group' %}active{% endif %}" onclick="switchMainTab('group', this)">
+            <div class="nav-icon">👥</div>
+            <div>Guruhim</div>
+        </div>
+    </div>
+
+    <!-- 💸 MABLAG' ULASHISH (TRANSFER) MODAL -->
+    <div class="modal-overlay" id="transferModal" onclick="closeTransferModalOnOutside(event)">
+        <div class="modal-card">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+                <h3 id="transferModalTitle" style="font-size: 16px; font-weight: 800; color: #FFF;">💸 Mablag' O'tkazish</h3>
+                <span onclick="closeTransferModal()" style="color: var(--text-muted); font-size: 20px; cursor: pointer;">✕</span>
+            </div>
+
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 14px;">
+                <div id="toggleTransMoney" onclick="setTransferCurrency('MONEY')" style="padding: 8px; border-radius: 12px; background: rgba(16, 185, 129, 0.2); border: 1px solid #10B981; text-align: center; font-size: 12px; font-weight: 800; color: #34D399; cursor: pointer;">
+                    💶 Dollar ($)
+                </div>
+                <div id="toggleTransDia" onclick="setTransferCurrency('DIAMONDS')" style="padding: 8px; border-radius: 12px; background: rgba(255, 255, 255, 0.05); border: 1px solid var(--border-color); text-align: center; font-size: 12px; font-weight: 800; color: var(--text-muted); cursor: pointer;">
+                    💎 Olmos
+                </div>
+            </div>
+
+            <div style="margin-bottom: 10px;">
+                <label style="display: block; font-size: 11px; font-weight: 700; color: var(--text-muted); margin-bottom: 4px;">Qabul qiluvchi (ID yoki @username):</label>
+                <input type="text" id="transferRecipientInput" placeholder="Masalan: 7782387930 yoki @ismoilo9" style="width: 100%; background: #07090E; border: 1px solid var(--border-color); border-radius: 12px; padding: 10px; color: #FFF; font-size: 13px; outline: none;">
+            </div>
+
+            <div style="margin-bottom: 10px;">
+                <label style="display: block; font-size: 11px; font-weight: 700; color: var(--text-muted); margin-bottom: 4px;">Miqdor:</label>
+                <input type="number" id="transferAmountInput" placeholder="Miqdorni kiriting" min="1" style="width: 100%; background: #07090E; border: 1px solid var(--border-color); border-radius: 12px; padding: 10px; color: #FFF; font-size: 15px; font-weight: 800; outline: none;">
+            </div>
+
+            <div class="quick-chips-grid" id="transferQuickChips">
+                <div class="chip-btn" onclick="addTransferAmount(1000)">+1K</div>
+                <div class="chip-btn" onclick="addTransferAmount(5000)">+5K</div>
+                <div class="chip-btn" onclick="addTransferAmount(25000)">+25K</div>
+                <div class="chip-btn" onclick="addTransferAmount(100000)">+100K</div>
+            </div>
+
+            <button class="modal-action-btn" onclick="submitTransferFundsAction()">Yuborish 🚀</button>
+        </div>
+    </div>
+
+    <!-- 🎁 MYTHIC UNBOXING REVEAL MODAL -->
+    <div class="modal-overlay" id="chestModal" onclick="closeChestModalOnOutside(event)">
+        <div class="modal-card" style="text-align: center; border-color: rgba(245, 158, 11, 0.5);">
+            <div style="font-size: 48px; margin-bottom: 12px;" id="chestModalIcon">🎁</div>
+            <div style="font-size: 18px; font-weight: 900; color: #FFF; margin-bottom: 6px;" id="chestModalTitle">Mukofot Yutildi!</div>
+            <div style="font-size: 13px; color: var(--text-muted); margin-bottom: 18px;" id="chestModalDesc">Sandiqdan noyob sovg'a chiqdi.</div>
+            <button class="modal-action-btn" onclick="closeChestModal()">Ajoyib! 🚀</button>
+        </div>
+    </div>
+
+    <!-- ⚙️ JAVASCRIPT LOGIC -->
+    <script>
+        const tg = window.Telegram ? window.Telegram.WebApp : null;
+        if (tg) {
+            tg.expand();
+            tg.ready();
+        }
+
+        const currentTgId = {{ tg_id|default:0 }};
+        const isOwnerAccount = {% if is_owner %}true{% else %}false{% endif %};
+        let currentHeroData = null;
+        let transferCurrency = 'MONEY';
+        let allUserGroups = [];
+        let activeGroupCabinet = null;
+
+        function triggerHaptic(type) {
+            if (tg && tg.HapticFeedback) {
+                if (type === 'impact') tg.HapticFeedback.impactOccurred('medium');
+                else if (type === 'success') tg.HapticFeedback.notificationOccurred('success');
+                else if (type === 'error') tg.HapticFeedback.notificationOccurred('error');
+            }
+        }
+
+        function showToast(msg, type = 'success') {
+            const container = document.getElementById('toastContainer');
+            if (!container) return;
+
+            const toast = document.createElement('div');
+            toast.className = `toast ${type}`;
+            const icon = type === 'success' ? '✅' : '⚠️';
+            toast.innerHTML = `<span>${icon}</span><span>${msg}</span>`;
+
+            container.appendChild(toast);
+            triggerHaptic(type === 'success' ? 'success' : 'error');
+
+            setTimeout(() => {
+                toast.style.transition = 'all 0.3s ease';
+                toast.style.opacity = '0';
+                toast.style.transform = 'translateY(-10px)';
+                setTimeout(() => toast.remove(), 300);
+            }, 3000);
+        }
+
+        function switchMainTab(tabName, el) {
+            triggerHaptic('impact');
+            document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+
+            const target = document.getElementById('tab' + tabName.charAt(0).toUpperCase() + tabName.slice(1));
+            if (target) target.classList.add('active');
+            if (el) el.classList.add('active');
+
+            if (tabName === 'profile') loadHeroData();
+            if (tabName === 'group') loadUserGroups();
+        }
+
+        // ===================================================================
+        // 💸 FUNDS TRANSFER (DOLLAR & OLMOS ULASHISH)
+        // ===================================================================
+        function openTransferModal(currency) {
+            triggerHaptic('impact');
+            transferCurrency = currency;
+            setTransferCurrency(currency);
+            const m = document.getElementById('transferModal');
+            if (m) m.classList.add('active');
+        }
+
+        function closeTransferModal() {
+            triggerHaptic('impact');
+            const m = document.getElementById('transferModal');
+            if (m) m.classList.remove('active');
+        }
+
+        function closeTransferModalOnOutside(e) {
+            if (e.target.id === 'transferModal') closeTransferModal();
+        }
+
+        function setTransferCurrency(cur) {
+            transferCurrency = cur;
+            const tMoney = document.getElementById('toggleTransMoney');
+            const tDia = document.getElementById('toggleTransDia');
+            const chips = document.getElementById('transferQuickChips');
+
+            if (cur === 'MONEY') {
+                if (tMoney) {
+                    tMoney.style.background = 'rgba(16, 185, 129, 0.2)';
+                    tMoney.style.borderColor = '#10B981';
+                    tMoney.style.color = '#34D399';
+                }
+                if (tDia) {
+                    tDia.style.background = 'rgba(255, 255, 255, 0.05)';
+                    tDia.style.borderColor = 'var(--border-color)';
+                    tDia.style.color = 'var(--text-muted)';
+                }
+                if (chips) {
+                    chips.innerHTML = `
+                        <div class="chip-btn" onclick="addTransferAmount(1000)">+1K</div>
+                        <div class="chip-btn" onclick="addTransferAmount(5000)">+5K</div>
+                        <div class="chip-btn" onclick="addTransferAmount(25000)">+25K</div>
+                        <div class="chip-btn" onclick="addTransferAmount(100000)">+100K</div>
+                    `;
+                }
+            } else {
+                if (tDia) {
+                    tDia.style.background = 'rgba(56, 189, 248, 0.2)';
+                    tDia.style.borderColor = '#38BDF8';
+                    tDia.style.color = '#38BDF8';
+                }
+                if (tMoney) {
+                    tMoney.style.background = 'rgba(255, 255, 255, 0.05)';
+                    tMoney.style.borderColor = 'var(--border-color)';
+                    tMoney.style.color = 'var(--text-muted)';
+                }
+                if (chips) {
+                    chips.innerHTML = `
+                        <div class="chip-btn" onclick="addTransferAmount(5)">+5 💎</div>
+                        <div class="chip-btn" onclick="addTransferAmount(10)">+10 💎</div>
+                        <div class="chip-btn" onclick="addTransferAmount(25)">+25 💎</div>
+                        <div class="chip-btn" onclick="addTransferAmount(100)">+100 💎</div>
+                    `;
+                }
+            }
+        }
+
+        function addTransferAmount(val) {
+            triggerHaptic('impact');
+            const inp = document.getElementById('transferAmountInput');
+            if (inp) {
+                const cur = parseInt(inp.value, 10) || 0;
+                inp.value = cur + val;
+            }
+        }
+
+        async function submitTransferFundsAction() {
+            const recipient = (document.getElementById('transferRecipientInput').value || '').trim();
+            const amount = parseInt(document.getElementById('transferAmountInput').value, 10);
+
+            if (!recipient) {
+                showToast("Qabul qiluvchi ID yoki username kiriting!", "error");
+                return;
+            }
+            if (!amount || amount <= 0) {
+                showToast("O'tkazma miqdorini to'g'ri kiriting!", "error");
+                return;
+            }
+
+            try {
+                const res = await fetch('/webapp/api/transfer-funds/', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        sender_tg_id: currentTgId,
+                        recipient: recipient,
+                        currency: transferCurrency,
+                        amount: amount
+                    })
+                });
+                const d = await res.json();
+                if (d.ok) {
+                    showToast(d.message, "success");
+                    closeTransferModal();
+                    if (!isOwnerAccount) {
+                        if (d.new_money) {
+                            const mEl = document.getElementById('userMoney');
+                            const topM = document.getElementById('topMoneyVal');
+                            if (mEl) mEl.innerText = `$ ${d.new_money}`;
+                            if (topM) topM.innerText = d.new_money;
+                        }
+                        if (d.new_diamonds !== undefined) {
+                            const diaEl = document.getElementById('userDiamonds');
+                            const topDia = document.getElementById('topDiaVal');
+                            if (diaEl) diaEl.innerText = `💎 ${d.new_diamonds}`;
+                            if (topDia) topDia.innerText = d.new_diamonds;
+                        }
+                    }
+                } else {
+                    showToast(d.error || "O'tkazmada xatolik yuz berdi", "error");
+                }
+            } catch (e) {
+                showToast("Server bilan aloqa xatosi", "error");
+            }
+        }
+
+        // ===================================================================
+        // 🥷 GEROY SYSTEM
+        // ===================================================================
+        async function loadHeroData() {
+            try {
+                const res = await fetch(`/webapp/api/hero/details/?tg_id=${currentTgId}`);
+                const d = await res.json();
+                const card = document.getElementById('heroShowcaseCard');
+                if (d.ok && d.hero) {
+                    currentHeroData = d.hero;
+                    if (card) card.style.display = 'block';
+                    const nameEl = document.getElementById('heroCardName');
+                    const levelEl = document.getElementById('heroCardLevel');
+                    const chargesEl = document.getElementById('heroCardCharges');
+                    const scoreEl = document.getElementById('heroCardScore');
+                    const tagEl = document.getElementById('heroCardStatusTag');
+
+                    if (nameEl) nameEl.innerText = d.hero.name;
+                    const pMin = d.hero.power_min || d.hero.min_damage_percent || 50;
+                    const pMax = d.hero.power_max || d.hero.max_damage_percent || 60;
+                    if (levelEl) levelEl.innerText = `${d.hero.level}-Daraja (${pMin}%-${pMax}% otish)`;
+                    if (chargesEl) chargesEl.innerText = `${d.hero.charges} / 10`;
+                    if (scoreEl) scoreEl.innerText = `${d.hero.score} Ball`;
+
+                    if (tagEl) {
+                        tagEl.innerText = d.hero.is_active ? "Faol" : "O'chirilgan";
+                        tagEl.className = `hero-status-tag ${d.hero.is_active ? '' : 'inactive'}`;
+                    }
+                } else {
+                    currentHeroData = null;
+                    if (card) card.style.display = 'none';
+                }
+            } catch (e) {}
+        }
+
+        async function buyHeroPrompt() {
+            const name = prompt("Yangi Geroyingiz uchun nom kiriting:", "Qora Qoplon");
+            if (!name || !name.trim()) return;
+
+            try {
+                const res = await fetch('/webapp/api/hero/create/', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ tg_id: currentTgId, name: name.trim() })
+                });
+                const d = await res.json();
+                if (d.ok) {
+                    showToast(d.message, "success");
+                    await loadHeroData();
+                } else {
+                    showToast(d.error || "Xatolik yuz berdi", "error");
+                }
+            } catch (e) {
+                showToast("Server bilan aloqa xatosi", "error");
+            }
+        }
+
+        async function rechargeHeroAction() {
+            try {
+                const res = await fetch('/webapp/api/hero/recharge/', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ tg_id: currentTgId })
+                });
+                const d = await res.json();
+                if (d.ok) {
+                    showToast(d.message, "success");
+                    await loadHeroData();
+                } else {
+                    showToast(d.error || "Xatolik", "error");
+                }
+            } catch (e) {
+                showToast("Server bilan aloqa xatosi", "error");
+            }
+        }
+
+        async function renameHeroPrompt() {
+            const newName = prompt("Geroyingiz uchun yangi nom kiriting (Narxi: 5 💎 olmos):", currentHeroData ? currentHeroData.name : "");
+            if (!newName || newName.trim().length < 2) return;
+
+            try {
+                const res = await fetch('/webapp/api/hero/rename/', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ tg_id: currentTgId, name: newName.trim() })
+                });
+                const d = await res.json();
+                if (d.ok) {
+                    showToast(d.message, "success");
+                    await loadHeroData();
+                    if (d.new_diamonds !== undefined && !isOwnerAccount) {
+                        const diaEl = document.getElementById('userDiamonds');
+                        const topDia = document.getElementById('topDiaVal');
+                        if (diaEl) diaEl.innerText = `💎 ${d.new_diamonds}`;
+                        if (topDia) topDia.innerText = d.new_diamonds;
+                    }
+                } else {
+                    showToast(d.error || "Xatolik", "error");
+                }
+            } catch (e) {
+                showToast("Server bilan aloqa xatosi", "error");
+            }
+        }
+
+        async function transferHeroPrompt() {
+            const recipient = prompt("Geroyni qabul qiluvchining Telegram ID yoki @username ini kiriting:");
+            if (!recipient || !recipient.trim()) return;
+
+            try {
+                const res = await fetch('/webapp/api/hero/transfer/', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ sender_tg_id: currentTgId, recipient: recipient.trim() })
+                });
+                const d = await res.json();
+                if (d.ok) {
+                    showToast(d.message, "success");
+                    currentHeroData = null;
+                    const card = document.getElementById('heroShowcaseCard');
+                    if (card) card.style.display = 'none';
+                    await loadHeroData();
+                } else {
+                    showToast(d.error || "Xatolik", "error");
+                }
+            } catch (e) {
+                showToast("Server bilan aloqa xatosi", "error");
+            }
+        }
+
+        async function buyItem(itemCode) {
+            try {
+                const res = await fetch('/webapp/api/shop/buy/', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ tg_id: currentTgId, item_code: itemCode })
+                });
+                const d = await res.json();
+                if (d.ok) {
+                    showToast(d.message || "Xarid amalga oshirildi!", "success");
+                    if (!isOwnerAccount) {
+                        if (d.new_money) {
+                            const mEl = document.getElementById('userMoney');
+                            const topM = document.getElementById('topMoneyVal');
+                            if (mEl) mEl.innerText = `$ ${d.new_money}`;
+                            if (topM) topM.innerText = d.new_money;
+                        }
+                        if (d.new_diamonds !== undefined) {
+                            const diaEl = document.getElementById('userDiamonds');
+                            const topDia = document.getElementById('topDiaVal');
+                            if (diaEl) diaEl.innerText = `💎 ${d.new_diamonds}`;
+                            if (topDia) topDia.innerText = d.new_diamonds;
+                        }
+                    }
+                } else {
+                    showToast(d.error || "Xatolik yuz berdi", "error");
+                }
+            } catch (e) {
+                showToast("Xaridda xatolik yuz berdi", "error");
+            }
+        }
+
+        // ===================================================================
+        // 👥 GURUHIM (GROUP CABINET) LOGIC
+        // ===================================================================
+        async function loadUserGroups() {
+            try {
+                const res = await fetch(`/webapp/api/groups/list/?tg_id=${currentTgId}`);
+                const d = await res.json();
+                if (d.ok && d.groups) {
+                    allUserGroups = d.groups;
+                    renderGroupsSelect(allUserGroups);
+                    renderGroupsList(allUserGroups);
+                }
+            } catch (e) {
+                console.error("Error loading groups:", e);
+            }
+        }
+
+        function renderGroupsSelect(groups) {
+            const sel = document.getElementById('groupSelectBox');
+            if (!sel) return;
+
+            if (groups.length === 0) {
+                sel.innerHTML = '<option value="">Guruhlar topilmadi</option>';
+                return;
+            }
+
+            let html = '<option value="">Guruhni tanlang...</option>';
+            groups.forEach(g => {
+                html += `<option value="${g.id}" data-login="${g.cabinet_login || ''}">${g.title} (${g.bot_name})</option>`;
+            });
+            sel.innerHTML = html;
+        }
+
+        function renderGroupsList(groups) {
+            const container = document.getElementById('groupsListContainer');
+            if (!container) return;
+
+            if (groups.length === 0) {
+                container.innerHTML = '<div style="text-align:center; padding:20px; color:var(--text-muted); font-size:12px;">Hech qanday guruh topilmadi.</div>';
+                return;
+            }
+
+            let html = '';
+            groups.forEach(g => {
+                html += `
+                    <div class="group-item-card" onclick="selectGroupForLogin('${g.id}', '${g.cabinet_login || ''}')">
+                        <div>
+                            <div style="font-size: 14px; font-weight: 800; color: #FFF; margin-bottom: 2px;">${g.title}</div>
+                            <div style="font-size: 11px; color: var(--text-muted);">Bot: ${g.bot_name} | O'yinlar: ${g.total_games}</div>
+                        </div>
+                        <div style="font-size: 12px; font-weight: 800; color: #60A5FA; background: rgba(59, 130, 246, 0.15); padding: 4px 10px; border-radius: 8px;">Kirish ➔</div>
+                    </div>
+                `;
+            });
+            container.innerHTML = html;
+        }
+
+        function filterUserGroups() {
+            const q = (document.getElementById('groupSearchInput').value || '').toLowerCase().trim();
+            const filtered = allUserGroups.filter(g => 
+                g.title.toLowerCase().includes(q) || 
+                (g.username && g.username.toLowerCase().includes(q)) || 
+                String(g.chat_id).includes(q)
+            );
+            renderGroupsSelect(filtered);
+            renderGroupsList(filtered);
+        }
+
+        function onGroupSelectChange() {
+            const sel = document.getElementById('groupSelectBox');
+            if (!sel) return;
+            // No auto-fill: User must manually type both login and password
+        }
+
+        function selectGroupForLogin(groupId, login) {
+            const sel = document.getElementById('groupSelectBox');
+            if (sel) sel.value = groupId;
+            // Focus on login input for manual typing
+            const lInp = document.getElementById('groupLoginInput');
+            if (lInp) lInp.focus();
+        }
+
+        async function submitGroupCabinetLogin() {
+            const login = (document.getElementById('groupLoginInput').value || '').trim();
+            const password = (document.getElementById('groupPasswordInput').value || '').trim();
+
+            if (!login || !password) {
+                showToast("Login va parolni kiriting!", "error");
+                return;
+            }
+
+            triggerHaptic('impact');
+            try {
+                const res = await fetch('/webapp/api/group/login/', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ login: login, password: password })
+                });
+                const d = await res.json();
+                if (d.ok && d.group) {
+                    activeGroupCabinet = d.group;
+                    showToast("Kabinetga muvaffaqiyatli kirildi! 🚀", "success");
+                    await loadGroupDashboardData(d.group.id);
+                    document.getElementById('groupListView').style.display = 'none';
+                    document.getElementById('groupDashboardView').style.display = 'block';
+                } else {
+                    showToast(d.error || "Login yoki parol noto'g'ri!", "error");
+                }
+            } catch (e) {
+                showToast("Server bilan aloqa xatosi", "error");
+            }
+        }
+
+        let currentCabinetTimeframe = 'today';
+        let cabinetChartInstance = null;
+
+        function switchCabinetTimeframe(tf, btn) {
+            triggerHaptic('impact');
+            currentCabinetTimeframe = tf;
+            document.querySelectorAll('.cabinet-filter-chip').forEach(c => c.classList.remove('active'));
+            if (btn) btn.classList.add('active');
+
+            if (activeGroupCabinet) {
+                loadGroupDashboardData(activeGroupCabinet.id, tf);
+            }
+        }
+
+        async function loadGroupDashboardData(groupId, timeframe = null) {
+            if (!activeGroupCabinet) return;
+            if (timeframe) currentCabinetTimeframe = timeframe;
+
+            document.getElementById('dashGroupTitle').innerText = activeGroupCabinet.title;
+            document.getElementById('dashGroupSub').innerText = `Bot: ${activeGroupCabinet.bot_name} | ID: ${activeGroupCabinet.chat_id}`;
+            const nickEl = document.getElementById('dashGroupNick');
+            if (nickEl) nickEl.innerText = activeGroupCabinet.username || activeGroupCabinet.title || 'guruh';
+
+            const s = activeGroupCabinet.settings || {};
+            document.getElementById('setNightDuration').value = s.night_duration || 60;
+            document.getElementById('setVotingDuration').value = s.voting_duration || 20;
+            document.getElementById('setDawnDuration').value = s.dawn_wait_duration || 15;
+            document.getElementById('setLastWordsDuration').value = s.last_words_duration || 50;
+
+            if (document.getElementById('permCmdGame')) document.getElementById('permCmdGame').value = s.cmd_perm_game || 'ALL';
+            if (document.getElementById('permCmdStartGame')) document.getElementById('permCmdStartGame').value = s.cmd_perm_start_game || 'ADMINS';
+            if (document.getElementById('permCmdStopGame')) document.getElementById('permCmdStopGame').value = s.cmd_perm_stop_game || 'ADMINS';
+            if (document.getElementById('permCmdUtag')) document.getElementById('permCmdUtag').value = s.cmd_perm_utag || 'ADMINS';
+            if (document.getElementById('permCmdStopTag')) document.getElementById('permCmdStopTag').value = s.cmd_perm_stop_tag || 'ADMINS';
+            if (document.getElementById('permCmdRules')) document.getElementById('permCmdRules').value = s.cmd_perm_rules || 'ALL';
+
+            const badgeEl = document.getElementById('dashChartBadge');
+            if (badgeEl) {
+                if (currentCabinetTimeframe === 'today') badgeEl.innerText = "Bugun (soatlar bo'yicha)";
+                else if (currentCabinetTimeframe === 'month') badgeEl.innerText = "1 Oy (5 kunlik davrlar)";
+                else if (currentCabinetTimeframe === 'year') badgeEl.innerText = "1 Yil (12 oylik dinamika)";
+            }
+
+            try {
+                const res = await fetch(`/webapp/api/group/dashboard/?group_id=${groupId}&timeframe=${currentCabinetTimeframe}`);
+                const d = await res.json();
+                if (d.ok && d.stats) {
+                    document.getElementById('dashTotalGames').innerText = d.stats.total_games;
+                    document.getElementById('dashCompletedGames').innerText = d.stats.completed_games;
+                    document.getElementById('dashUniquePlayers').innerText = d.stats.total_unique_players;
+                    document.getElementById('dashAvgWinRate').innerText = d.stats.win_rate_avg || '0%';
+
+                    // 1. Render Timeline Chart
+                    renderCabinetChart(d.stats.chart);
+
+                    // 2. Render Top 10 Best Players
+                    renderCabinetTopPlayers(d.stats.top_players);
+                }
+            } catch (e) {
+                console.error("Dashboard fetch error:", e);
+            }
+        }
+
+        function renderCabinetChart(chartData) {
+            const canvas = document.getElementById('cabinetGamesChart');
+            if (!canvas) return;
+
+            const labels = (chartData && chartData.labels) ? chartData.labels : [];
+            const dataValues = (chartData && chartData.data) ? chartData.data : [];
+
+            if (cabinetChartInstance) {
+                cabinetChartInstance.destroy();
+                cabinetChartInstance = null;
+            }
+
+            const ctx = canvas.getContext('2d');
+            const gradient = ctx.createLinearGradient(0, 0, 0, 180);
+            gradient.addColorStop(0, 'rgba(99, 102, 241, 0.45)');
+            gradient.addColorStop(1, 'rgba(99, 102, 241, 0.0)');
+
+            cabinetChartInstance = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: "O'tkazilgan O'yinlar",
+                        data: dataValues,
+                        borderColor: '#818CF8',
+                        borderWidth: 2.5,
+                        backgroundColor: gradient,
+                        fill: true,
+                        tension: 0.38,
+                        pointBackgroundColor: '#4F46E5',
+                        pointBorderColor: '#FFF',
+                        pointBorderWidth: 2,
+                        pointRadius: 4,
+                        pointHoverRadius: 6
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            backgroundColor: '#0F1420',
+                            titleColor: '#F8FAFC',
+                            bodyColor: '#A5B4FC',
+                            borderColor: 'rgba(99, 102, 241, 0.4)',
+                            borderWidth: 1,
+                            padding: 10,
+                            displayColors: false,
+                            callbacks: {
+                                label: function(context) {
+                                    return `🎮 ${context.parsed.y} ta o'yin`;
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            grid: { color: 'rgba(255, 255, 255, 0.04)' },
+                            ticks: { color: '#94A3B8', font: { size: 10, weight: '700' } }
+                        },
+                        y: {
+                            beginAtZero: true,
+                            grid: { color: 'rgba(255, 255, 255, 0.04)' },
+                            ticks: { color: '#94A3B8', font: { size: 10, weight: '700' }, precision: 0 }
+                        }
+                    }
+                }
+            });
+        }
+
+        function renderCabinetTopPlayers(players) {
+            const pList = document.getElementById('dashTopPlayersList');
+            if (!pList) return;
+
+            if (!players || players.length === 0) {
+                pList.innerHTML = `
+                    <div style="background:#0F1420; border:1px solid var(--border-color); border-radius:14px; padding:20px; text-align:center; color:var(--text-muted); font-size:12px;">
+                        Tanlangan davrda guruhda o'yinlar o'ynalmagan. 🎮
+                    </div>
+                `;
+                return;
+            }
+
+            let html = '';
+            players.forEach(p => {
+                let rankClass = '';
+                let rankBadge = `#${p.rank}`;
+                let badgeClass = '';
+
+                if (p.rank === 1) {
+                    rankClass = 'rank-1';
+                    rankBadge = '🥇';
+                    badgeClass = 'r1';
+                } else if (p.rank === 2) {
+                    rankClass = 'rank-2';
+                    rankBadge = '🥈';
+                    badgeClass = 'r2';
+                } else if (p.rank === 3) {
+                    rankClass = 'rank-3';
+                    rankBadge = '🥉';
+                    badgeClass = 'r3';
+                }
+
+                html += `
+                    <div class="top-player-row ${rankClass}">
+                        <div class="top-player-main">
+                            <div class="top-player-left">
+                                <div class="rank-badge-box ${badgeClass}">${rankBadge}</div>
+                                <div class="top-player-avatar">${p.avatar_letter}</div>
+                                <div class="top-player-info">
+                                    <h4>${p.name}</h4>
+                                    <p>${p.username ? p.username : "ID: " + p.rank}</p>
+                                </div>
+                            </div>
+                            <div class="top-player-stats-right">
+                                <div class="top-player-winrate-text">${p.win_rate} G'alaba</div>
+                                <div class="top-player-sub-text">${p.games_won} yutuq / ${p.games_played} o'yin</div>
+                            </div>
+                        </div>
+                        <div class="top-player-progress-bg">
+                            <div class="top-player-progress-fill" style="width: ${p.win_rate_num}%;"></div>
+                        </div>
+                    </div>
+                `;
+            });
+            pList.innerHTML = html;
+        }
+
+        async function saveGroupSettingsAction() {
+            if (!activeGroupCabinet) return;
+            const settings = {
+                night_duration: parseInt(document.getElementById('setNightDuration').value, 10) || 60,
+                voting_duration: parseInt(document.getElementById('setVotingDuration').value, 10) || 20,
+                dawn_wait_duration: parseInt(document.getElementById('setDawnDuration').value, 10) || 15,
+                last_words_duration: parseInt(document.getElementById('setLastWordsDuration').value, 10) || 50,
+                cmd_perm_game: document.getElementById('permCmdGame') ? document.getElementById('permCmdGame').value : 'ALL',
+                cmd_perm_start_game: document.getElementById('permCmdStartGame') ? document.getElementById('permCmdStartGame').value : 'ADMINS',
+                cmd_perm_stop_game: document.getElementById('permCmdStopGame') ? document.getElementById('permCmdStopGame').value : 'ADMINS',
+                cmd_perm_utag: document.getElementById('permCmdUtag') ? document.getElementById('permCmdUtag').value : 'ADMINS',
+                cmd_perm_stop_tag: document.getElementById('permCmdStopTag') ? document.getElementById('permCmdStopTag').value : 'ADMINS',
+                cmd_perm_rules: document.getElementById('permCmdRules') ? document.getElementById('permCmdRules').value : 'ALL'
+            };
+
+            try {
+                const res = await fetch('/webapp/api/group/settings/save/', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ group_id: activeGroupCabinet.id, settings: settings })
+                });
+                const d = await res.json();
+                if (d.ok) {
+                    showToast("Guruh sozlamalari muvaffaqiyatli saqlandi! 💾", "success");
+                } else {
+                    showToast(d.error || "Saqlashda xatolik yuz berdi", "error");
+                }
+            } catch (e) {
+                showToast("Server bilan aloqa xatosi", "error");
+            }
+        }
+
+        function logoutGroupCabinet() {
+            activeGroupCabinet = null;
+            document.getElementById('groupPasswordInput').value = '';
+            document.getElementById('groupDashboardView').style.display = 'none';
+            document.getElementById('groupListView').style.display = 'block';
+        }
+
+        // ===================================================================
+        // 🎰 ROULETTE & CHESTS
+        // ===================================================================
+        const ROULETTE_NUMBERS = [
+            { num: 0, col: 'green' },
+            { num: 32, col: 'red' }, { num: 15, col: 'black' }, { num: 19, col: 'red' },
+            { num: 4, col: 'black' }, { num: 21, col: 'red' }, { num: 2, col: 'black' },
+            { num: 25, col: 'red' }, { num: 17, col: 'black' }, { num: 34, col: 'red' },
+            { num: 6, col: 'black' }, { num: 27, col: 'red' }, { num: 13, col: 'black' },
+            { num: 36, col: 'red' }, { num: 11, col: 'black' }, { num: 30, col: 'red' },
+            { num: 8, col: 'black' }, { num: 23, col: 'red' }, { num: 10, col: 'black' },
+            { num: 5, col: 'red' }, { num: 24, col: 'black' }, { num: 16, col: 'red' },
+            { num: 33, col: 'black' }, { num: 1, col: 'red' }, { num: 20, col: 'black' },
+            { num: 14, col: 'red' }, { num: 31, col: 'black' }, { num: 9, col: 'red' },
+            { num: 22, col: 'black' }, { num: 18, col: 'red' }, { num: 29, col: 'black' },
+            { num: 7, col: 'red' }, { num: 28, col: 'black' }, { num: 12, col: 'red' },
+            { num: 35, col: 'black' }, { num: 3, col: 'red' }, { num: 26, col: 'black' }
+        ];
+
+        let isRouletteSpinning = false;
+
+        function initRouletteTrack() {
+            const track = document.getElementById('rouletteTrack');
+            if (!track) return;
+            let itemsHtml = '';
+            for (let rep = 0; rep < 5; rep++) {
+                ROULETTE_NUMBERS.forEach(item => {
+                    itemsHtml += `
+                        <div class="r-tile ${item.col}" data-num="${item.num}">
+                            <span>${item.num}</span>
+                            <span class="r-tile-sub">${item.col === 'green' ? 'Zero' : item.col}</span>
+                        </div>
+                    `;
+                });
+            }
+            track.innerHTML = itemsHtml;
+        }
+
+        function switchCasinoSub(sub, el) {
+            triggerHaptic('impact');
+            document.querySelectorAll('#tabCasino .filter-chip').forEach(c => c.classList.remove('active'));
+            if (el) el.classList.add('active');
+
+            const rSec = document.getElementById('casinoRouletteSection');
+            const cSec = document.getElementById('casinoChestsSection');
+            if (sub === 'roulette') {
+                if (rSec) rSec.style.display = 'block';
+                if (cSec) cSec.style.display = 'none';
+            } else {
+                if (rSec) rSec.style.display = 'none';
+                if (cSec) cSec.style.display = 'block';
+            }
+        }
+
+        function setRouletteBet(val) {
+            triggerHaptic('impact');
+            const inp = document.getElementById('rouletteBetAmount');
+            if (inp) inp.value = val;
+        }
+
+        function multiplyRouletteBet(mul) {
+            triggerHaptic('impact');
+            const inp = document.getElementById('rouletteBetAmount');
+            if (inp) {
+                let cur = parseInt(inp.value, 10) || 100;
+                inp.value = Math.max(10, Math.floor(cur * mul));
+            }
+        }
+
+        function setMaxRouletteBet() {
+            triggerHaptic('impact');
+            const inp = document.getElementById('rouletteBetAmount');
+            if (inp) inp.value = 500000;
+        }
+
+        async function spinRouletteAction(color) {
+            if (isRouletteSpinning) return;
+            const inp = document.getElementById('rouletteBetAmount');
+            const bet = parseInt(inp ? inp.value : 100, 10);
+            if (!bet || bet <= 0) {
+                showToast("Tikish summasini kiriting!", "error");
+                return;
+            }
+
+            isRouletteSpinning = true;
+            triggerHaptic('impact');
+
+            const resBox = document.getElementById('rouletteResultBox');
+            if (resBox) resBox.innerHTML = '<span style="color: #38BDF8; font-weight: 800;">Aylanmoqda... 🎲</span>';
+
+            try {
+                const res = await fetch('/webapp/api/casino/roulette/spin/', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ tg_id: currentTgId, bet_amount: bet, bet_color: color })
+                });
+                const data = await res.json();
+
+                if (!data.ok) {
+                    isRouletteSpinning = false;
+                    showToast(data.error || "Xatolik yuz berdi", "error");
+                    if (resBox) resBox.innerText = "";
+                    return;
+                }
+
+                const track = document.getElementById('rouletteTrack');
+                const tileWidth = 72;
+                const targetIdx = ROULETTE_NUMBERS.findIndex(x => x.num === data.number);
+                const landIndex = (ROULETTE_NUMBERS.length * 3) + (targetIdx >= 0 ? targetIdx : 0);
+
+                const container = track.parentElement;
+                const centerOffset = container.offsetWidth / 2 - 32;
+                const targetTranslateX = -(landIndex * tileWidth - centerOffset);
+
+                track.style.transition = 'transform 3.6s cubic-bezier(0.12, 0.8, 0.18, 1)';
+                track.style.transform = `translateX(${targetTranslateX}px)`;
+
+                setTimeout(() => {
+                    const histRow = document.getElementById('rouletteHistoryRow');
+                    if (histRow) {
+                        const p = document.createElement('div');
+                        p.className = `roll-badge ${data.color}`;
+                        p.innerText = data.number;
+                        histRow.insertBefore(p, histRow.firstChild);
+                        if (histRow.children.length > 10) histRow.removeChild(histRow.lastChild);
+                    }
+                }, 3400);
+
+                setTimeout(() => {
+                    isRouletteSpinning = false;
+                    if (!isOwnerAccount) {
+                        const moneyEl = document.getElementById('userMoney');
+                        const topMoney = document.getElementById('topMoneyVal');
+                        if (moneyEl) moneyEl.innerText = `$ ${data.new_money}`;
+                        if (topMoney) topMoney.innerText = data.new_money;
+                    }
+
+                    if (resBox) {
+                        if (data.won) {
+                            resBox.innerHTML = `<span style="color: #10B981; font-size: 15px; font-weight: 900;">🎉 G'ALABA! +${data.payout.toLocaleString()} 💶 (Tushgan: ${data.number})</span>`;
+                            showToast(data.message, "success");
+                            triggerHaptic('success');
+                        } else {
+                            resBox.innerHTML = `<span style="color: #EF4444; font-size: 15px; font-weight: 800;">❌ Boy berildi. (Tushgan: ${data.number})</span>`;
+                            showToast(data.message, "error");
+                            triggerHaptic('error');
+                        }
+                    }
+                }, 3700);
+
+            } catch (e) {
+                isRouletteSpinning = false;
+                showToast("Server bilan aloqa xatosi", "error");
+                if (resBox) resBox.innerText = "";
+            }
+        }
+
+        async function openChestAction(type) {
+            triggerHaptic('impact');
+            try {
+                const res = await fetch('/webapp/api/casino/chest/open/', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ tg_id: currentTgId, chest_type: type })
+                });
+                const data = await res.json();
+
+                if (!data.ok) {
+                    showToast(data.error || "Xatolik yuz berdi", "error");
+                    return;
+                }
+
+                if (!isOwnerAccount) {
+                    const moneyEl = document.getElementById('userMoney');
+                    const topMoney = document.getElementById('topMoneyVal');
+                    if (moneyEl) moneyEl.innerText = `$ ${data.new_money}`;
+                    if (topMoney) topMoney.innerText = data.new_money;
+
+                    const diaEl = document.getElementById('userDiamonds');
+                    const topDia = document.getElementById('topDiaVal');
+                    if (diaEl) diaEl.innerText = `💎 ${data.new_diamonds}`;
+                    if (topDia) topDia.innerText = data.new_diamonds;
+                }
+
+                const m = document.getElementById('chestModal');
+                const iconEl = document.getElementById('chestModalIcon');
+                const titleEl = document.getElementById('chestModalTitle');
+                const descEl = document.getElementById('chestModalDesc');
+
+                if (iconEl) iconEl.innerText = data.prize.icon || '🎁';
+                if (titleEl) titleEl.innerText = data.prize.title;
+                if (descEl) descEl.innerText = data.prize.desc;
+
+                if (m) m.classList.add('active');
+                showToast(data.message, "success");
+                triggerHaptic('success');
+
+            } catch (e) {
+                showToast("Server bilan aloqa xatosi", "error");
+            }
+        }
+
+        function closeChestModal() {
+            triggerHaptic('impact');
+            const m = document.getElementById('chestModal');
+            if (m) m.classList.remove('active');
+        }
+
+        function closeChestModalOnOutside(e) {
+            if (e.target.id === 'chestModal') closeChestModal();
+        }
+
+        function showNotificationCenter() {
+            triggerHaptic('impact');
+            showToast("Barcha bildirishnomalar o'qilgan! 🔔", "success");
+        }
+
+        function filterShopCategory(cat, el) {
+            triggerHaptic('impact');
+            document.querySelectorAll('#tabShop .filter-chip').forEach(c => c.classList.remove('active'));
+            if (el) el.classList.add('active');
+
+            const items = document.querySelectorAll('#shopItemsGrid .shop-card');
+            items.forEach(card => {
+                const itemCat = card.getAttribute('data-shop-cat');
+                if (cat === 'all' || itemCat === cat) {
+                    card.style.display = 'flex';
+                } else {
+                    card.style.display = 'none';
+                }
+            });
+        }
+
+        function setRoleCategory(cat, el) {
+            triggerHaptic('impact');
+            document.querySelectorAll('#tabRoles .filter-chip').forEach(c => c.classList.remove('active'));
+            if (el) el.classList.add('active');
+
+            const cards = document.querySelectorAll('#rolesGrid .role-card');
+            cards.forEach(card => {
+                const roleCat = card.getAttribute('data-category');
+                if (cat === 'all' || roleCat === cat) {
+                    card.style.display = 'block';
+                } else {
+                    card.style.display = 'none';
+                }
+            });
+        }
+
+        function filterRoles() {
+            const query = (document.getElementById('roleSearchInput').value || '').toLowerCase().trim();
+            const cards = document.querySelectorAll('#rolesGrid .role-card');
+            cards.forEach(card => {
+                const name = card.getAttribute('data-name') || '';
+                const desc = card.getAttribute('data-desc') || '';
+                if (!query || name.includes(query) || desc.includes(query)) {
+                    card.style.display = 'block';
+                } else {
+                    card.style.display = 'none';
+                }
+            });
+        }
+
+        document.addEventListener('DOMContentLoaded', function() {
+            initRouletteTrack();
+            loadHeroData();
+            loadUserGroups();
+        });
+    </script>
+</body>
+</html>

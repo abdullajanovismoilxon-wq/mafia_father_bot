@@ -1,0 +1,78 @@
+{% extends 'superadmin/base.html' %}
+{% block title %}Savol va Takliflar — SuperAdmin{% endblock %}
+{% block content %}
+<div class="mb-6 flex justify-between items-center">
+    <div>
+        <h1 class="text-2xl font-black text-white flex items-center gap-3">
+            <span>📩</span> Savol va Takliflar
+            {% if new_count > 0 %}
+            <span class="bg-red-500 text-white text-xs px-2.5 py-1 rounded-full font-bold animate-pulse">{{ new_count }} yangi</span>
+            {% endif %}
+        </h1>
+        <p class="text-slate-400 text-sm mt-1">Foydalanuvchilar tomonidan /start orqali yuborilgan murojaatlar va so'rovlar</p>
+    </div>
+</div>
+
+<div class="space-y-4">
+    {% for fb in feedbacks %}
+    <div class="bg-slate-900 border {% if not fb.is_replied %}border-blue-500/50 bg-blue-950/20{% else %}border-slate-800{% endif %} rounded-2xl p-6 shadow-xl">
+        <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-800 pb-4 mb-4">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-600 flex items-center justify-center font-bold text-white shadow-lg">
+                    {{ fb.user_display_name|first|upper|default:'U' }}
+                </div>
+                <div>
+                    <h3 class="font-bold text-white text-base">{{ fb.user_display_name|default:"Noma'lum" }}</h3>
+                    <div class="flex items-center gap-2 text-xs text-slate-400">
+                        <span>ID: <code>{{ fb.telegram_id }}</code></span>
+                        {% if fb.telegram_username %}
+                        <span>•</span>
+                        <a href="https://t.me/{{ fb.telegram_username }}" target="_blank" class="text-blue-400 hover:underline">@{{ fb.telegram_username }}</a>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+            <div class="flex items-center gap-3 text-xs">
+                <span class="text-slate-500">{{ fb.created_at|date:"Y-m-d H:i" }}</span>
+                {% if fb.is_replied %}
+                <span class="bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 px-3 py-1 rounded-full font-semibold">Javob berilgan</span>
+                {% else %}
+                <span class="bg-amber-500/20 text-amber-400 border border-amber-500/30 px-3 py-1 rounded-full font-semibold animate-pulse">Kutilmoqda</span>
+                {% endif %}
+            </div>
+        </div>
+
+        <div class="bg-slate-950/60 border border-slate-800/80 rounded-xl p-4 mb-4">
+            <p class="text-sm text-slate-200 leading-relaxed whitespace-pre-wrap">{{ fb.message_text }}</p>
+        </div>
+
+        {% if fb.is_replied %}
+        <div class="bg-emerald-950/20 border border-emerald-800/30 rounded-xl p-4">
+            <div class="text-xs font-bold text-emerald-400 mb-1 flex items-center gap-1.5">
+                <span>💬</span> Sizning javobingiz ({{ fb.replied_at|date:"Y-m-d H:i" }}):
+            </div>
+            <p class="text-sm text-emerald-200/90 whitespace-pre-wrap">{{ fb.admin_reply }}</p>
+        </div>
+        {% else %}
+        <form method="POST" action="{% url 'superadmin:feedback_reply' fb.id %}" class="space-y-3">
+            {% csrf_token %}
+            <div>
+                <textarea name="reply_text" rows="2" placeholder="Ushbu foydalanuvchiga Telegram orqali javob yozing..." required
+                          class="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-blue-500 transition-colors"></textarea>
+            </div>
+            <div class="flex justify-end">
+                <button type="submit" class="bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs px-5 py-2.5 rounded-xl shadow-lg shadow-blue-500/20 transition-all">
+                    🚀 Javobni yuborish
+                </button>
+            </div>
+        </form>
+        {% endif %}
+    </div>
+    {% empty %}
+    <div class="bg-slate-900 border border-slate-800 rounded-2xl p-12 text-center text-slate-500">
+        <span class="text-4xl block mb-2">📭</span>
+        Hozircha hech qanday savol yoki taklif kelib tushmadi.
+    </div>
+    {% endfor %}
+</div>
+{% endblock %}

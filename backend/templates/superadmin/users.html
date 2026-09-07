@@ -1,0 +1,190 @@
+{% extends "superadmin/base.html" %}
+
+{% block title %}Foydalanuvchilar & Inventarlar{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h4 class="fw-bold text-white mb-1"><i class="fa-solid fa-users text-info me-2"></i>Foydalanuvchilar & Inventarlar</h4>
+        <p class="text-secondary small mb-0">O'yinchilarning hisobi, balansi va barcha inventarlarini tahrirlash</p>
+    </div>
+</div>
+
+<!-- Qidiruv -->
+<div class="card card-custom p-3 mb-4">
+    <form method="GET" class="d-flex gap-2">
+        <input type="text" name="q" value="{{ query }}" class="form-control form-control-sm bg-dark border-secondary border-opacity-25 text-white" placeholder="Telegram ID, Username yoki Ism bo'yicha qidiruv...">
+        <button type="submit" class="btn btn-sm btn-simple-primary px-4">Qidirish</button>
+        {% if query %}
+            <a href="{% url 'superadmin:users' %}" class="btn btn-sm btn-outline-secondary">Tozalash</a>
+        {% endif %}
+    </form>
+</div>
+
+<div class="card card-custom">
+    <div class="table-responsive">
+        <table class="table table-custom">
+            <thead>
+                <tr>
+                    <th>Foydalanuvchi</th>
+                    <th>Telegram ID</th>
+                    <th>Balans</th>
+                    <th>Inventar Buyumlari</th>
+                    <th>Aktiv Rol</th>
+                    <th>G'alaba / O'yinlar</th>
+                    <th style="width: 170px;" class="text-end">Amallar</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in user_list %}
+                <tr {% if item.is_owner %}style="background: rgba(245, 158, 11, 0.05); border-left: 3px solid #F59E0B;"{% endif %}>
+                    <td>
+                        <div class="fw-bold text-white d-flex align-items-center gap-1">
+                            {{ item.profile.first_name|default:"O'yinchi" }}
+                            {% if item.is_owner %}
+                                <span class="badge bg-warning text-dark fw-bold" style="font-size: 10px;"><i class="fa-solid fa-crown me-1"></i>VIP Asoschi</span>
+                            {% endif %}
+                        </div>
+                        {% if item.profile.telegram_username %}
+                            <small class="text-info">@{{ item.profile.telegram_username }}</small>
+                        {% endif %}
+                    </td>
+                    <td><code>{{ item.profile.telegram_id }}</code></td>
+                    <td>
+                        {% if item.is_owner %}
+                            <span class="badge bg-warning bg-opacity-20 text-warning fw-bold px-2 py-1"><i class="fa-solid fa-infinity me-1"></i>VIP (Cheksiz)</span>
+                        {% else %}
+                            <span class="text-warning fw-bold">{{ item.coins }} 💶</span> | 
+                            <span class="text-info fw-bold">{{ item.diamonds }} 💎</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if item.is_owner %}
+                            <small class="text-warning fw-bold"><i class="fa-solid fa-crown me-1"></i>Cheksiz VIP Imkoniyatlar</small>
+                        {% else %}
+                            <small class="text-secondary">
+                                🛡 {{ item.inv.himoya }} | ⚖️ {{ item.inv.osish_himoya }} | 📁 {{ item.inv.hujjat }} | 🔰 {{ item.inv.geroy_himoya }} | 🥷 {% if item.hero %}1 ({{ item.hero.name }}){% else %}{{ item.inv.geroy }}{% endif %}
+                            </small>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if item.inv.active_role %}
+                            <span class="badge bg-warning bg-opacity-25 text-warning font-monospace">{{ item.inv.active_role }}</span>
+                        {% else %}
+                            <span class="text-secondary small">Yo'q</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        <span class="text-success fw-bold">{{ item.stats.games_won|default:0 }}</span> / <span class="text-secondary">{{ item.stats.games_played|default:0 }}</span>
+                    </td>
+                    <td class="text-end">
+                        <div class="d-flex justify-content-end gap-1 flex-wrap">
+                            <a href="{% url 'superadmin:broadcasts' %}?target_user={{ item.profile.telegram_id }}" class="btn btn-sm btn-outline-info px-2 py-1" title="Xabar yuborish">
+                                <i class="fa-solid fa-paper-plane small"></i>
+                            </a>
+                            <button type="button" class="btn btn-sm btn-outline-light px-2 py-1" data-bs-toggle="modal" data-bs-target="#userModal{{ item.profile.id }}" title="Tahrirlash">
+                                <i class="fa-solid fa-pen small"></i> Tahrir
+                            </button>
+                            <form method="POST" action="{% url 'superadmin:user_reset' item.profile.id %}" onsubmit="return confirm('Ushbu o\'yinchining barcha balansi va inventarlarini 0 ga tushirmoqchimisiz?');" class="d-inline">
+                                {% csrf_token %}
+                                <button type="submit" class="btn btn-sm btn-outline-warning px-2 py-1" title="Hisobni 0 ga tushirish">
+                                    <i class="fa-solid fa-rotate-left small"></i> Nolga
+                                </button>
+                            </form>
+                            <form method="POST" action="{% url 'superadmin:user_delete' item.profile.id %}" onsubmit="return confirm('DIQQAT! Ushbu foydalanuvchini platformadan butunlay O\'CHIRMOQCHIMISIZ?\nBarcha ma\'lumotlar qayta tiklanmaydi.');" class="d-inline">
+                                {% csrf_token %}
+                                <button type="submit" class="btn btn-sm btn-danger px-2 py-1 fw-bold" title="Foydalanuvchini butunlay o'chirish">
+                                    <i class="fa-solid fa-trash-can small"></i> O'chirish
+                                </button>
+                            </form>
+                        </div>
+                    </td>
+                </tr>
+
+                <!-- Edit User & Full Inventory Modal -->
+                <div class="modal fade" id="userModal{{ item.profile.id }}" tabindex="-1" aria-hidden="true">
+                    <div class="modal-dialog modal-lg modal-dialog-centered">
+                        <div class="modal-content card-custom">
+                            <div class="modal-header border-secondary border-opacity-25 py-3">
+                                <h6 class="modal-title fw-bold text-white">👤 {{ item.profile.first_name|default:item.profile.telegram_id }} — Balans & Inventar Tahrirlash</h6>
+                                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                            </div>
+                            <form method="POST" action="{% url 'superadmin:user_balance_edit' item.profile.id %}">
+                                {% csrf_token %}
+                                <div class="modal-body p-4">
+                                    <div class="row g-3">
+                                        <!-- Balans -->
+                                        <div class="col-12">
+                                            <h6 class="text-warning small fw-bold text-uppercase mb-1">💰 Asosiy Balans & Statistika</h6>
+                                        </div>
+                                        <div class="col-md-3">
+                                            <label class="form-label text-secondary small fw-medium">💶 Dollar</label>
+                                            <input type="number" name="coins" value="{{ item.coins }}" class="form-control bg-dark border-secondary border-opacity-25 text-white" min="0" required>
+                                        </div>
+                                        <div class="col-md-3">
+                                            <label class="form-label text-secondary small fw-medium">💎 Olmos</label>
+                                            <input type="number" name="diamonds" value="{{ item.diamonds }}" class="form-control bg-dark border-secondary border-opacity-25 text-white" min="0" required>
+                                        </div>
+                                        <div class="col-md-3">
+                                            <label class="form-label text-secondary small fw-medium">🎯 G'alabalar</label>
+                                            <input type="number" name="games_won" value="{{ item.stats.games_won|default:0 }}" class="form-control bg-dark border-secondary border-opacity-25 text-white" min="0" required>
+                                        </div>
+                                        <div class="col-md-3">
+                                            <label class="form-label text-secondary small fw-medium">🎲 Barcha o'yinlar</label>
+                                            <input type="number" name="games_played" value="{{ item.stats.games_played|default:0 }}" class="form-control bg-dark border-secondary border-opacity-25 text-white" min="0" required>
+                                        </div>
+
+                                        <!-- Inventar -->
+                                        <div class="col-12 mt-3">
+                                            <h6 class="text-danger small fw-bold text-uppercase mb-1">🎒 Inventar Buyumlari Soni</h6>
+                                        </div>
+                                        <div class="col-md-4">
+                                            <label class="form-label text-secondary small fw-medium">🛡 Himoya qalqoni</label>
+                                            <input type="number" name="himoya" value="{{ item.inv.himoya }}" class="form-control bg-dark border-secondary border-opacity-25 text-white" min="0" required>
+                                        </div>
+                                        <div class="col-md-4">
+                                            <label class="form-label text-secondary small fw-medium">⚖️ Osishdan himoya</label>
+                                            <input type="number" name="osish_himoya" value="{{ item.inv.osish_himoya }}" class="form-control bg-dark border-secondary border-opacity-25 text-white" min="0" required>
+                                        </div>
+                                        <div class="col-md-4">
+                                            <label class="form-label text-secondary small fw-medium">📁 Soxta hujjat</label>
+                                            <input type="number" name="hujjat" value="{{ item.inv.hujjat }}" class="form-control bg-dark border-secondary border-opacity-25 text-white" min="0" required>
+                                        </div>
+                                        <div class="col-md-4">
+                                            <label class="form-label text-secondary small fw-medium">🔰 Geroydan himoya</label>
+                                            <input type="number" name="geroy_himoya" value="{{ item.inv.geroy_himoya }}" class="form-control bg-dark border-secondary border-opacity-25 text-white" min="0" required>
+                                        </div>
+                                        <div class="col-md-4">
+                                            <label class="form-label text-secondary small fw-medium">🥷 Geroy soni</label>
+                                            <input type="number" name="geroy" value="{{ item.inv.geroy }}" class="form-control bg-dark border-secondary border-opacity-25 text-white" min="0" required>
+                                        </div>
+                                        <div class="col-md-4">
+                                            <label class="form-label text-secondary small fw-medium">🎭 Faol Rol</label>
+                                            <select name="active_role" class="form-select bg-dark border-secondary border-opacity-25 text-white">
+                                                <option value="" {% if not item.inv.active_role %}selected{% endif %}>-- Yo'q --</option>
+                                                <option value="role_don" {% if item.inv.active_role == 'role_don' %}selected{% endif %}>🤵🏻 Don</option>
+                                                <option value="role_komissar" {% if item.inv.active_role == 'role_komissar' %}selected{% endif %}>🕵🏻‍♂️ Komissar</option>
+                                                <option value="role_shifokor" {% if item.inv.active_role == 'role_shifokor' %}selected{% endif %}>👨🏼‍⚕️ Shifokor</option>
+                                                <option value="role_citizen" {% if item.inv.active_role == 'role_citizen' %}selected{% endif %}>👨🏼 Tinch aholi</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="modal-footer border-secondary border-opacity-25 py-2">
+                                    <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Bekor qilish</button>
+                                    <button type="submit" class="btn btn-sm btn-simple-primary">Saqlash</button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+                {% empty %}
+                <tr>
+                    <td colspan="7" class="text-center text-secondary py-5">Foydalanuvchilar topilmadi.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

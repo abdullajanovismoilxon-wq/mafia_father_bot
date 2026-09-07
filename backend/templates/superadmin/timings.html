@@ -1,0 +1,180 @@
+{% extends "superadmin/base.html" %}
+
+{% block title %}O'yin Vaqtlari (Global & Har bir bot uchun){% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h4 class="fw-bold text-white mb-1"><i class="fa-solid fa-stopwatch text-warning me-2"></i>O'yin Vaqtlari Sozlamalari</h4>
+        <p class="text-secondary small mb-0">Global standart vaqtlar hamda har bir bot uchun alohida maxsus vaqtlar</p>
+    </div>
+</div>
+
+<!-- 1. Global Standart Vaqtlar -->
+<div class="card card-custom mb-5">
+    <div class="card-header border-secondary border-opacity-25 py-3 px-4 d-flex align-items-center justify-content-between">
+        <h6 class="fw-bold text-white mb-0"><i class="fa-solid fa-globe text-primary me-2"></i> 1. Global Standart Vaqtlar (Barcha botlar uchun asosiy)</h6>
+        <span class="badge bg-secondary bg-opacity-25 text-white small">Umumiy Standart</span>
+    </div>
+    <div class="table-responsive">
+        <table class="table table-custom">
+            <thead>
+                <tr>
+                    <th>Bosqich / Sozlama Nomi</th>
+                    <th>Tavsif</th>
+                    <th style="width: 180px;">Joriy Vaqt</th>
+                    <th style="width: 140px;" class="text-end">Amal</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for t in global_timings %}
+                <tr>
+                    <td>
+                        <div class="fw-bold text-white">{{ t.title }}</div>
+                    </td>
+                    <td>
+                        <small class="text-secondary">{{ t.description }}</small>
+                    </td>
+                    <td>
+                        <span class="fs-6 fw-bold text-white">{{ t.value }}</span>
+                        <span class="text-info small fw-medium ms-1">{{ t.unit }}</span>
+                    </td>
+                    <td class="text-end">
+                        <button type="button" class="btn btn-sm btn-outline-light px-3" data-bs-toggle="modal" data-bs-target="#globalTimingModal{{ t.id }}">
+                            <i class="fa-solid fa-pen small me-1"></i> O'zgartirish
+                        </button>
+                    </td>
+                </tr>
+
+                <!-- Global Edit Modal -->
+                <div class="modal fade" id="globalTimingModal{{ t.id }}" tabindex="-1" aria-hidden="true">
+                    <div class="modal-dialog modal-dialog-centered">
+                        <div class="modal-content card-custom">
+                            <div class="modal-header border-secondary border-opacity-25 py-3">
+                                <h6 class="modal-title fw-bold text-white">{{ t.title }}</h6>
+                                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                            </div>
+                            <form method="POST" action="{% url 'superadmin:setting_save' t.id %}">
+                                {% csrf_token %}
+                                <input type="hidden" name="redirect_to" value="timings">
+                                <div class="modal-body p-4">
+                                    <div class="mb-3">
+                                        <label class="form-label text-secondary small fw-medium">Standart vaqt miqdori</label>
+                                        <input type="number" name="value" value="{{ t.value }}" class="form-control bg-dark border-secondary border-opacity-25 text-white" min="1" required>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label text-secondary small fw-medium">Birlik</label>
+                                        <input type="text" name="unit" value="{{ t.unit }}" class="form-control bg-dark border-secondary border-opacity-25 text-white" required>
+                                    </div>
+                                    <small class="text-secondary">{{ t.description }}</small>
+                                </div>
+                                <div class="modal-footer border-secondary border-opacity-25 py-2">
+                                    <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Bekor qilish</button>
+                                    <button type="submit" class="btn btn-sm btn-simple-primary">Saqlash</button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- 2. Per-Bot Custom Timings -->
+<div class="card card-custom">
+    <div class="card-header border-secondary border-opacity-25 py-3 px-4 d-flex align-items-center justify-content-between">
+        <h6 class="fw-bold text-white mb-0"><i class="fa-solid fa-robot text-danger me-2"></i> 2. Botlar bo'yicha Alohida Vaqtlar (Per-Bot Custom Timings)</h6>
+        <span class="badge bg-danger bg-opacity-25 text-danger small">Alohida Sozlama</span>
+    </div>
+    <div class="table-responsive">
+        <table class="table table-custom">
+            <thead>
+                <tr>
+                    <th>Bot Nomi & Username</th>
+                    <th>Tun</th>
+                    <th>Ovoz berish</th>
+                    <th>Tong kutish</th>
+                    <th>So'ngi so'z</th>
+                    <th>Holat</th>
+                    <th style="width: 140px;" class="text-end">Amal</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in bot_timings %}
+                <tr>
+                    <td>
+                        <div class="fw-bold text-white">{{ item.bot.name }}</div>
+                        <code class="text-info small">@{{ item.bot.telegram_username }}</code>
+                    </td>
+                    <td><span class="fw-bold">{{ item.night_duration }}</span> <small class="text-secondary">sek</small></td>
+                    <td><span class="fw-bold">{{ item.voting_duration }}</span> <small class="text-secondary">sek</small></td>
+                    <td><span class="fw-bold">{{ item.dawn_wait }}</span> <small class="text-secondary">sek</small></td>
+                    <td><span class="fw-bold">{{ item.last_words }}</span> <small class="text-secondary">sek</small></td>
+                    <td>
+                        {% if item.is_custom %}
+                            <span class="badge bg-warning bg-opacity-25 text-warning small">Maxsus</span>
+                        {% else %}
+                            <span class="badge bg-secondary bg-opacity-25 text-secondary small">Standart</span>
+                        {% endif %}
+                    </td>
+                    <td class="text-end">
+                        <button type="button" class="btn btn-sm btn-outline-light px-3" data-bs-toggle="modal" data-bs-target="#botTimingModal{{ item.bot.id }}">
+                            <i class="fa-solid fa-sliders small me-1"></i> Sozlash
+                        </button>
+                    </td>
+                </tr>
+
+                <!-- Per-Bot Edit Modal -->
+                <div class="modal fade" id="botTimingModal{{ item.bot.id }}" tabindex="-1" aria-hidden="true">
+                    <div class="modal-dialog modal-dialog-centered">
+                        <div class="modal-content card-custom">
+                            <div class="modal-header border-secondary border-opacity-25 py-3">
+                                <h6 class="modal-title fw-bold text-white">⚙️ @{{ item.bot.telegram_username }} — O'yin Vaqtlari</h6>
+                                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                            </div>
+                            <form method="POST" action="{% url 'superadmin:bot_timing_save' item.bot.id %}">
+                                {% csrf_token %}
+                                <div class="modal-body p-4">
+                                    <div class="row g-3">
+                                        <div class="col-6">
+                                            <label class="form-label text-secondary small fw-medium">🌙 Tun davomiyligi (sek)</label>
+                                            <input type="number" name="night_duration" value="{{ item.night_duration }}" class="form-control bg-dark border-secondary border-opacity-25 text-white" min="5" required>
+                                        </div>
+                                        <div class="col-6">
+                                            <label class="form-label text-secondary small fw-medium">⚖️ Ovoz berish (sek)</label>
+                                            <input type="number" name="voting_duration" value="{{ item.voting_duration }}" class="form-control bg-dark border-secondary border-opacity-25 text-white" min="5" required>
+                                        </div>
+                                        <div class="col-6">
+                                            <label class="form-label text-secondary small fw-medium">☀️ Tonggi e'lon kutish (sek)</label>
+                                            <input type="number" name="dawn_wait_duration" value="{{ item.dawn_wait }}" class="form-control bg-dark border-secondary border-opacity-25 text-white" min="3" required>
+                                        </div>
+                                        <div class="col-6">
+                                            <label class="form-label text-secondary small fw-medium">🩸 So'ngi so'z vaqti (sek)</label>
+                                            <input type="number" name="last_words_duration" value="{{ item.last_words }}" class="form-control bg-dark border-secondary border-opacity-25 text-white" min="10" required>
+                                        </div>
+                                        <div class="col-12">
+                                            <label class="form-label text-secondary small fw-medium">⏳ Lobby avto-bekor bo'lish (minut)</label>
+                                            <input type="number" name="lobby_timeout_minutes" value="{{ item.lobby_timeout }}" class="form-control bg-dark border-secondary border-opacity-25 text-white" min="1" required>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="modal-footer border-secondary border-opacity-25 py-2">
+                                    <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Bekor qilish</button>
+                                    <button type="submit" class="btn btn-sm btn-simple-primary">Bot Uchun Saqlash</button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+                {% empty %}
+                <tr>
+                    <td colspan="7" class="text-center text-secondary py-4">Hozircha birorta ham bot yaratilmagan.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

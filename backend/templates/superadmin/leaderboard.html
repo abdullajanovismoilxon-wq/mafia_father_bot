@@ -1,0 +1,101 @@
+{% extends "superadmin/base.html" %}
+
+{% block title %}Top Reyting & Bonus Berish{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h4 class="fw-bold text-white mb-1">🏆 Top O'yinchilar Reytingi & Bonus</h4>
+        <p class="text-secondary small mb-0">Eng ko'p g'alaba qozongan faol o'yinchilar va ularga bonus taqdim etish</p>
+    </div>
+</div>
+
+<div class="card card-custom">
+    <div class="table-responsive">
+        <table class="table table-custom">
+            <thead>
+                <tr>
+                    <th style="width: 60px;"># O'rin</th>
+                    <th>Foydalanuvchi</th>
+                    <th>Telegram ID</th>
+                    <th>G'alabalar</th>
+                    <th>Jami O'yinlar</th>
+                    <th>Balans</th>
+                    <th style="width: 140px;" class="text-end">Bonus Berish</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in leaderboard %}
+                <tr>
+                    <td>
+                        {% if item.rank == 1 %}
+                            <span class="fs-5">🥇</span>
+                        {% elif item.rank == 2 %}
+                            <span class="fs-5">🥈</span>
+                        {% elif item.rank == 3 %}
+                            <span class="fs-5">🥉</span>
+                        {% else %}
+                            <span class="fw-bold text-secondary">{{ item.rank }}</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        <div class="fw-bold text-white">{{ item.profile.first_name|default:"O'yinchi" }}</div>
+                        {% if item.profile.telegram_username %}
+                            <small class="text-info">@{{ item.profile.telegram_username }}</small>
+                        {% endif %}
+                    </td>
+                    <td><code>{{ item.profile.telegram_id }}</code></td>
+                    <td><span class="fw-bold text-success fs-6">{{ item.stats.games_won|default:0 }}</span></td>
+                    <td><span class="text-secondary">{{ item.stats.games_played|default:0 }}</span></td>
+                    <td>
+                        <span class="text-warning fw-bold">{{ item.coins }} 💶</span> | 
+                        <span class="text-info fw-bold">{{ item.diamonds }} 💎</span>
+                    </td>
+                    <td class="text-end">
+                        <button type="button" class="btn btn-sm btn-outline-warning px-3" data-bs-toggle="modal" data-bs-target="#bonusModal{{ item.profile.id }}">
+                            <i class="fa-solid fa-gift small me-1"></i> Bonus
+                        </button>
+                    </td>
+                </tr>
+
+                <!-- Bonus Modal -->
+                <div class="modal fade" id="bonusModal{{ item.profile.id }}" tabindex="-1" aria-hidden="true">
+                    <div class="modal-dialog modal-dialog-centered">
+                        <div class="modal-content card-custom">
+                            <div class="modal-header border-secondary border-opacity-25 py-3">
+                                <h6 class="modal-title fw-bold text-white">🎁 Bonus Berish: {{ item.profile.first_name|default:item.profile.telegram_id }}</h6>
+                                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                            </div>
+                            <form method="POST" action="{% url 'superadmin:give_bonus' item.profile.id %}">
+                                {% csrf_token %}
+                                <div class="modal-body p-4">
+                                    <div class="mb-3">
+                                        <label class="form-label text-secondary small fw-medium">Valyuta turi</label>
+                                        <select name="bonus_type" class="form-select bg-dark border-secondary border-opacity-25 text-white">
+                                            <option value="COINS">💶 Dollar</option>
+                                            <option value="DIAMONDS">💎 Olmos</option>
+                                        </select>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label text-secondary small fw-medium">Bonus miqdori</label>
+                                        <input type="number" name="amount" class="form-control bg-dark border-secondary border-opacity-25 text-white" value="50" min="1" required>
+                                    </div>
+                                </div>
+                                <div class="modal-footer border-secondary border-opacity-25 py-2">
+                                    <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Bekor qilish</button>
+                                    <button type="submit" class="btn btn-sm btn-simple-primary">Bonus Taqdim Etish</button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+                {% empty %}
+                <tr>
+                    <td colspan="7" class="text-center text-secondary py-5">O'yinchilar topilmadi.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

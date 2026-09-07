@@ -1,0 +1,124 @@
+{% extends "superadmin/base.html" %}
+
+{% block title %}Promokodlar & Vauchirlar{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h4 class="fw-bold text-white mb-1">🎟 Promokodlar & Vauchirlar</h4>
+        <p class="text-secondary small mb-0">Dollar, Olmos, VIP yoki inventar buyumlari taqdim etuvchi promokodlar</p>
+    </div>
+    <button type="button" class="btn btn-simple-primary" data-bs-toggle="modal" data-bs-target="#createPromoModal">
+        <i class="fa-solid fa-plus me-1"></i> Yangi Promokod Yaratish
+    </button>
+</div>
+
+<div class="card card-custom">
+    <div class="table-responsive">
+        <table class="table table-custom">
+            <thead>
+                <tr>
+                    <th>Promokod</th>
+                    <th>Mukofot Turi</th>
+                    <th>Miqdor</th>
+                    <th>Foydalanishlar</th>
+                    <th>Holat</th>
+                    <th style="width: 100px;" class="text-end">Amal</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for p in promos %}
+                <tr>
+                    <td>
+                        <span class="fs-6 fw-bold text-warning font-monospace">{{ p.code }}</span>
+                    </td>
+                    <td>
+                        <span class="text-white">{{ p.get_reward_type_display }}</span>
+                    </td>
+                    <td><span class="fw-bold text-white fs-6">{{ p.reward_amount }}</span> ta</td>
+                    <td>
+                        <div class="d-flex align-items-center gap-2">
+                            <span class="small">{{ p.used_count }} / {{ p.max_uses }}</span>
+                            <div class="progress flex-grow-1 bg-dark" style="height: 6px;">
+                                <div class="progress-bar bg-warning" style="width: {% widthratio p.used_count p.max_uses 100 %}%;"></div>
+                            </div>
+                        </div>
+                    </td>
+                    <td>
+                        {% if p.is_active and p.used_count < p.max_uses %}
+                            <span class="badge-live">Faol</span>
+                        {% else %}
+                            <span class="badge-offline">Tugagan</span>
+                        {% endif %}
+                    </td>
+                    <td class="text-end">
+                        <form method="POST" action="{% url 'superadmin:promocode_delete' p.id %}" onsubmit="return confirm('Promokodni o\'chirmoqchimisiz?');">
+                            {% csrf_token %}
+                            <button type="submit" class="btn btn-sm btn-outline-danger py-1 px-2" title="O'chirish">
+                                <i class="fa-solid fa-trash small"></i>
+                            </button>
+                        </form>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="6" class="text-center text-secondary py-5">Hozircha promokodlar mavjud emas. Yuqoridagi tugma orqali yarating!</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Create Modal -->
+<div class="modal fade" id="createPromoModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content card-custom">
+            <div class="modal-header border-secondary border-opacity-25 py-3">
+                <h6 class="modal-title fw-bold text-white">🎟 Yangi Promokod Yaratish</h6>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="POST" action="{% url 'superadmin:promocode_create' %}">
+                {% csrf_token %}
+                <div class="modal-body p-4">
+                    <div class="mb-3">
+                        <label class="form-label text-secondary small fw-medium">Promokod kodi</label>
+                        <input type="text" name="code" class="form-control bg-dark border-secondary border-opacity-25 text-white font-monospace text-uppercase" placeholder="MASALAN: MAFIA2026" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label text-secondary small fw-medium">Mukofot turi</label>
+                        <select name="reward_type" class="form-select bg-dark border-secondary border-opacity-25 text-white">
+                            <option value="COINS">💶 Dollar</option>
+                            <option value="DIAMONDS">💎 Olmos</option>
+                            <option value="VIP_DAYS">👑 VIP Kunlar</option>
+                            <option value="HIMOYA">🛡 Himoya qalqoni</option>
+                            <option value="OSISH_HIMOYA">⚖️ Osishdan himoya</option>
+                            <option value="HUJJAT">📁 Soxta hujjat</option>
+                            <option value="GEROY_HIMOYA">🔰 Geroydan himoya</option>
+                            <option value="GEROY">🥷 Geroy</option>
+                            <option value="ROLE_DON">🎭 Faol Rol: Don</option>
+                            <option value="ROLE_KOMISSAR">🎭 Faol Rol: Komissar</option>
+                            <option value="ROLE_SHIFOKOR">🎭 Faol Rol: Shifokor</option>
+                            <option value="ROLE_CITIZEN">🎭 Faol Rol: Tinch aholi</option>
+                        </select>
+                    </div>
+                    <div class="row g-2">
+                        <div class="col-6">
+                            <label class="form-label text-secondary small fw-medium">Mukofot miqdori (soni)</label>
+                            <input type="number" name="reward_amount" class="form-control bg-dark border-secondary border-opacity-25 text-white" value="100" min="1" required>
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label text-secondary small fw-medium">Foydalanishlar soni</label>
+                            <input type="number" name="max_uses" class="form-control bg-dark border-secondary border-opacity-25 text-white" value="100" min="1" required>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer border-secondary border-opacity-25 py-2">
+                    <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Bekor qilish</button>
+                    <button type="submit" class="btn btn-sm btn-simple-primary">Yaratish</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

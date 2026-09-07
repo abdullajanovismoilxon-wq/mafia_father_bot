@@ -1,0 +1,367 @@
+{% extends "superadmin/base.html" %}
+
+{% block title %}Bosh Sahifa & Grafik Analitika{% endblock %}
+
+{% block content %}
+<!-- Page Header -->
+<div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+    <div>
+        <h3 class="fw-bold text-white mb-1"><i class="fa-solid fa-chart-line text-danger me-2"></i>Platforma Boshqaruvi & Grafik Analitika</h3>
+        <p class="text-secondary small mb-0">Jonli o'yin statistikasi, foydalanuvchilar oqimi va botlar faoliyati tahlili</p>
+    </div>
+    <div class="d-flex gap-2">
+        <a href="{% url 'superadmin:bots' %}" class="btn btn-outline-light btn-sm px-3 rounded-pill fw-semibold">
+            <i class="fa-solid fa-robot me-1"></i> Botlar
+        </a>
+        <a href="{% url 'superadmin:prices' %}" class="btn btn-outline-warning btn-sm px-3 rounded-pill fw-semibold">
+            <i class="fa-solid fa-coins me-1"></i> Narxlar
+        </a>
+        <a href="{% url 'superadmin:texts' %}" class="btn btn-danger btn-sm px-3 rounded-pill fw-semibold">
+            <i class="fa-solid fa-pen-to-square me-1"></i> Matnlar
+        </a>
+    </div>
+</div>
+
+<!-- 8 Key Stat Cards Grid -->
+<div class="row g-3 mb-4">
+    <!-- Card 1: Jami Botlar -->
+    <div class="col-xl-3 col-md-4 col-sm-6">
+        <div class="stat-card p-3 h-100 position-relative overflow-hidden">
+            <div class="d-flex justify-content-between align-items-start mb-2">
+                <span class="text-secondary small fw-bold">JAMI BOTLAR</span>
+                <div class="p-2 bg-danger bg-opacity-10 text-danger rounded-3"><i class="fa-solid fa-robot"></i></div>
+            </div>
+            <h3 class="fw-bold text-white mb-1">{{ total_bots }}</h3>
+            <small class="text-success fw-bold"><i class="fa-solid fa-circle text-success" style="font-size: 8px;"></i> {{ active_bots }} faol bot</small>
+        </div>
+    </div>
+
+    <!-- Card 2: Foydalanuvchilar -->
+    <div class="col-xl-3 col-md-4 col-sm-6">
+        <div class="stat-card p-3 h-100 position-relative overflow-hidden">
+            <div class="d-flex justify-content-between align-items-start mb-2">
+                <span class="text-secondary small fw-bold">FOYDALANUVCHILAR</span>
+                <div class="p-2 bg-info bg-opacity-10 text-info rounded-3"><i class="fa-solid fa-users"></i></div>
+            </div>
+            <h3 class="fw-bold text-white mb-1">{{ total_players }}</h3>
+            <small class="text-info fw-bold"><i class="fa-solid fa-user-plus me-1"></i>+{{ new_players_today }} bugun (Asoschisiz)</small>
+        </div>
+    </div>
+
+    <!-- Card 3: O'yinlar Sessiyasi -->
+    <div class="col-xl-3 col-md-4 col-sm-6">
+        <div class="stat-card p-3 h-100 position-relative overflow-hidden">
+            <div class="d-flex justify-content-between align-items-start mb-2">
+                <span class="text-secondary small fw-bold">O'YINLAR</span>
+                <div class="p-2 bg-warning bg-opacity-10 text-warning rounded-3"><i class="fa-solid fa-gamepad"></i></div>
+            </div>
+            <h3 class="fw-bold text-white mb-1">{{ total_games }}</h3>
+            <small class="text-warning fw-bold"><i class="fa-solid fa-bolt me-1"></i>{{ live_games_count }} jonli o'yin</small>
+        </div>
+    </div>
+
+    <!-- Card 4: Muomaladagi Dollar -->
+    <div class="col-xl-3 col-md-4 col-sm-6">
+        <div class="stat-card p-3 h-100 position-relative overflow-hidden">
+            <div class="d-flex justify-content-between align-items-start mb-2">
+                <span class="text-secondary small fw-bold">DOLLARLAR</span>
+                <div class="p-2 bg-success bg-opacity-10 text-success rounded-3"><i class="fa-solid fa-money-bill-wave"></i></div>
+            </div>
+            <h3 class="fw-bold text-white mb-1">{{ total_coins|default:0 }} 💶</h3>
+            <small class="text-success fw-bold">Muomaladagi balans (Haqiqiy)</small>
+        </div>
+    </div>
+
+    <!-- Card 5: Muomaladagi Olmoslar -->
+    <div class="col-xl-3 col-md-4 col-sm-6">
+        <div class="stat-card p-3 h-100 position-relative overflow-hidden">
+            <div class="d-flex justify-content-between align-items-start mb-2">
+                <span class="text-secondary small fw-bold">OLMOSLAR</span>
+                <div class="p-2 bg-primary bg-opacity-10 text-primary rounded-3"><i class="fa-solid fa-gem"></i></div>
+            </div>
+            <h3 class="fw-bold text-white mb-1">{{ total_diamonds|default:0 }} 💎</h3>
+            <small class="text-primary fw-bold">Muomaladagi zaxira (Haqiqiy)</small>
+        </div>
+    </div>
+
+    <!-- Card 6: Muomaladagi Geroylar -->
+    <div class="col-xl-3 col-md-4 col-sm-6">
+        <div class="stat-card p-3 h-100 position-relative overflow-hidden" style="border: 1px solid rgba(139, 92, 246, 0.3);">
+            <div class="d-flex justify-content-between align-items-start mb-2">
+                <span class="text-secondary small fw-bold">GEROYLAR</span>
+                <div class="p-2 bg-purple bg-opacity-10 text-white rounded-3" style="background: rgba(139, 92, 246, 0.2);"><i class="fa-solid fa-user-ninja"></i></div>
+            </div>
+            <h3 class="fw-bold text-white mb-1">{{ total_heroes|default:0 }} 🥷</h3>
+            <small class="text-info fw-bold"><i class="fa-solid fa-shield-halved me-1"></i>{{ active_heroes|default:0 }} ta faol geroy</small>
+        </div>
+    </div>
+
+    <!-- Card 7: VIP O'yinchilar -->
+    <div class="col-xl-3 col-md-4 col-sm-6">
+        <div class="stat-card p-3 h-100 position-relative overflow-hidden">
+            <div class="d-flex justify-content-between align-items-start mb-2">
+                <span class="text-secondary small fw-bold">VIP STATUS</span>
+                <div class="p-2 bg-warning bg-opacity-20 text-warning rounded-3"><i class="fa-solid fa-crown"></i></div>
+            </div>
+            <h3 class="fw-bold text-white mb-1">{{ vip_count|default:0 }}</h3>
+            <small class="text-warning fw-bold">Faol VIP egalari</small>
+        </div>
+    </div>
+
+    <!-- Card 8: Faol Guruhlar -->
+    <div class="col-xl-3 col-md-4 col-sm-6">
+        <a href="{% url 'superadmin:groups' %}" class="text-decoration-none">
+            <div class="stat-card p-3 h-100 position-relative overflow-hidden" style="border: 1px solid rgba(56, 189, 248, 0.3);">
+                <div class="d-flex justify-content-between align-items-start mb-2">
+                    <span class="text-secondary small fw-bold">FAOL GURUHLAR</span>
+                    <div class="p-2 bg-info bg-opacity-10 text-info rounded-3"><i class="fa-solid fa-people-roof"></i></div>
+                </div>
+                <h3 class="fw-bold text-white mb-1">{{ total_groups|default:0 }}</h3>
+                <small class="text-info fw-bold"><i class="fa-solid fa-link me-1"></i>Guruhlar & Egalari</small>
+            </div>
+        </a>
+    </div>
+</div>
+
+<!-- Interactive Charts Section -->
+<div class="row g-4 mb-4">
+    <!-- Chart 1: O'yinlar Dinamikasi & Faollik -->
+    <div class="col-lg-8">
+        <div class="card card-custom p-4 h-100 shadow">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <div>
+                    <h5 class="fw-bold text-white mb-1"><i class="fa-solid fa-chart-area text-danger me-2"></i>O'yinlar va Foydalanuvchilar Faolligi Dinamikasi</h5>
+                    <p class="text-secondary small mb-0">Oxirgi 7 kunlik o'tkazilgan o'yinlar va yangi qo'shilgan o'yinchilar trendi</p>
+                </div>
+            </div>
+            <div style="height: 280px;">
+                <canvas id="activityChart"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <!-- Chart 2: Rollar Taqsimoti & Jamoalar -->
+    <div class="col-lg-4">
+        <div class="card card-custom p-4 h-100 shadow">
+            <div class="mb-3">
+                <h5 class="fw-bold text-white mb-1"><i class="fa-solid fa-chart-pie text-warning me-2"></i>Rollar Taqsimoti (38 Rol)</h5>
+                <p class="text-secondary small mb-0">O'yinlardagi asosiy fraksiyalar nisbati</p>
+            </div>
+            <div style="height: 240px;" class="d-flex justify-content-center align-items-center">
+                <canvas id="rolesChart"></canvas>
+            </div>
+            <div class="row text-center g-2 mt-2">
+                <div class="col-3"><small class="text-success fw-bold d-block">🏛 Tinch</small></div>
+                <div class="col-3"><small class="text-danger fw-bold d-block">🤵🏻 Mafia</small></div>
+                <div class="col-3"><small class="text-warning fw-bold d-block">🃏 Yakka</small></div>
+                <div class="col-3"><small class="text-info fw-bold d-block">🧟 Zombi</small></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Bottom Section: Active Bots Monitoring & Top Players -->
+<div class="row g-4">
+    <!-- Active Bots Monitoring Table -->
+    <div class="col-lg-8">
+        <div class="card card-custom p-4 shadow">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <div>
+                    <h5 class="fw-bold text-white mb-1"><i class="fa-solid fa-server text-success me-2"></i>Botlar Monitoringi & Jonli Holati</h5>
+                    <p class="text-secondary small mb-0">Platformada ulangan va ishlayotgan barcha child botlar</p>
+                </div>
+                <a href="{% url 'superadmin:bots' %}" class="small text-danger text-decoration-none fw-semibold">Barchasi ({{ total_bots }}) &rarr;</a>
+            </div>
+
+            <div class="table-responsive">
+                <table class="table table-custom align-middle mb-0">
+                    <thead>
+                        <tr>
+                            <th>Bot Nomi & Username</th>
+                            <th>Egasi (Owner)</th>
+                            <th>Vaqtlar (Tun/Ovoz)</th>
+                            <th>Holati</th>
+                            <th class="text-end">Amal</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for item in recent_bots %}
+                        <tr>
+                            <td>
+                                <div class="d-flex align-items-center gap-2">
+                                    <div class="p-2 rounded-circle bg-danger bg-opacity-10 text-danger fs-6">
+                                        <i class="fa-solid fa-robot"></i>
+                                    </div>
+                                    <div>
+                                        <div class="fw-bold text-white">@{{ item.telegram_username }}</div>
+                                        <small class="text-secondary">{{ item.name }}</small>
+                                    </div>
+                                </div>
+                            </td>
+                            <td>
+                                <span class="badge bg-dark border border-secondary border-opacity-25 text-white">
+                                    {{ item.owner.username }}
+                                </span>
+                            </td>
+                            <td>
+                                <small class="text-secondary">
+                                    🌙 {{ item.configuration.night_duration_seconds|default:60 }}s / ⚖️ {{ item.configuration.voting_duration_seconds|default:20 }}s
+                                </small>
+                            </td>
+                            <td>
+                                {% if item.runtime_status == 'RUNNING' and item.status == 'ACTIVE' %}
+                                    <span class="badge bg-success bg-opacity-25 text-success border border-success border-opacity-25">● LIVE (Faol)</span>
+                                {% elif item.status == 'PENDING' %}
+                                    <span class="badge bg-warning bg-opacity-25 text-warning">⏳ Kutilmoqda</span>
+                                {% else %}
+                                    <span class="badge bg-secondary bg-opacity-25 text-white">○ OFFLINE</span>
+                                {% endif %}
+                            </td>
+                            <td class="text-end">
+                                <form method="POST" action="{% url 'superadmin:bot_toggle' item.id %}" class="d-inline">
+                                    {% csrf_token %}
+                                    {% if item.runtime_status == 'RUNNING' and item.status == 'ACTIVE' %}
+                                        <button type="submit" name="action" value="stop" class="btn btn-sm btn-outline-danger px-3 rounded-pill" title="O'chirib qo'yish">
+                                            <i class="fa-solid fa-power-off me-1"></i> To'xtatish
+                                        </button>
+                                    {% else %}
+                                        <button type="submit" name="action" value="start" class="btn btn-sm btn-success px-3 rounded-pill fw-bold" title="Yoqish">
+                                            <i class="fa-solid fa-play me-1"></i> Ishga tushirish
+                                        </button>
+                                    {% endif %}
+                                </form>
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="5" class="text-center text-secondary py-4">Hozircha botlar mavjud emas.</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Top Players Leaderboard Widget -->
+    <div class="col-lg-4">
+        <div class="card card-custom p-4 shadow">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h5 class="fw-bold text-white mb-0"><i class="fa-solid fa-trophy text-warning me-2"></i>Top O'yinchilar</h5>
+                <a href="{% url 'superadmin:leaderboard' %}" class="small text-warning text-decoration-none fw-semibold">Barchasi &rarr;</a>
+            </div>
+
+            <div class="d-flex flex-column gap-3">
+                {% for player in top_players %}
+                <div class="d-flex align-items-center justify-content-between p-2 rounded-3 bg-dark border border-secondary border-opacity-25">
+                    <div class="d-flex align-items-center gap-2">
+                        <span class="badge {% if forloop.counter == 1 %}bg-warning text-dark fw-bold{% elif forloop.counter == 2 %}bg-secondary text-white{% elif forloop.counter == 3 %}bg-danger text-white{% else %}bg-dark border text-secondary{% endif %} rounded-circle px-2 py-1">
+                            {{ forloop.counter }}
+                        </span>
+                        <div>
+                            <div class="text-white small fw-bold">{{ player.display_name|default:player.first_name }}</div>
+                            <small class="text-secondary" style="font-size: 0.72rem;">@{{ player.telegram_username|default:"no_username" }}</small>
+                        </div>
+                    </div>
+                    <div class="text-end">
+                        <span class="badge bg-success bg-opacity-25 text-success fw-bold">{{ player.stats.games_won|default:0 }} 🏆</span>
+                    </div>
+                </div>
+                {% empty %}
+                <div class="text-center text-secondary py-4">O'yinchilar mavjud emas.</div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Chart.js Scripts -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const days = JSON.parse('{{ chart_days_json|safe }}');
+    const games = JSON.parse('{{ chart_games_json|safe }}');
+    const users = JSON.parse('{{ chart_users_json|safe }}');
+    const rolesData = JSON.parse('{{ chart_roles_json|safe }}');
+
+    // 1. Activity Line & Area Chart
+    const ctxActivity = document.getElementById('activityChart').getContext('2d');
+    new Chart(ctxActivity, {
+        type: 'line',
+        data: {
+            labels: days,
+            datasets: [
+                {
+                    label: "O'yinlar soni",
+                    data: games,
+                    borderColor: '#EF4444',
+                    backgroundColor: 'rgba(239, 68, 68, 0.15)',
+                    fill: true,
+                    tension: 0.4,
+                    pointRadius: 4,
+                    pointBackgroundColor: '#EF4444',
+                },
+                {
+                    label: "Yangi o'yinchilar",
+                    data: users,
+                    borderColor: '#38BDF8',
+                    backgroundColor: 'rgba(56, 189, 248, 0.1)',
+                    fill: true,
+                    tension: 0.4,
+                    pointRadius: 4,
+                    pointBackgroundColor: '#38BDF8',
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    labels: { color: '#94A3B8', font: { family: 'inherit', size: 12 } }
+                }
+            },
+            scales: {
+                x: {
+                    grid: { color: 'rgba(255, 255, 255, 0.05)' },
+                    ticks: { color: '#64748B' }
+                },
+                y: {
+                    beginAtZero: true,
+                    grid: { color: 'rgba(255, 255, 255, 0.05)' },
+                    ticks: { color: '#64748B', precision: 0 }
+                }
+            }
+        }
+    });
+
+    // 2. Roles Distribution Doughnut Chart
+    const ctxRoles = document.getElementById('rolesChart').getContext('2d');
+    new Chart(ctxRoles, {
+        type: 'doughnut',
+        data: {
+            labels: ['Tinch aholi', 'Mafia', 'Yakka rollar', 'Zombi'],
+            datasets: [{
+                data: rolesData,
+                backgroundColor: [
+                    '#10B981', // Green
+                    '#EF4444', // Red
+                    '#F59E0B', // Amber
+                    '#06B6D4'  // Cyan
+                ],
+                borderWidth: 2,
+                borderColor: '#121824'
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { display: false }
+            },
+            cutout: '70%'
+        }
+    });
+});
+</script>
+{% endblock %}

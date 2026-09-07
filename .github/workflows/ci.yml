@@ -1,0 +1,90 @@
+name: CI/CD Pipeline - MAFIA BOT FATHER
+
+on:
+  push:
+    branches: [ main, master, develop ]
+  pull_request:
+    branches: [ main, master ]
+
+jobs:
+  backend-tests:
+    name: Backend Test Suite & Security Validation
+    runs-on: ubuntu-latest
+    services:
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install Python Dependencies
+        working-directory: ./backend
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run Django System Checks
+        working-directory: ./backend
+        env:
+          DJANGO_SECRET_KEY: test-key-ci-secret-for-django-check
+          ENCRYPTION_KEY: dGVzdC1lbmNyeXB0aW9uLWtleS0zMi1ieXRlcw==
+          REDIS_URL: redis://localhost:6379/0
+        run: python manage.py check
+
+      - name: Run 103 Unit & Integration Tests (100% Passing Target)
+        working-directory: ./backend
+        env:
+          DJANGO_SECRET_KEY: test-key-ci-secret-for-django-check
+          ENCRYPTION_KEY: dGVzdC1lbmNyeXB0aW9uLWtleS0zMi1ieXRlcw==
+          REDIS_URL: redis://localhost:6379/0
+        run: python manage.py test tests --verbosity=2
+
+  frontend-build:
+    name: Frontend Typecheck & Production Build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js 18.x
+        uses: actions/setup-node@v4
+        with:
+          node-version: 18.x
+          cache: 'npm'
+          cache-dependency-path: './frontend/package-lock.json'
+
+      - name: Install Frontend Dependencies
+        working-directory: ./frontend
+        run: npm ci
+
+      - name: Build Next.js Static & Dynamic App (27 Routes)
+        working-directory: ./frontend
+        env:
+          NEXT_PUBLIC_API_URL: http://localhost:8000/api/v1
+        run: npm run build
+
+  docker-build:
+    name: Container Build & Compose Validation
+    runs-on: ubuntu-latest
+    needs: [backend-tests, frontend-build]
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Validate Docker Compose Configuration
+        run: docker compose config

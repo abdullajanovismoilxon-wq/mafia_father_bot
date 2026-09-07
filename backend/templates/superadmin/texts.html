@@ -1,0 +1,153 @@
+{% extends "superadmin/base.html" %}
+
+{% block title %}Bot Matnlari & Xabarlari{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+    <div>
+        <h4 class="fw-bold text-white mb-1"><i class="fa-solid fa-file-lines text-danger me-2"></i>Bot Matnlari & Xabarlari</h4>
+        <p class="text-secondary small mb-0">Botdagi barcha e'lonlar, xabarlar va tugma matnlarini Telegram ko'rinishida tahrirlash</p>
+    </div>
+</div>
+
+<!-- Filters & Search -->
+<div class="card card-custom p-3 mb-4">
+    <form method="GET" class="row g-2 align-items-center">
+        <div class="col-md-6">
+            <div class="input-group input-group-sm">
+                <span class="input-group-text bg-dark border-secondary border-opacity-25 text-secondary"><i class="fa-solid fa-magnifying-glass"></i></span>
+                <input type="text" name="q" value="{{ query }}" class="form-control bg-dark border-secondary border-opacity-25 text-white" placeholder="Matn yoki kalit so'z bo'yicha qidirish...">
+            </div>
+        </div>
+        <div class="col-md-4">
+            <select name="category" class="form-select form-select-sm bg-dark border-secondary border-opacity-25 text-white" onchange="this.form.submit()">
+                <option value="">-- Barcha Bo'limlar --</option>
+                {% for code, label in categories %}
+                    <option value="{{ code }}" {% if selected_category == code %}selected{% endif %}>{{ label }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="col-md-2">
+            <button type="submit" class="btn btn-sm btn-danger w-100 fw-semibold"><i class="fa-solid fa-filter me-1"></i> Filtrlash</button>
+        </div>
+    </form>
+</div>
+
+<!-- Cards Grid with Telegram Bubble Previews -->
+<div class="row g-4">
+    {% for item in texts %}
+    <div class="col-lg-6 col-xl-4">
+        <div class="card card-custom p-3 h-100 d-flex flex-column justify-content-between shadow-sm" style="border: 1px solid rgba(255,255,255,0.08);">
+            
+            <!-- Header: Title & Category -->
+            <div>
+                <div class="d-flex justify-content-between align-items-start mb-2">
+                    <span class="badge bg-secondary bg-opacity-25 text-white small px-2 py-1">{{ item.get_category_display }}</span>
+                    <code class="small text-info" style="font-size: 11px;">{{ item.key }}</code>
+                </div>
+                <h6 class="fw-bold text-white mb-2">{{ item.title }}</h6>
+
+                <!-- Telegram Chat Bubble Preview -->
+                <div class="p-3 rounded-3 my-2 position-relative" style="background-color: #182533; border: 1px solid #2b5278; min-height: 90px;">
+                    <div class="text-white small" style="line-height: 1.5; white-space: pre-wrap; word-break: break-word; font-size: 13px;">{{ item.content_uz|safe }}</div>
+                    <div class="text-end mt-1" style="font-size: 10px; color: #6c7883;">
+                        <span>14:30</span> ✓✓
+                    </div>
+                </div>
+            </div>
+
+            <!-- Footer: Edit Action Button -->
+            <div class="d-flex justify-content-between align-items-center mt-3 pt-2 border-top border-secondary border-opacity-25">
+                <small class="text-secondary">
+                    {% if item.is_active %}
+                        <span class="text-success"><i class="fa-solid fa-circle small me-1"></i>Faol</span>
+                    {% else %}
+                        <span class="text-secondary"><i class="fa-regular fa-circle small me-1"></i>O'chiq</span>
+                    {% endif %}
+                </small>
+                <button type="button" class="btn btn-sm btn-outline-light px-3 rounded-pill fw-semibold" data-bs-toggle="modal" data-bs-target="#textModal{{ item.id }}">
+                    <i class="fa-solid fa-pen-to-square me-1"></i> Tahrirlash
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Edit Modal -->
+    <div class="modal fade" id="textModal{{ item.id }}" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-lg modal-dialog-centered">
+            <div class="modal-content card-custom border-secondary border-opacity-25 shadow-lg">
+                <div class="modal-header border-secondary border-opacity-25 py-3">
+                    <h6 class="modal-title fw-bold text-white"><i class="fa-solid fa-pen-to-square text-danger me-2"></i>{{ item.title }}</h6>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <form method="POST" action="{% url 'superadmin:text_save' item.id %}">
+                    {% csrf_token %}
+                    <div class="modal-body p-4">
+                        <div class="mb-3">
+                            <label class="form-label text-secondary small fw-semibold">Sarlavha (Admin uchun)</label>
+                            <input type="text" name="title" value="{{ item.title }}" class="form-control bg-dark border-secondary border-opacity-25 text-white" required>
+                        </div>
+
+                        <!-- Formatting Toolbar Tags Helper -->
+                        <div class="mb-2">
+                            <label class="form-label text-secondary small fw-semibold mb-1">
+                                Matn (Telegram HTML Teglari & O'zgaruvchilar)
+                            </label>
+                            <div class="bg-dark p-2 rounded-top border border-secondary border-opacity-25 d-flex flex-wrap gap-1 align-items-center">
+                                <span class="text-secondary small fw-bold me-2"><i class="fa-solid fa-code text-info me-1"></i> Teglar:</span>
+                                <button type="button" class="btn btn-xs btn-outline-light py-0 px-2" onclick="insertTagInto('textInput{{ item.id }}', 'b')"><b>&lt;b&gt;</b></button>
+                                <button type="button" class="btn btn-xs btn-outline-light py-0 px-2" onclick="insertTagInto('textInput{{ item.id }}', 'i')"><i>&lt;i&gt;</i></button>
+                                <button type="button" class="btn btn-xs btn-outline-light py-0 px-2" onclick="insertTagInto('textInput{{ item.id }}', 'code')"><code>&lt;code&gt;</code></button>
+                                <button type="button" class="btn btn-xs btn-outline-light py-0 px-2" onclick="insertTagInto('textInput{{ item.id }}', 'blockquote')">&lt;quote&gt;</button>
+                                <button type="button" class="btn btn-xs btn-outline-light py-0 px-2" onclick="insertTagInto('textInput{{ item.id }}', 'tg-spoiler')">&lt;spoiler&gt;</button>
+                            </div>
+                            <textarea id="textInput{{ item.id }}" name="content_uz" class="form-control bg-dark border-secondary border-opacity-25 text-white rounded-bottom font-monospace" rows="6" required>{{ item.content_uz }}</textarea>
+                        </div>
+
+                        <div class="form-check form-switch mt-3">
+                            <input class="form-check-input" type="checkbox" name="is_active" id="check{{ item.id }}" {% if item.is_active %}checked{% endif %}>
+                            <label class="form-check-label text-white small" for="check{{ item.id }}">Faol holatda (botda ishlatilsin)</label>
+                        </div>
+                    </div>
+                    <div class="modal-footer border-secondary border-opacity-25 py-2">
+                        <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Bekor qilish</button>
+                        <button type="submit" class="btn btn-sm btn-danger px-4 fw-bold shadow">
+                            <i class="fa-solid fa-check me-1"></i> Saqlash
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    {% empty %}
+    <div class="col-12 text-center text-secondary py-5">
+        <i class="fa-solid fa-file-circle-question fs-1 mb-3 text-secondary text-opacity-50"></i>
+        <p>Hech qanday matn topilmadi.</p>
+    </div>
+    {% endfor %}
+</div>
+
+<script>
+function insertTagInto(textareaId, tag) {
+    const textarea = document.getElementById(textareaId);
+    if (!textarea) return;
+    const start = textarea.selectionStart;
+    const end = textarea.selectionEnd;
+    const text = textarea.value;
+    const selected = text.substring(start, end) || 'matn';
+    
+    let replacement = '';
+    if (tag === 'blockquote') {
+        replacement = `<blockquote>${selected}</blockquote>`;
+    } else if (tag === 'tg-spoiler') {
+        replacement = `<tg-spoiler>${selected}</tg-spoiler>`;
+    } else {
+        replacement = `<${tag}>${selected}</${tag}>`;
+    }
+
+    textarea.value = text.substring(0, start) + replacement + text.substring(end);
+    textarea.focus();
+    textarea.setSelectionRange(start + tag.length + 2, start + tag.length + 2 + selected.length);
+}
+</script>
+{% endblock %}

@@ -1,0 +1,220 @@
+{% extends "superadmin/base.html" %}
+
+{% block title %}Botlar Boshqaruvi{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h4 class="fw-bold text-white mb-1"><i class="fa-solid fa-robot text-primary me-2"></i>Botlar Boshqaruvi</h4>
+        <p class="text-secondary small mb-0">Barcha Mafia botlari, ularning alohida sozlamalari va sukut rejimi</p>
+    </div>
+</div>
+
+<!-- Qidiruv -->
+<div class="card card-custom p-3 mb-4">
+    <form method="GET" class="d-flex gap-2">
+        <input type="text" name="q" value="{{ query }}" class="form-control form-control-sm bg-dark border-secondary border-opacity-25 text-white" placeholder="Bot nomi yoki @username bo'yicha qidiruv...">
+        <button type="submit" class="btn btn-sm btn-simple-primary px-4">Qidirish</button>
+        {% if query %}
+            <a href="{% url 'superadmin:bots' %}" class="btn btn-sm btn-outline-secondary">Tozalash</a>
+        {% endif %}
+    </form>
+</div>
+
+<div class="card card-custom">
+    <div class="table-responsive">
+        <table class="table table-custom">
+            <thead>
+                <tr>
+                    <th>Bot</th>
+                    <th>Egasi</th>
+                    <th>O'yinchilar</th>
+                    <th>O'yinlar</th>
+                    <th>Sukut Rejimi</th>
+                    <th>Holat</th>
+                    <th style="width: 220px;" class="text-end">Amallar</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in bot_list %}
+                <tr>
+                    <td>
+                        <div class="fw-bold text-white fs-6">{{ item.bot.name }}</div>
+                        <a href="https://t.me/{{ item.bot.telegram_username }}" target="_blank" class="text-info text-decoration-none small">
+                            <i class="fa-brands fa-telegram me-1"></i>@{{ item.bot.telegram_username }}
+                        </a>
+                    </td>
+                    <td>
+                        {% if item.owner_profile %}
+                            <div class="text-white small fw-medium">{{ item.owner_profile.first_name|default:"Egasi" }}</div>
+                            <code class="small text-secondary">{{ item.owner_profile.telegram_id }}</code>
+                        {% else %}
+                            <span class="text-secondary small">Asosiy Egasi</span>
+                        {% endif %}
+                    </td>
+                    <td><span class="fw-bold text-white">{{ item.players_count }}</span> ta</td>
+                    <td><span class="text-secondary">{{ item.games_count }}</span> ta</td>
+                    <td>
+                        {% if item.night_silence_mode == 'OFF' %}
+                            <span class="badge bg-secondary bg-opacity-25 text-secondary">O'chirilgan</span>
+                        {% elif item.night_silence_mode == 'ALLOW_OWNER_AND_ADMINS' %}
+                            <span class="badge bg-info bg-opacity-25 text-info">Adminlar</span>
+                        {% elif item.night_silence_mode == 'ALLOW_ALIVE_PLAYERS' %}
+                            <span class="badge bg-success bg-opacity-25 text-success">Tiriklar</span>
+                        {% else %}
+                            <span class="badge bg-danger bg-opacity-25 text-danger">Barchasi o'chadi</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if item.is_running %}
+                            <span class="badge-live"><i class="fa-solid fa-circle small me-1"></i> FAOL</span>
+                        {% else %}
+                            <span class="badge-offline"><i class="fa-solid fa-circle small me-1"></i> TO'XTATILGAN</span>
+                        {% endif %}
+                    </td>
+                    <td class="text-end">
+                        <div class="d-flex justify-content-end gap-2">
+                            <!-- Sozlamalar Modal Tugmasi -->
+                            <button type="button" class="btn btn-sm btn-outline-light px-2 py-1" data-bs-toggle="modal" data-bs-target="#botConfigModal{{ item.bot.id }}" title="Bot Sozlamalari">
+                                <i class="fa-solid fa-sliders small"></i> Sozlash
+                            </button>
+
+                            <!-- Toggle Start/Stop -->
+                            <form method="POST" action="{% url 'superadmin:bot_toggle' item.bot.id %}" class="d-inline">
+                                {% csrf_token %}
+                                {% if item.is_running %}
+                                    <button type="submit" name="action" value="stop" class="btn btn-sm btn-outline-warning px-2 py-1" title="To'xtatish">
+                                        <i class="fa-solid fa-pause small"></i>
+                                    </button>
+                                {% else %}
+                                    <button type="submit" name="action" value="start" class="btn btn-sm btn-outline-success px-2 py-1" title="Ishga tushirish">
+                                        <i class="fa-solid fa-play small"></i>
+                                    </button>
+                                {% endif %}
+                            </form>
+
+                            <!-- Delete -->
+                            <form method="POST" action="{% url 'superadmin:bot_delete' item.bot.id %}" class="d-inline" onsubmit="return confirm('Haqiqatan ham ushbu botni butunlay o\'chirmoqchimisiz?');">
+                                {% csrf_token %}
+                                <button type="submit" class="btn btn-sm btn-outline-danger px-2 py-1" title="O'chirish">
+                                    <i class="fa-solid fa-trash small"></i>
+                                </button>
+                            </form>
+                        </div>
+                    </td>
+                </tr>
+
+                <!-- Bot Config Modal -->
+                <div class="modal fade" id="botConfigModal{{ item.bot.id }}" tabindex="-1" aria-hidden="true">
+                    <div class="modal-dialog modal-lg modal-dialog-centered">
+                        <div class="modal-content card-custom">
+                            <div class="modal-header border-secondary border-opacity-25 py-3">
+                                <h6 class="modal-title fw-bold text-white">⚙️ @{{ item.bot.telegram_username }} — To'liq Bot Sozlamalari</h6>
+                                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                            </div>
+                            <form method="POST" action="{% url 'superadmin:bot_config_save' item.bot.id %}">
+                                {% csrf_token %}
+                                <div class="modal-body p-4">
+                                    <div class="row g-3">
+                                        <div class="col-md-12">
+                                            <label class="form-label text-secondary small fw-medium">Bot Nomi</label>
+                                            <input type="text" name="name" value="{{ item.bot.name }}" class="form-control bg-dark border-secondary border-opacity-25 text-white" required>
+                                        </div>
+
+                                        <div class="col-12 mt-3">
+                                            <h6 class="text-danger small fw-bold text-uppercase mb-2"><i class="fa-solid fa-stopwatch text-warning me-2"></i>O'yin Vaqtlari</h6>
+                                        </div>
+                                        <div class="col-md-4">
+                                            <label class="form-label text-secondary small fw-medium">🌙 Tun davomiyligi (sek)</label>
+                                            <input type="number" name="night_duration" value="{{ item.night_duration }}" class="form-control bg-dark border-secondary border-opacity-25 text-white" min="5" required>
+                                        </div>
+                                        <div class="col-md-4">
+                                            <label class="form-label text-secondary small fw-medium">⚖️ Ovoz berish (sek)</label>
+                                            <input type="number" name="voting_duration" value="{{ item.voting_duration }}" class="form-control bg-dark border-secondary border-opacity-25 text-white" min="5" required>
+                                        </div>
+                                        <div class="col-md-4">
+                                            <label class="form-label text-secondary small fw-medium">☀️ Tong kutish (sek)</label>
+                                            <input type="number" name="dawn_wait_duration" value="{{ item.dawn_wait }}" class="form-control bg-dark border-secondary border-opacity-25 text-white" min="3" required>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <label class="form-label text-secondary small fw-medium">🩸 So'ngi so'z vaqti (sek)</label>
+                                            <input type="number" name="last_words_duration" value="{{ item.last_words }}" class="form-control bg-dark border-secondary border-opacity-25 text-white" min="10" required>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <label class="form-label text-secondary small fw-medium">⏳ Lobby avto-bekor bo'lish (min)</label>
+                                            <input type="number" name="lobby_timeout_minutes" value="{{ item.lobby_timeout }}" class="form-control bg-dark border-secondary border-opacity-25 text-white" min="1" required>
+                                        </div>
+
+                                        <div class="col-12 mt-3">
+                                            <h6 class="text-danger small fw-bold text-uppercase mb-2">🤫 Sukut Rejimi & Guruh Boshqaruvi</h6>
+                                        </div>
+                                        <div class="col-md-12">
+                                            <label class="form-label text-secondary small fw-medium">Tungi Sukut Rejimi (Tunda guruhdagi xabarlarni o'chirish)</label>
+                                            <select name="night_silence_mode" class="form-select bg-dark border-secondary border-opacity-25 text-white">
+                                                <option value="DELETE_ALL" {% if item.night_silence_mode == 'DELETE_ALL' %}selected{% endif %}>🔴 Barchasi o'chiriladi (Tunda hech kim yoza olmaydi)</option>
+                                                <option value="ALLOW_OWNER_AND_ADMINS" {% if item.night_silence_mode == 'ALLOW_OWNER_AND_ADMINS' %}selected{% endif %}>🟡 Faqat Guruh Egasi va Adminlar yozishi mumkin</option>
+                                                <option value="ALLOW_ALIVE_PLAYERS" {% if item.night_silence_mode == 'ALLOW_ALIVE_PLAYERS' %}selected{% endif %}>🟢 Faqat Tirik O'yinchilar yozishi mumkin</option>
+                                                <option value="OFF" {% if item.night_silence_mode == 'OFF' %}selected{% endif %}>⚪️ O'chirilgan (Xabarlar o'chirilmaydi)</option>
+                                            </select>
+                                        </div>
+
+                                        <div class="col-md-6">
+                                            <div class="form-check form-switch mt-2">
+                                                <input class="form-check-input" type="checkbox" name="auto_pin_lobby" id="pin{{ item.bot.id }}" {% if item.auto_pin_lobby %}checked{% endif %}>
+                                                <label class="form-check-label text-white small" for="pin{{ item.bot.id }}">📌 Guruhda o'yin xabarini pin qilish</label>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <div class="form-check form-switch mt-2">
+                                                <input class="form-check-input" type="checkbox" name="require_admin_to_play" id="adm{{ item.bot.id }}" {% if item.require_admin %}checked{% endif %}>
+                                                <label class="form-check-label text-white small" for="adm{{ item.bot.id }}">🛡 Adminlik huquqini majburiy talab qilish</label>
+                                            </div>
+                                        </div>
+
+                                        <div class="col-12 mt-3">
+                                            <h6 class="text-danger small fw-bold text-uppercase mb-2"><i class="fa-solid fa-user-shield text-info me-2"></i>Buyruqlar Ruxsati Boshqaruvi (Command Permissions)</h6>
+                                        </div>
+                                        <div class="col-md-4">
+                                            <label class="form-label text-secondary small fw-medium">▶️ /start_game ruxsati</label>
+                                            <select name="cmd_perm_start_game" class="form-select form-select-sm bg-dark border-secondary border-opacity-25 text-white">
+                                                <option value="ADMINS" {% if item.cmd_perm_start_game == 'ADMINS' %}selected{% endif %}>👑 Faqat Ega va Adminlar</option>
+                                                <option value="OWNER" {% if item.cmd_perm_start_game == 'OWNER' %}selected{% endif %}>⭐️ Faqat Guruh Egasi (Creator)</option>
+                                                <option value="ALL" {% if item.cmd_perm_start_game == 'ALL' %}selected{% endif %}>👥 Barcha Foydalanuvchilar (Hamma)</option>
+                                            </select>
+                                        </div>
+                                        <div class="col-md-4">
+                                            <label class="form-label text-secondary small fw-medium">🛑 /stop & /cancel ruxsati</label>
+                                            <select name="cmd_perm_stop_game" class="form-select form-select-sm bg-dark border-secondary border-opacity-25 text-white">
+                                                <option value="ADMINS" {% if item.cmd_perm_stop_game == 'ADMINS' %}selected{% endif %}>👑 Faqat Ega va Adminlar</option>
+                                                <option value="OWNER" {% if item.cmd_perm_stop_game == 'OWNER' %}selected{% endif %}>⭐️ Faqat Guruh Egasi (Creator)</option>
+                                                <option value="ALL" {% if item.cmd_perm_stop_game == 'ALL' %}selected{% endif %}>👥 Barcha Foydalanuvchilar (Hamma)</option>
+                                            </select>
+                                        </div>
+                                        <div class="col-md-4">
+                                            <label class="form-label text-secondary small fw-medium">🎮 /game (Lobby) ruxsati</label>
+                                            <select name="cmd_perm_game" class="form-select form-select-sm bg-dark border-secondary border-opacity-25 text-white">
+                                                <option value="ALL" {% if item.cmd_perm_game == 'ALL' %}selected{% endif %}>👥 Barcha Foydalanuvchilar (Hamma)</option>
+                                                <option value="ADMINS" {% if item.cmd_perm_game == 'ADMINS' %}selected{% endif %}>👑 Faqat Ega va Adminlar</option>
+                                                <option value="OWNER" {% if item.cmd_perm_game == 'OWNER' %}selected{% endif %}>⭐️ Faqat Guruh Egasi (Creator)</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="modal-footer border-secondary border-opacity-25 py-2">
+                                    <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Bekor qilish</button>
+                                    <button type="submit" class="btn btn-sm btn-simple-primary">Barcha Sozlamalarni Saqlash</button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+                {% empty %}
+                <tr>
+                    <td colspan="7" class="text-center text-secondary py-5">Botlar topilmadi.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

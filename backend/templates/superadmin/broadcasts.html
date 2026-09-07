@@ -1,0 +1,447 @@
+{% extends "superadmin/base.html" %}
+
+{% block title %}E'lonlar Yuborish (Telegram Formatlash & Prevyu){% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h3 class="fw-bold text-white mb-1"><i class="fa-solid fa-bullhorn text-danger me-2"></i>E'lonlar Yuborish (Broadcast)</h3>
+        <p class="text-secondary small mb-0">Barcha o'yin botlari orqali o'yinchilarga chiroyli formatlangan e'lonlar va rasmli xabarlar yuborish</p>
+    </div>
+    <button type="button" class="btn btn-danger btn-sm px-3 rounded-pill fw-bold shadow" data-bs-toggle="modal" data-bs-target="#newBroadcastModal">
+        <i class="fa-solid fa-paper-plane me-1"></i> Yangi E'lon Yuborish
+    </button>
+</div>
+
+<!-- Stat overview -->
+<div class="row g-3 mb-4">
+    <div class="col-md-6">
+        <div class="stat-card">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <span class="text-secondary small fw-medium">BARCHA BOT O'YINCHILARI</span>
+                    <h3 class="fw-bold text-white mt-1 mb-0">{{ total_players }} ta faol o'yinchi</h3>
+                </div>
+                <div class="p-3 bg-info bg-opacity-10 text-info rounded-3 fs-4"><i class="fa-solid fa-users"></i></div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="stat-card">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <span class="text-secondary small fw-medium">BOT EGASI (OWNERS)</span>
+                    <h3 class="fw-bold text-white mt-1 mb-0">{{ total_owners }} ta bot egasi</h3>
+                </div>
+                <div class="p-3 bg-warning bg-opacity-10 text-warning rounded-3 fs-4"><i class="fa-solid fa-crown"></i></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Broadcast History Table -->
+<div class="card card-custom p-4">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h5 class="fw-bold text-white mb-0"><i class="fa-solid fa-clock-rotate-left text-danger me-2"></i>Yuborilgan E'lonlar Tarixi</h5>
+        {% if broadcasts %}
+        <form method="POST" action="{% url 'superadmin:broadcast_clear_all' %}" onsubmit="return confirm('Haqiqatan ham barcha e\'lonlar tarixini tozalamoqchimisiz?');">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-xs btn-outline-danger px-2 py-1">
+                <i class="fa-solid fa-trash-can me-1"></i> Barcha Tarixni Tozalash
+            </button>
+        </form>
+        {% endif %}
+    </div>
+    <div class="table-responsive">
+        <table class="table table-custom mb-0">
+            <thead>
+                <tr>
+                    <th>Sana & Vaqt</th>
+                    <th>Sarlavha</th>
+                    <th>Auditoriya</th>
+                    <th>Natija (Yetkazildi / Xato)</th>
+                    <th>Holati</th>
+                    <th class="text-end">Amallar</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for b in broadcasts %}
+                <tr>
+                    <td><small class="text-secondary">{{ b.created_at|date:"d.m.Y H:i" }}</small></td>
+                    <td>
+                        <div class="fw-bold text-white">{{ b.title }}</div>
+                        <small class="text-secondary text-truncate d-block" style="max-width: 300px;">{{ b.content }}</small>
+                    </td>
+                    <td><span class="badge bg-secondary bg-opacity-25 text-white">{{ b.get_target_audience_display }}</span></td>
+                    <td>
+                        <span class="text-success fw-bold">✓ {{ b.sent_success }}</span> /
+                        <span class="text-danger fw-bold">✗ {{ b.sent_failed }}</span>
+                        <small class="text-secondary">({{ b.total_recipients }} jami)</small>
+                    </td>
+                    <td>
+                        {% if b.status == 'COMPLETED' %}
+                            <span class="badge-live">● Yakunlandi</span>
+                        {% elif b.status == 'IN_PROGRESS' %}
+                            <span class="badge-pending">⏳ Yuborilmoqda</span>
+                        {% else %}
+                            <span class="badge-offline">○ Kutilmoqda</span>
+                        {% endif %}
+                    </td>
+                    <td class="text-end">
+                        <form method="POST" action="{% url 'superadmin:broadcast_delete' b.id %}" onsubmit="return confirm('Ushbu e\'lon tarixini o\'chirmoqchimisiz?');" class="d-inline">
+                            {% csrf_token %}
+                            <button type="submit" class="btn btn-xs btn-outline-danger px-2 py-1" title="Tarixdan o'chirish">
+                                <i class="fa-solid fa-trash-can"></i>
+                            </button>
+                        </form>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="6" class="text-center text-secondary py-5">Hozircha hech qanday e'lon yuborilmagan.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- New Broadcast Modal (with Rich Formatting Toolbar & Live Telegram Preview) -->
+<div class="modal fade" id="newBroadcastModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-centered">
+        <div class="modal-content card-custom border-secondary border-opacity-25 shadow-lg">
+            <div class="modal-header border-secondary border-opacity-25 py-3">
+                <h5 class="modal-title fw-bold text-white"><i class="fa-solid fa-bullhorn text-danger me-2"></i>Yangi E'lon Yaratish & Telegram Formatlash</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="POST" action="{% url 'superadmin:broadcast_create' %}">
+                {% csrf_token %}
+                <div class="modal-body p-4">
+                    <div class="row g-4">
+                        
+                        <!-- Left Column: Form Inputs & Formatting Tools -->
+                        <div class="col-lg-7">
+                            <div class="row g-3">
+                                
+                                <div class="col-md-6">
+                                    <label class="form-label text-secondary small fw-semibold">E'lon Sarlavhasi (Admin uchun)</label>
+                                    <input type="text" id="broadcastTitle" name="title" class="form-control bg-dark border-secondary border-opacity-25 text-white" placeholder="Masalan: Yangi versiya e'loni" required>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label text-secondary small fw-semibold">Kimga Yuborilsin? (Auditoriya)</label>
+                                    <select name="target_audience" id="targetAudienceSelect" onchange="handleAudienceChange()" class="form-select bg-dark border-secondary border-opacity-25 text-white">
+                                        <option value="ALL_PLAYERS">👥 Barcha o'yin botlarining o'yinchilariga</option>
+                                        <option value="BOT_OWNERS">👑 Faqat bot egalariga (Father Bot orqali)</option>
+                                        <option value="SPECIFIC_USER">🎯 Alohida bitta foydalanuvchiga (ID yoki @username)</option>
+                                    </select>
+                                </div>
+
+                                <div class="col-md-6" id="specificUserContainer" style="display: none;">
+                                    <label class="form-label text-info small fw-bold"><i class="fa-solid fa-crosshairs me-1"></i> Foydalanuvchi Telegram ID yoki @username</label>
+                                    <input type="text" name="target_user_id" id="targetUserIdInput" class="form-control bg-dark border-info text-white" placeholder="Masalan: 7782387930 yoki @ismoilo9">
+                                    <small class="text-secondary" style="font-size: 11px;">Foydalanuvchining raqamli Telegram ID'si yoki @username'ini kiriting</small>
+                                </div>
+
+                                <!-- Ready Templates -->
+                                <div class="col-12">
+                                    <div class="d-flex align-items-center gap-2 flex-wrap">
+                                        <span class="text-secondary small fw-bold"><i class="fa-solid fa-wand-magic-sparkles text-warning me-1"></i> Tayyor Shablonlar:</span>
+                                        <button type="button" class="btn btn-xs btn-outline-secondary text-white py-1 px-2 rounded" onclick="applyTemplate('update')">🚀 Yangilanish</button>
+                                        <button type="button" class="btn btn-xs btn-outline-secondary text-white py-1 px-2 rounded" onclick="applyTemplate('promo')">🎟 Promokod</button>
+                                        <button type="button" class="btn btn-xs btn-outline-secondary text-white py-1 px-2 rounded" onclick="applyTemplate('tournament')">🏆 Turnir</button>
+                                    </div>
+                                </div>
+
+                                <!-- Text Formatting Toolbar -->
+                                <div class="col-12">
+                                    <label class="form-label text-secondary small fw-semibold mb-1">Xabar Matni (Telegram HTML Formatlash)</label>
+                                    
+                                    <!-- Formatting Buttons Toolbar -->
+                                    <div class="bg-dark p-2 rounded-top border border-secondary border-opacity-25 d-flex flex-wrap gap-1 align-items-center">
+                                        <button type="button" class="btn btn-sm btn-outline-light px-2 py-1" onclick="wrapTag('b')" title="Qalin matn (Bold)">
+                                            <i class="fa-solid fa-bold"></i>
+                                        </button>
+                                        <button type="button" class="btn btn-sm btn-outline-light px-2 py-1" onclick="wrapTag('i')" title="Kursiv matn (Italic)">
+                                            <i class="fa-solid fa-italic"></i>
+                                        </button>
+                                        <button type="button" class="btn btn-sm btn-outline-light px-2 py-1" onclick="wrapTag('u')" title="Tagiga chizilgan (Underline)">
+                                            <i class="fa-solid fa-underline"></i>
+                                        </button>
+                                        <button type="button" class="btn btn-sm btn-outline-light px-2 py-1" onclick="wrapTag('s')" title="Ustidan chizilgan (Strikethrough)">
+                                            <i class="fa-solid fa-strikethrough"></i>
+                                        </button>
+                                        <button type="button" class="btn btn-sm btn-outline-light px-2 py-1" onclick="wrapTag('code')" title="Monospace / Kod">
+                                            <i class="fa-solid fa-code"></i>
+                                        </button>
+                                        <button type="button" class="btn btn-sm btn-outline-light px-2 py-1" onclick="wrapTag('tg-spoiler')" title="Yashirin matn (Spoiler)">
+                                            <i class="fa-solid fa-eye-slash"></i>
+                                        </button>
+                                        <button type="button" class="btn btn-sm btn-outline-light px-2 py-1" onclick="wrapTag('blockquote')" title="Iqtibos (Quote)">
+                                            <i class="fa-solid fa-quote-left"></i>
+                                        </button>
+                                        <button type="button" class="btn btn-sm btn-outline-light px-2 py-1" onclick="insertLink()" title="Havola (Link)">
+                                            <i class="fa-solid fa-link"></i>
+                                        </button>
+
+                                        <div class="vr bg-secondary mx-1 my-1"></div>
+
+                                        <!-- Quick Emojis -->
+                                        <button type="button" class="btn btn-sm btn-dark text-white p-1" onclick="insertText('📢')">📢</button>
+                                        <button type="button" class="btn btn-sm btn-dark text-white p-1" onclick="insertText('🎮')">🎮</button>
+                                        <button type="button" class="btn btn-sm btn-dark text-white p-1" onclick="insertText('🏆')">🏆</button>
+                                        <button type="button" class="btn btn-sm btn-dark text-white p-1" onclick="insertText('💎')">💎</button>
+                                        <button type="button" class="btn btn-sm btn-dark text-white p-1" onclick="insertText('💶')">💶</button>
+                                        <button type="button" class="btn btn-sm btn-dark text-white p-1" onclick="insertText('👑')">👑</button>
+                                        <button type="button" class="btn btn-sm btn-dark text-white p-1" onclick="insertText('🎁')">🎁</button>
+                                        <button type="button" class="btn btn-sm btn-dark text-white p-1" onclick="insertText('🚀')">🚀</button>
+                                        <button type="button" class="btn btn-sm btn-dark text-white p-1" onclick="insertText('⚡')">⚡</button>
+                                        <button type="button" class="btn btn-sm btn-dark text-white p-1" onclick="insertText('🔔')">🔔</button>
+                                        <button type="button" class="btn btn-sm btn-dark text-white p-1" onclick="insertText('⚠️')">⚠️</button>
+                                    </div>
+
+                                    <textarea id="broadcastContent" name="content" class="form-control bg-dark border-secondary border-opacity-25 text-white rounded-bottom font-monospace" rows="7" placeholder="E'lon xabarini yozing yoki yuqoridagi tugmalardan foydalaning..." oninput="updatePreview()" required></textarea>
+                                </div>
+
+                                <div class="col-12">
+                                    <label class="form-label text-secondary small fw-semibold">Rasm Havolasi (Photo URL - ixtiyoriy)</label>
+                                    <input type="url" id="broadcastPhoto" name="photo_url" class="form-control bg-dark border-secondary border-opacity-25 text-white" placeholder="https://images.unsplash.com/... yoki https://.../banner.jpg" oninput="updatePreview()">
+                                </div>
+
+                                <div class="col-md-6">
+                                    <label class="form-label text-secondary small fw-semibold">Tugma Matni (Button Text - ixtiyoriy)</label>
+                                    <input type="text" id="broadcastBtnText" name="button_text" class="form-control bg-dark border-secondary border-opacity-25 text-white" placeholder="Masalan: 🚀 Botga O'tish" oninput="updatePreview()">
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label text-secondary small fw-semibold">Tugma Havolasi (Button URL - ixtiyoriy)</label>
+                                    <input type="url" id="broadcastBtnUrl" name="button_url" class="form-control bg-dark border-secondary border-opacity-25 text-white" placeholder="https://t.me/..." oninput="updatePreview()">
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Right Column: Live Telegram Mockup Preview -->
+                        <div class="col-lg-5">
+                            <label class="form-label text-secondary small fw-semibold mb-2">
+                                <i class="fa-brands fa-telegram text-info me-1"></i> Telegramda Ko'rinishi (Jonli Prevyu):
+                            </label>
+                            
+                            <!-- Telegram Chat Container -->
+                            <div class="p-3 rounded-4" style="background-color: #0e1621; border: 1px solid #1e2c3a; min-height: 380px;">
+                                <div class="d-flex align-items-center gap-2 mb-3 pb-2 border-bottom border-secondary border-opacity-25">
+                                    <div class="rounded-circle bg-danger text-white d-flex align-items-center justify-content-center fw-bold" style="width: 34px; height: 34px; font-size: 14px;">M</div>
+                                    <div>
+                                        <div class="text-white fw-bold small" style="line-height: 1.2;">Mafia Game Bot</div>
+                                        <div class="text-secondary" style="font-size: 11px;">bot</div>
+                                    </div>
+                                </div>
+
+                                <!-- Telegram Message Bubble -->
+                                <div class="p-3 rounded-3 position-relative" style="background-color: #182533; border: 1px solid #2b5278; box-shadow: 0 4px 12px rgba(0,0,0,0.3);">
+                                    
+                                    <!-- Photo Preview -->
+                                    <div id="previewPhotoContainer" class="mb-2 text-center" style="display: none;">
+                                        <img id="previewPhoto" src="" alt="Banner" style="max-height: 160px; max-width: 100%; border-radius: 6px; object-fit: cover;">
+                                    </div>
+
+                                    <!-- Content Preview -->
+                                    <div id="previewText" class="text-white" style="font-size: 14px; line-height: 1.5; white-space: pre-wrap; word-break: break-word;">
+                                        <i>Xabar matni shu yerda jonli aks etadi...</i>
+                                    </div>
+
+                                    <div class="text-end mt-2" style="font-size: 11px; color: #6c7883;">
+                                        <span id="previewTime">12:00</span> ✓✓
+                                    </div>
+                                </div>
+
+                                <!-- Inline Button Preview -->
+                                <div id="previewBtnContainer" class="mt-2 text-center" style="display: none;">
+                                    <div class="py-2 px-3 rounded-3 text-center fw-semibold text-white d-flex align-items-center justify-content-center gap-2" style="background-color: #2b5278; font-size: 13px; cursor: pointer;">
+                                        <span id="previewBtnLabel">Tugma Matni</span>
+                                        <i class="fa-solid fa-arrow-up-right-from-square small text-info"></i>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+                <div class="modal-footer border-secondary border-opacity-25 py-3">
+                    <button type="button" class="btn btn-secondary btn-sm px-3" data-bs-dismiss="modal">Bekor qilish</button>
+                    <button type="submit" class="btn btn-danger btn-sm px-4 fw-bold shadow">
+                        <i class="fa-solid fa-paper-plane me-1"></i> Barchaga Yuborish
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Formatting & Preview JavaScript -->
+<script>
+function wrapTag(tag) {
+    const textarea = document.getElementById('broadcastContent');
+    const start = textarea.selectionStart;
+    const end = textarea.selectionEnd;
+    const text = textarea.value;
+    const selected = text.substring(start, end) || 'matn';
+    
+    let replacement = '';
+    if (tag === 'blockquote') {
+        replacement = `<blockquote>${selected}</blockquote>`;
+    } else if (tag === 'tg-spoiler') {
+        replacement = `<tg-spoiler>${selected}</tg-spoiler>`;
+    } else {
+        replacement = `<${tag}>${selected}</${tag}>`;
+    }
+
+    textarea.value = text.substring(0, start) + replacement + text.substring(end);
+    textarea.focus();
+    textarea.setSelectionRange(start + tag.length + 2, start + tag.length + 2 + selected.length);
+    updatePreview();
+}
+
+function insertLink() {
+    const url = prompt("Havola (URL) manzilini kiriting:", "https://");
+    if (!url) return;
+    const textarea = document.getElementById('broadcastContent');
+    const start = textarea.selectionStart;
+    const end = textarea.selectionEnd;
+    const text = textarea.value;
+    const selected = text.substring(start, end) || 'Havola';
+    const replacement = `<a href="${url}">${selected}</a>`;
+    textarea.value = text.substring(0, start) + replacement + text.substring(end);
+    textarea.focus();
+    updatePreview();
+}
+
+function insertText(str) {
+    const textarea = document.getElementById('broadcastContent');
+    const start = textarea.selectionStart;
+    const end = textarea.selectionEnd;
+    const text = textarea.value;
+    textarea.value = text.substring(0, start) + str + text.substring(end);
+    textarea.focus();
+    textarea.setSelectionRange(start + str.length, start + str.length);
+    updatePreview();
+}
+
+function applyTemplate(type) {
+    const titleInput = document.getElementById('broadcastTitle');
+    const contentInput = document.getElementById('broadcastContent');
+    const btnTextInput = document.getElementById('broadcastBtnText');
+    const btnUrlInput = document.getElementById('broadcastBtnUrl');
+
+    if (type === 'update') {
+        titleInput.value = "🚀 Yangi Katta Yangilanish";
+        contentInput.value = "🚀 <b>YANGI VERSIYA ISHGA TUSHIRILDI!</b>\n\n" +
+            "Hurmatli shahar ahli! Botimizda quyidagi ajoyib yangiliklar qo'shildi:\n\n" +
+            "• 💊 <b>Doridan himoya</b> do'konga qo'shildi\n" +
+            "• ⚡ O'yin tezligi va barqarorligi oshirildi\n" +
+            "• 🏆 Profil va natijalar to'liq avtomatlashtirildi\n\n" +
+            "<blockquote>Hozirroq guruhga o'ting va yangi o'yinni boshlang!</blockquote>";
+        btnTextInput.value = "🎮 O'yinga Qo'shilish";
+        btnUrlInput.value = "https://t.me/testing_uchun_bot";
+    } else if (type === 'promo') {
+        titleInput.value = "🎟 Yangi Sovg'a Promokodi";
+        contentInput.value = "🎁 <b>MAXSUS SOVG'A PROMOKODI!</b>\n\n" +
+            "Barcha faol o'yinchilarimiz uchun maxsus promokod:\n\n" +
+            "🔑 Promokod: <code>MAFIA2026</code>\n" +
+            "💎 Mukofot: <b>500 💶 Dollar va 5 💎 Olmos</b>\n\n" +
+            "<i>Foydalanish uchun botga <code>/promo MAFIA2026</code> deb yozing.</i>";
+        btnTextInput.value = "🎟 Promokodni Faollashtirish";
+        btnUrlInput.value = "https://t.me/testing_uchun_bot?start=promo_MAFIA2026";
+    } else if (type === 'tournament') {
+        titleInput.value = "🏆 Mafia Chempionati";
+        contentInput.value = "🏆 <b>MAFIA HAFTALIK CHEMPIONATI!</b>\n\n" +
+            "Bugun kechki soat <b>20:00 da</b> katta turnir bo'lib o'tadi!\n\n" +
+            "🥇 1-o'rin: <b>10,000 💶 Dollar + 👑 VIP Oltin</b>\n" +
+            "🥈 2-o'rin: <b>5,000 💶 Dollar</b>\n" +
+            "🥉 3-o'rin: <b>2,500 💶 Dollar</b>\n\n" +
+            "<tg-spoiler>Turnirda barcha aktiv rollar ochiq bo'ladi!</tg-spoiler>";
+        btnTextInput.value = "🏆 Ro'yxatdan O'tish";
+        btnUrlInput.value = "https://t.me/testing_uchun_bot";
+    }
+    updatePreview();
+}
+
+function updatePreview() {
+    const content = document.getElementById('broadcastContent').value;
+    const photo = document.getElementById('broadcastPhoto').value.trim();
+    const btnText = document.getElementById('broadcastBtnText').value.trim();
+
+    const previewText = document.getElementById('previewText');
+    const previewPhotoContainer = document.getElementById('previewPhotoContainer');
+    const previewPhoto = document.getElementById('previewPhoto');
+    const previewBtnContainer = document.getElementById('previewBtnContainer');
+    const previewBtnLabel = document.getElementById('previewBtnLabel');
+
+    if (content.trim()) {
+        previewText.innerHTML = content;
+    } else {
+        previewText.innerHTML = "<i>Xabar matni shu yerda jonli aks etadi...</i>";
+    }
+
+    if (photo) {
+        previewPhoto.src = photo;
+        previewPhotoContainer.style.display = 'block';
+    } else {
+        previewPhotoContainer.style.display = 'none';
+    }
+
+    if (btnText) {
+        previewBtnLabel.innerText = btnText;
+        previewBtnContainer.style.display = 'block';
+    } else {
+        previewBtnContainer.style.display = 'none';
+    }
+
+    // Set live time
+    const now = new Date();
+    const hrs = String(now.getHours()).padStart(2, '0');
+    const mins = String(now.getMinutes()).padStart(2, '0');
+    document.getElementById('previewTime').innerText = `${hrs}:${mins}`;
+}
+
+// Initialize preview on modal show
+document.addEventListener('DOMContentLoaded', function() {
+    const modalEl = document.getElementById('newBroadcastModal');
+    if (modalEl) {
+        modalEl.addEventListener('shown.bs.modal', function () {
+            updatePreview();
+        });
+    }
+});
+
+function handleAudienceChange() {
+    const sel = document.getElementById('targetAudienceSelect').value;
+    const cont = document.getElementById('specificUserContainer');
+    if (cont) {
+        if (sel === 'SPECIFIC_USER') {
+            cont.style.display = 'block';
+            document.getElementById('targetUserIdInput')?.focus();
+        } else {
+            cont.style.display = 'none';
+        }
+    }
+}
+
+window.addEventListener('DOMContentLoaded', () => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const targetUser = urlParams.get('target_user');
+    if (targetUser) {
+        const select = document.getElementById('targetAudienceSelect');
+        if (select) {
+            select.value = 'SPECIFIC_USER';
+            handleAudienceChange();
+            const input = document.getElementById('targetUserIdInput');
+            if (input) input.value = targetUser;
+            const modalEl = document.getElementById('newBroadcastModal');
+            if (modalEl && typeof bootstrap !== 'undefined') {
+                const modal = new bootstrap.Modal(modalEl);
+                modal.show();
+            }
+        }
+    }
+});
+
+</script>
+{% endblock %}

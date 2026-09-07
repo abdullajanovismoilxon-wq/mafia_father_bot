@@ -1,0 +1,59 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mafiabotfather-frontend
+  namespace: mafiabotfather
+  labels:
+    app: mafiabotfather-frontend
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: mafiabotfather-frontend
+  template:
+    metadata:
+      labels:
+        app: mafiabotfather-frontend
+    spec:
+      containers:
+        - name: frontend
+          image: mafiabotfather/frontend:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 3000
+          env:
+            - name: NEXT_PUBLIC_API_URL
+              value: "https://api.mafiabotfather.uz/api/v1"
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 3000
+            initialDelaySeconds: 15
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 3000
+            initialDelaySeconds: 5
+            periodSeconds: 5
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: frontend-service
+  namespace: mafiabotfather
+spec:
+  selector:
+    app: mafiabotfather-frontend
+  ports:
+    - protocol: TCP
+      port: 3000
+      targetPort: 3000
+  type: ClusterIP

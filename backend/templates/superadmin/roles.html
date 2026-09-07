@@ -1,0 +1,258 @@
+{% extends 'superadmin/base.html' %}
+
+{% block title %}Rollar Boshqaruvi (38 ta Rol){% endblock %}
+
+{% block content %}
+<!-- Page Header -->
+<div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+    <div>
+        <h4 class="fw-bold text-white mb-1"><i class="fa-solid fa-masks-theater text-danger me-2"></i>Mafia Rollari Boshqaruvi</h4>
+        <p class="text-secondary small mb-0">Platformadagi barcha 38 ta o'yin rollari, ularning tavsiflari, vazifalari, jamoalari va faollik holati.</p>
+    </div>
+    <div class="d-flex gap-2 align-items-center">
+        <span class="badge bg-danger bg-opacity-25 text-danger border border-danger border-opacity-25 px-3 py-2 rounded-pill fw-bold">
+            <i class="fa-solid fa-gamepad me-1"></i> Jami {{ total_count }} ta rol ({{ active_count }} ta faol)
+        </span>
+    </div>
+</div>
+
+<!-- 4 Category Stat Mini Cards -->
+<div class="row g-3 mb-4">
+    <div class="col-6 col-md-3">
+        <a href="{% url 'superadmin:roles' %}?category=CIVILIAN" class="text-decoration-none">
+            <div class="card card-custom p-3 h-100 {% if selected_category == 'CIVILIAN' %}border-success{% endif %}" style="transition: transform 0.15s ease;">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <small class="text-secondary fw-bold text-uppercase d-block" style="font-size: 0.72rem;">🏛 Tinch Aholi</small>
+                        <h4 class="fw-bold text-success mb-0 mt-1">{{ civilian_count }} ta</h4>
+                    </div>
+                    <span class="fs-3">👨🏼</span>
+                </div>
+            </div>
+        </a>
+    </div>
+    <div class="col-6 col-md-3">
+        <a href="{% url 'superadmin:roles' %}?category=MAFIA" class="text-decoration-none">
+            <div class="card card-custom p-3 h-100 {% if selected_category == 'MAFIA' %}border-danger{% endif %}" style="transition: transform 0.15s ease;">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <small class="text-secondary fw-bold text-uppercase d-block" style="font-size: 0.72rem;">🤵🏻 Mafia Guruhi</small>
+                        <h4 class="fw-bold text-danger mb-0 mt-1">{{ mafia_count }} ta</h4>
+                    </div>
+                    <span class="fs-3">🤵🏻</span>
+                </div>
+            </div>
+        </a>
+    </div>
+    <div class="col-6 col-md-3">
+        <a href="{% url 'superadmin:roles' %}?category=SOLO" class="text-decoration-none">
+            <div class="card card-custom p-3 h-100 {% if selected_category == 'SOLO' %}border-warning{% endif %}" style="transition: transform 0.15s ease;">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <small class="text-secondary fw-bold text-uppercase d-block" style="font-size: 0.72rem;">🃏 Yakka Rollar</small>
+                        <h4 class="fw-bold text-warning mb-0 mt-1">{{ solo_count }} ta</h4>
+                    </div>
+                    <span class="fs-3">🃏</span>
+                </div>
+            </div>
+        </a>
+    </div>
+    <div class="col-6 col-md-3">
+        <a href="{% url 'superadmin:roles' %}?category=ZOMBIE" class="text-decoration-none">
+            <div class="card card-custom p-3 h-100 {% if selected_category == 'ZOMBIE' %}border-info{% endif %}" style="transition: transform 0.15s ease;">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <small class="text-secondary fw-bold text-uppercase d-block" style="font-size: 0.72rem;">🧟 Zombi</small>
+                        <h4 class="fw-bold text-info mb-0 mt-1">{{ zombie_count }} ta</h4>
+                    </div>
+                    <span class="fs-3">🧟</span>
+                </div>
+            </div>
+        </a>
+    </div>
+</div>
+
+<!-- Search and Filter Bar -->
+<div class="card card-custom p-3 mb-4">
+    <div class="row g-3 align-items-center">
+        <div class="col-lg-5">
+            <form method="GET" class="d-flex gap-2">
+                {% if selected_category %}
+                    <input type="hidden" name="category" value="{{ selected_category }}">
+                {% endif %}
+                <div class="input-group">
+                    <span class="input-group-text bg-dark border-secondary border-opacity-25 text-secondary">
+                        <i class="fa-solid fa-magnifying-glass"></i>
+                    </span>
+                    <input type="text" name="q" value="{{ query }}" class="form-control bg-dark border-secondary border-opacity-25 text-white" placeholder="Rol nomi, kodi yoki tavsifi bo'yicha qidirish...">
+                </div>
+                <button type="submit" class="btn btn-simple-primary px-3">Qidirish</button>
+                {% if query or selected_category %}
+                    <a href="{% url 'superadmin:roles' %}" class="btn btn-outline-secondary" title="Filtrlarni tozalash">
+                        <i class="fa-solid fa-rotate-left"></i>
+                    </a>
+                {% endif %}
+            </form>
+        </div>
+        <div class="col-lg-7">
+            <div class="d-flex flex-wrap gap-2 justify-content-lg-end">
+                <a href="{% url 'superadmin:roles' %}{% if query %}?q={{ query }}{% endif %}" class="btn btn-sm {% if not selected_category %}btn-danger{% else %}btn-outline-secondary text-white{% endif %} rounded-pill px-3">
+                    Hammasi ({{ total_count }})
+                </a>
+                <a href="{% url 'superadmin:roles' %}?category=CIVILIAN{% if query %}&q={{ query }}{% endif %}" class="btn btn-sm {% if selected_category == 'CIVILIAN' %}btn-success{% else %}btn-outline-secondary text-white{% endif %} rounded-pill px-3">
+                    🏛 Tinch Aholi ({{ civilian_count }})
+                </a>
+                <a href="{% url 'superadmin:roles' %}?category=MAFIA{% if query %}&q={{ query }}{% endif %}" class="btn btn-sm {% if selected_category == 'MAFIA' %}btn-danger{% else %}btn-outline-secondary text-white{% endif %} rounded-pill px-3">
+                    🤵🏻 Mafia ({{ mafia_count }})
+                </a>
+                <a href="{% url 'superadmin:roles' %}?category=SOLO{% if query %}&q={{ query }}{% endif %}" class="btn btn-sm {% if selected_category == 'SOLO' %}btn-warning{% else %}btn-outline-secondary text-white{% endif %} rounded-pill px-3">
+                    🃏 Yakka ({{ solo_count }})
+                </a>
+                <a href="{% url 'superadmin:roles' %}?category=ZOMBIE{% if query %}&q={{ query }}{% endif %}" class="btn btn-sm {% if selected_category == 'ZOMBIE' %}btn-info{% else %}btn-outline-secondary text-white{% endif %} rounded-pill px-3">
+                    🧟 Zombi ({{ zombie_count }})
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Roles Table -->
+<div class="card card-custom shadow">
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-custom align-middle mb-0">
+                <thead>
+                    <tr>
+                        <th class="ps-4">Rol & Nomi</th>
+                        <th>Kodi</th>
+                        <th>Jamoa</th>
+                        <th>AFK Harakatsizlik</th>
+                        <th style="min-width: 240px; max-width: 360px;">Tavsif & Vazifasi</th>
+                        <th>Prioritet</th>
+                        <th>Holat</th>
+                        <th class="text-end pe-4" style="width: 130px;">Amallar</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for item in role_list %}
+                    {% with r=item.obj %}
+                    <tr>
+                        <td class="ps-4">
+                            <div class="d-flex align-items-center gap-2">
+                                <span class="fs-4">{{ item.icon }}</span>
+                                <div>
+                                    <div class="fw-bold text-white">{{ r.name }}</div>
+                                    <small class="text-info fw-medium">{{ item.title }}</small>
+                                </div>
+                            </div>
+                        </td>
+                        <td><code>{{ r.code }}</code></td>
+                        <td>
+                            {% if r.team == 'MAFIA' %}
+                                <span class="badge bg-danger bg-opacity-25 text-danger border border-danger border-opacity-25">🤵🏻 MAFIA</span>
+                            {% elif r.team == 'CIVILIAN' %}
+                                <span class="badge bg-success bg-opacity-25 text-success border border-success border-opacity-25">🏛 TINCH AHOLI</span>
+                            {% elif r.team == 'SOLO' %}
+                                <span class="badge bg-warning bg-opacity-25 text-warning border border-warning border-opacity-25">🃏 YAKKA (SOLO)</span>
+                            {% elif r.team == 'ZOMBIE' %}
+                                <span class="badge bg-info bg-opacity-25 text-info border border-info border-opacity-25">🧟 ZOMBI</span>
+                            {% else %}
+                                <span class="badge bg-secondary bg-opacity-25 text-secondary">NEYTRAL</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if item.is_passive %}
+                                <span class="badge bg-secondary bg-opacity-25 text-light border border-secondary border-opacity-25">
+                                    <i class="fa-solid fa-shield me-1 text-info"></i> {{ item.afk_text }}
+                                </span>
+                            {% else %}
+                                <span class="badge bg-danger bg-opacity-15 text-danger border border-danger border-opacity-25">
+                                    <i class="fa-solid fa-triangle-exclamation me-1"></i> {{ item.afk_text }}
+                                </span>
+                            {% endif %}
+                        </td>
+                        <td style="max-width: 360px;">
+                            <small class="text-white-50 lh-sm d-block">{{ r.description|default:"—" }}</small>
+                        </td>
+                        <td>
+                            <span class="badge bg-secondary bg-opacity-25 text-white fw-mono">{{ r.priority }}</span>
+                        </td>
+                        <td>
+                            {% if r.is_active %}
+                                <span class="badge-live"><i class="fa-solid fa-circle small me-1"></i> Faol</span>
+                            {% else %}
+                                <span class="badge-offline"><i class="fa-solid fa-circle small me-1"></i> O'chirilgan</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-end pe-4">
+                            <div class="d-inline-flex gap-2">
+                                <button type="button" class="btn btn-sm btn-outline-light py-1 px-2 rounded" data-bs-toggle="modal" data-bs-target="#editRoleModal{{ r.id }}" title="Tahrirlash">
+                                    <i class="fa-solid fa-pen small"></i>
+                                </button>
+                                <form method="post" action="{% url 'superadmin:role_toggle' r.id %}" class="d-inline">
+                                    {% csrf_token %}
+                                    <button type="submit" class="btn btn-sm {% if r.is_active %}btn-outline-danger{% else %}btn-outline-success{% endif %} py-1 px-2 rounded" title="{% if r.is_active %}O'chirish{% else %}Yoqish{% endif %}">
+                                        <i class="fa-solid {% if r.is_active %}fa-pause{% else %}fa-play{% endif %} small"></i>
+                                    </button>
+                                </form>
+                            </div>
+                        </td>
+                    </tr>
+
+                    <!-- Edit Modal -->
+                    <div class="modal fade" id="editRoleModal{{ r.id }}" tabindex="-1" aria-hidden="true">
+                        <div class="modal-dialog modal-dialog-centered">
+                            <div class="modal-content card-custom border border-secondary border-opacity-25 shadow-lg">
+                                <form method="post" action="{% url 'superadmin:role_save' r.id %}">
+                                    {% csrf_token %}
+                                    <div class="modal-header border-bottom border-secondary border-opacity-25 py-3">
+                                        <h6 class="modal-title fw-bold text-white">{{ item.icon }} {{ r.name }} ({{ item.title }}) Rolini Tahrirlash</h6>
+                                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                                    </div>
+                                    <div class="modal-body p-4">
+                                        <div class="row g-3 mb-3">
+                                            <div class="col-6">
+                                                <label class="form-label text-secondary small fw-medium">Rol Kodi / Nomi</label>
+                                                <input type="text" class="form-control bg-dark border-secondary border-opacity-25 text-white" value="{{ r.name }}" disabled>
+                                            </div>
+                                            <div class="col-6">
+                                                <label class="form-label text-secondary small fw-medium">Jamoa</label>
+                                                <input type="text" class="form-control bg-dark border-secondary border-opacity-25 text-white" value="{{ r.get_team_display }}" disabled>
+                                            </div>
+                                        </div>
+                                        <div class="mb-3">
+                                            <label class="form-label text-secondary small fw-medium">Rol Vazifasi va Tavsifi</label>
+                                            <textarea name="description" class="form-control bg-dark border-secondary border-opacity-25 text-white" rows="3" required>{{ r.description }}</textarea>
+                                        </div>
+                                        <div class="mb-3">
+                                            <label class="form-label text-secondary small fw-medium">Prioritet (Ketma-ketlik navbati)</label>
+                                            <input type="number" name="priority" class="form-control bg-dark border-secondary border-opacity-25 text-white" value="{{ r.priority }}" required>
+                                            <small class="text-secondary d-block mt-1">Kichik raqam = tunda harakatini oldinroq bajaradi</small>
+                                        </div>
+                                        <div class="p-2 rounded bg-dark border border-secondary border-opacity-25">
+                                            <small class="text-secondary d-block"><b>AFK Qoidasi:</b> {{ item.afk_text }}</small>
+                                        </div>
+                                    </div>
+                                    <div class="modal-footer border-top border-secondary border-opacity-25 py-2">
+                                        <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Bekor qilish</button>
+                                        <button type="submit" class="btn btn-sm btn-simple-primary px-3">Saqlash</button>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                    {% endwith %}
+                    {% empty %}
+                    <tr>
+                        <td colspan="8" class="text-center py-5 text-secondary">
+                            <i class="fa-solid fa-masks-theater fs-2 d-block mb-2 text-muted"></i>
+                            Qidiruv bo'yicha hech qanday rol topilmadi.
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

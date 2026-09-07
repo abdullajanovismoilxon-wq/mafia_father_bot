@@ -1,0 +1,192 @@
+{% extends "superadmin/base.html" %}
+
+{% block title %}Do'kon Narxlari & Mukofotlar{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+    <div>
+        <h4 class="fw-bold text-white mb-1"><i class="fa-solid fa-coins text-warning me-2"></i>Do'kon Narxlari & Mukofotlar (Barcha 38 Rol va Buyumlar)</h4>
+        <p class="text-secondary small mb-0">Bot va WebApp do'konidagi barcha rollar, himoyalar va g'alaba mukofotlari narxlarini boshqarish</p>
+    </div>
+</div>
+
+<!-- Search and Category Filters -->
+<div class="card card-custom p-3 mb-4">
+    <div class="row g-3 align-items-center">
+        <div class="col-md-5">
+            <div class="input-group">
+                <span class="input-group-text bg-dark border-secondary border-opacity-25 text-secondary"><i class="fa-solid fa-magnifying-glass"></i></span>
+                <input type="text" id="priceSearch" class="form-control bg-dark border-secondary border-opacity-25 text-white" placeholder="Mahsulot yoki rol nomini qidiring...">
+            </div>
+        </div>
+        <div class="col-md-7">
+            <div class="d-flex flex-wrap gap-2 justify-content-md-end" id="priceFilters">
+                <button type="button" class="btn btn-sm btn-danger active-filter px-3" data-filter="all">Hammasi ({{ prices|length }})</button>
+                <button type="button" class="btn btn-sm btn-outline-secondary text-white px-3" data-filter="hero">🥷 Geroy Sozlamalari</button>
+                <button type="button" class="btn btn-sm btn-outline-secondary text-white px-3" data-filter="ranks">👑 Unvon & Darajalar</button>
+                <button type="button" class="btn btn-sm btn-outline-secondary text-white px-3" data-filter="items">🛡 Buyumlar</button>
+                <button type="button" class="btn btn-sm btn-outline-secondary text-white px-3" data-filter="town">🏛 Tinch Rollar</button>
+                <button type="button" class="btn btn-sm btn-outline-secondary text-white px-3" data-filter="mafia">🤵🏻 Mafia</button>
+                <button type="button" class="btn btn-sm btn-outline-secondary text-white px-3" data-filter="solo">🃏 Yakka Rollar</button>
+                <button type="button" class="btn btn-sm btn-outline-secondary text-white px-3" data-filter="rewards">🎁 Mukofotlar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card card-custom shadow">
+    <div class="table-responsive">
+        <table class="table table-custom align-middle" id="pricesTable">
+            <thead>
+                <tr>
+                    <th style="width: 50px;">#</th>
+                    <th>Mahsulot / Rol / Mukofot</th>
+                    <th>Bo'lim</th>
+                    <th style="width: 220px;">Joriy Narx / Qiymat</th>
+                    <th style="width: 140px;" class="text-end">Amal</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for p in prices %}
+                <tr class="price-row" data-key="{{ p.key }}" data-title="{{ p.title|lower }}" data-group="{{ p.group }}">
+                    <td class="text-secondary small">{{ forloop.counter }}</td>
+                    <td>
+                        <div class="fw-bold text-white fs-6">{{ p.title }}</div>
+                        <small class="text-secondary">{{ p.description }}</small>
+                        <code class="text-muted d-block small mt-1">{{ p.key }}</code>
+                    </td>
+                    <td>
+                        {% if p.group == 'HERO' or 'hero' in p.key or 'geroy' in p.key %}
+                            <span class="badge bg-danger bg-opacity-25 text-danger border border-danger border-opacity-25">🥷 GEROY SOZLAMASI</span>
+                        {% elif p.group == 'RANKS' or 'rank_' in p.key %}
+                            <span class="badge bg-warning bg-opacity-25 text-warning border border-warning border-opacity-25">👑 UNVON & DARAJA</span>
+                        {% elif p.group == 'REWARDS' %}
+                            <span class="badge bg-success bg-opacity-25 text-success border border-success border-opacity-25">🎁 MUKOFOT</span>
+                        {% elif 'role_don' in p.key or 'role_mafia' in p.key or 'role_advokat' in p.key or 'role_ubiytsa' in p.key or 'role_jurnalist' in p.key or 'role_aygoqchi' in p.key or 'role_laborant' in p.key %}
+                            <span class="badge bg-danger bg-opacity-25 text-danger border border-danger border-opacity-25">🤵🏻 MAFIA ROL</span>
+                        {% elif 'role_qotil' in p.key or 'role_bori' in p.key or 'role_aferist' in p.key or 'role_gazabkor' in p.key or 'role_sehrgar' in p.key or 'role_kimyogar' in p.key or 'role_rais' in p.key or 'role_konchi' in p.key or 'role_qaroqchi' in p.key or 'role_qorbobo' in p.key or 'role_oshpaz' in p.key or 'role_afsungar' in p.key or 'role_tuzoqchi' in p.key or 'role_axmoq' in p.key or 'role_buqalamun' in p.key or 'role_joker' in p.key or 'role_suidsid' in p.key or 'role_zombi' in p.key %}
+                            <span class="badge bg-warning bg-opacity-25 text-warning border border-warning border-opacity-25">🃏 YAKKA ROL</span>
+                        {% elif 'role_' in p.key %}
+                            <span class="badge bg-info bg-opacity-25 text-info border border-info border-opacity-25">🏛 TINCH ROL</span>
+                        {% else %}
+                            <span class="badge bg-primary bg-opacity-25 text-primary border border-primary border-opacity-25">🛡 BUYUM / HIMOYALAR</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        <div class="d-flex align-items-center gap-2">
+                            <span class="fs-5 fw-bold text-white">{{ p.value }}</span>
+                            {% if 'Olmos' in p.unit or '💎' in p.unit %}
+                                <span class="badge bg-info bg-opacity-25 text-info fs-7 fw-bold">{{ p.unit }}</span>
+                            {% else %}
+                                <span class="badge bg-success bg-opacity-25 text-success fs-7 fw-bold">{{ p.unit }}</span>
+                            {% endif %}
+                        </div>
+                    </td>
+                    <td class="text-end">
+                        <button type="button" class="btn btn-sm btn-outline-danger px-3 rounded-pill fw-bold" data-bs-toggle="modal" data-bs-target="#priceModal{{ p.id }}">
+                            <i class="fa-solid fa-pen small me-1"></i> Tahrirlash
+                        </button>
+                    </td>
+                </tr>
+
+                <!-- Edit Modal -->
+                <div class="modal fade" id="priceModal{{ p.id }}" tabindex="-1" aria-hidden="true">
+                    <div class="modal-dialog modal-dialog-centered">
+                        <div class="modal-content card-custom border border-secondary border-opacity-25 shadow-lg">
+                            <div class="modal-header border-secondary border-opacity-25 py-3">
+                                <h6 class="modal-title fw-bold text-white"><i class="fa-solid fa-tag text-warning me-2"></i>{{ p.title }}</h6>
+                                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                            </div>
+                            <form method="POST" action="{% url 'superadmin:setting_save' p.id %}">
+                                {% csrf_token %}
+                                <input type="hidden" name="redirect_to" value="prices">
+                                <div class="modal-body p-4">
+                                    <div class="mb-3">
+                                        <label class="form-label text-white small fw-bold">Narx / Qiymat</label>
+                                        <input type="number" name="value" value="{{ p.value }}" class="form-control bg-dark border-secondary border-opacity-50 text-white fs-5 fw-bold" min="0" required>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label text-white small fw-bold">Birlik (Valyuta turi / O'lchov)</label>
+                                        <input type="text" name="unit" value="{{ p.unit }}" class="form-control bg-dark border-secondary border-opacity-50 text-white" placeholder="Masalan: 💎 Olmos, 💶 Dollar, ta zaryad, ta g'alaba">
+                                    </div>
+                                    <div class="p-2 rounded bg-dark border border-secondary border-opacity-25">
+                                        <small class="text-secondary d-block"><i class="fa-solid fa-info-circle me-1"></i> {{ p.description }}</small>
+                                        <code class="text-warning small d-block mt-1">Sozlama kodi: {{ p.key }}</code>
+                                    </div>
+                                </div>
+                                <div class="modal-footer border-secondary border-opacity-25 py-3">
+                                    <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Bekor qilish</button>
+                                    <button type="submit" class="btn btn-sm btn-danger px-4 fw-bold shadow">
+                                        <i class="fa-solid fa-check me-1"></i> Saqlash & Qo'llash
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+                {% empty %}
+                <tr>
+                    <td colspan="5" class="text-center text-secondary py-5">
+                        <i class="fa-solid fa-coins fs-1 mb-2 text-secondary opacity-50"></i>
+                        <div>Narxlar topilmadi.</div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const searchInput = document.getElementById('priceSearch');
+    const filterButtons = document.querySelectorAll('#priceFilters button');
+    const rows = document.querySelectorAll('.price-row');
+
+    let currentFilter = 'all';
+
+    function filterRows() {
+        const query = searchInput.value.toLowerCase().trim();
+
+        rows.forEach(row => {
+            const title = row.getAttribute('data-title') || '';
+            const key = row.getAttribute('data-key') || '';
+            const group = row.getAttribute('data-group') || '';
+            
+            let matchesCategory = false;
+            if (currentFilter === 'all') matchesCategory = true;
+            else if (currentFilter === 'hero') matchesCategory = (group === 'HERO' || key.includes('hero') || key.includes('geroy'));
+            else if (currentFilter === 'ranks') matchesCategory = (group === 'RANKS' || key.includes('rank'));
+            else if (currentFilter === 'rewards') matchesCategory = (group === 'REWARDS');
+            else if (currentFilter === 'items') matchesCategory = (!key.startsWith('price_role_') && group !== 'REWARDS' && group !== 'HERO' && group !== 'RANKS');
+            else if (currentFilter === 'town') matchesCategory = (key.startsWith('price_role_') && ['citizen', 'doctor', 'detective', 'serjant', 'hamshira', 'omadli', 'janob', 'sotqin', 'admiral', 'robingud', 'fotoparatchi', 'daydi', 'kezuvchi'].some(r => key.includes(r)));
+            else if (currentFilter === 'mafia') matchesCategory = (key.startsWith('price_role_') && ['don', 'mafia', 'advokat', 'ubiytsa', 'jurnalist', 'aygoqchi', 'laborant'].some(r => key.includes(r)));
+            else if (currentFilter === 'solo') matchesCategory = (key.startsWith('price_role_') && ['qotil', 'bori', 'aferist', 'gazabkor', 'sehrgar', 'kimyogar', 'rais', 'konchi', 'qaroqchi', 'qorbobo', 'oshpaz', 'afsungar', 'tuzoqchi', 'axmoq', 'buqalamun', 'joker', 'suidsid', 'zombi'].some(r => key.includes(r)));
+
+            const matchesQuery = !query || title.includes(query) || key.toLowerCase().includes(query);
+
+            if (matchesCategory && matchesQuery) {
+                row.style.display = '';
+            } else {
+                row.style.display = 'none';
+            }
+        });
+    }
+
+    searchInput.addEventListener('input', filterRows);
+
+    filterButtons.forEach(btn => {
+        btn.addEventListener('click', function() {
+            filterButtons.forEach(b => {
+                b.classList.remove('btn-danger');
+                b.classList.add('btn-outline-secondary');
+            });
+            this.classList.remove('btn-outline-secondary');
+            this.classList.add('btn-danger');
+            currentFilter = this.getAttribute('data-filter');
+            filterRows();
+        });
+    });
+});
+</script>
+{% endblock %}

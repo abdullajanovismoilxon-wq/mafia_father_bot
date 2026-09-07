@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: mafiabotfather
+  labels:
+    app.kubernetes.io/name: mafiabotfather
+    app.kubernetes.io/part-of: mafiabotfather-platform

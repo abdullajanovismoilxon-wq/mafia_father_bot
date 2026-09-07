@@ -1,0 +1,104 @@
+{% extends "superadmin/base.html" %}
+
+{% block title %}GIF & Animatsiyalar{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+    <div>
+        <h4 class="fw-bold text-white mb-1"><i class="fa-solid fa-photo-film text-danger me-2"></i>GIF & Animatsiyalar Boshqaruvi</h4>
+        <p class="text-secondary small mb-0">Tong, Tun, G'alaba va Lobby bosqichlarida bot yuboradigan animatsiyalarni o'rnatish</p>
+    </div>
+</div>
+
+<div class="row g-4">
+    {% for g in gifs %}
+    <div class="col-lg-6">
+        <div class="card card-custom p-4 h-100 d-flex flex-column justify-content-between shadow" style="border: 1px solid rgba(255,255,255,0.08);">
+            <div>
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h5 class="fw-bold text-white mb-0">{{ g.title }}</h5>
+                    <code class="text-warning small">{{ g.key }}</code>
+                </div>
+
+                <!-- Live Media Preview Player -->
+                <div class="text-center p-3 rounded-4 border border-secondary border-opacity-25 my-3" style="min-height: 200px; display: flex; align-items: center; justify-content: center; background-color: #0e1621 !important;">
+                    {% if '.mp4' in g.content_uz or '.webm' in g.content_uz or '.mov' in g.content_uz %}
+                        <video src="{{ g.content_uz }}" autoplay loop muted playsinline style="max-height: 180px; max-width: 100%; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.5);"></video>
+                    {% elif 'http' in g.content_uz or '/media/' in g.content_uz %}
+                        <img src="{{ g.content_uz }}" alt="{{ g.title }}" style="max-height: 180px; max-width: 100%; border-radius: 8px; object-fit: contain; box-shadow: 0 4px 12px rgba(0,0,0,0.5);" onerror="this.src='https://placehold.co/400x180?text=Animatsiya+Yuklanmadi';">
+                    {% else %}
+                        <div class="text-center p-4">
+                            <i class="fa-brands fa-telegram text-info fs-1 mb-2"></i>
+                            <div class="text-white fw-bold">Telegram File ID O'rnatilgan</div>
+                            <code class="text-secondary small d-block text-truncate mt-1" style="max-width: 250px;">{{ g.content_uz }}</code>
+                        </div>
+                    {% endif %}
+                </div>
+
+                <div class="p-2 rounded bg-dark border border-secondary border-opacity-25 mb-3">
+                    <small class="text-secondary d-block text-truncate" title="{{ g.content_uz }}">
+                        <i class="fa-solid fa-link text-info me-1"></i> <strong class="text-white">Joriy Manba:</strong> {{ g.content_uz }}
+                    </small>
+                </div>
+            </div>
+
+            <div class="text-end">
+                <button type="button" class="btn btn-sm btn-danger px-4 rounded-pill fw-bold shadow" data-bs-toggle="modal" data-bs-target="#gifModal{{ g.id }}">
+                    <i class="fa-solid fa-cloud-arrow-up me-1"></i> Animatsiyani O'zgartirish
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Edit & Upload Modal -->
+    <div class="modal fade" id="gifModal{{ g.id }}" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-lg modal-dialog-centered">
+            <div class="modal-content card-custom border-secondary border-opacity-25 shadow-lg">
+                <div class="modal-header border-secondary border-opacity-25 py-3">
+                    <h5 class="modal-title fw-bold text-white"><i class="fa-solid fa-photo-film text-danger me-2"></i>{{ g.title }}</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <form method="POST" action="{% url 'superadmin:text_save' g.id %}" enctype="multipart/form-data">
+                    {% csrf_token %}
+                    <input type="hidden" name="redirect_to" value="gifs">
+                    <input type="hidden" name="title" value="{{ g.title }}">
+                    <input type="hidden" name="is_active" value="on">
+                    
+                    <div class="modal-body p-4">
+                        
+                        <!-- 1-Variant: Fayl yuklash -->
+                        <div class="p-3 mb-3 rounded-3 border border-secondary border-opacity-25 bg-dark">
+                            <label class="form-label text-white small fw-bold mb-1">
+                                <i class="fa-solid fa-folder-open text-warning me-1"></i> 1-Variant: Qurilmadan Fayl Yuklash (GIF / Rasm / MP4)
+                            </label>
+                            <p class="text-secondary small mb-2">Qurilmangizdagi tayyor GIF, rasm yoki qisqa video faylni yuklang (.gif, .mp4, .png, .jpg, .webp):</p>
+                            <input type="file" name="media_file" accept="image/*,video/mp4,video/webm,video/quicktime" class="form-control bg-dark border-secondary border-opacity-50 text-white">
+                        </div>
+
+                        <div class="text-center text-secondary small fw-bold my-3">— YOKI —</div>
+
+                        <!-- 2-Variant: Telegram File ID yoki URL -->
+                        <div class="p-3 rounded-3 border border-secondary border-opacity-25 bg-dark">
+                            <label class="form-label text-white small fw-bold mb-1">
+                                <i class="fa-brands fa-telegram text-info me-1"></i> 2-Variant: Telegram File ID yoki Internet Havolasi (URL)
+                            </label>
+                            <p class="text-secondary small mb-2">Telegramdagi GIF file_id si (masalan: <code>CgACAgIAAxkBA...</code>) yoki to'g'ridan-to'g'ri internet havolasini kiriting:</p>
+                            <input type="text" name="content_uz" value="{{ g.content_uz }}" class="form-control bg-dark border-secondary border-opacity-50 text-white" placeholder="https://... yoki CgACAgIAAxkBA..." required>
+                        </div>
+
+                    </div>
+                    <div class="modal-footer border-secondary border-opacity-25 py-3">
+                        <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Bekor qilish</button>
+                        <button type="submit" class="btn btn-sm btn-danger px-4 fw-bold shadow">
+                            <i class="fa-solid fa-check me-1"></i> Saqlash & Qo'llash
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    {% empty %}
+    <div class="col-12 text-center text-secondary py-5">Animatsiyalar topilmadi.</div>
+    {% endfor %}
+</div>
+{% endblock %}

@@ -1,0 +1,63 @@
+{% extends "superadmin/base.html" %}
+
+{% block title %}Jonli O'yinlar Monitoringi{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h4 class="fw-bold text-white mb-1"><i class="fa-solid fa-gamepad text-primary me-2"></i>Jonli O'yinlar Monitoringi</h4>
+        <p class="text-secondary small mb-0">Hozirda barcha botlarda faol davom etayotgan o'yinlar holati</p>
+    </div>
+    <a href="{% url 'superadmin:live_games' %}" class="btn btn-sm btn-outline-light">
+        <i class="fa-solid fa-rotate-right me-1"></i> Yangilash
+    </a>
+</div>
+
+<div class="card card-custom">
+    <div class="table-responsive">
+        <table class="table table-custom">
+            <thead>
+                <tr>
+                    <th>Bot</th>
+                    <th>Guruh Chat ID</th>
+                    <th>Bosqich</th>
+                    <th>Tirik O'yinchilar</th>
+                    <th>Boshlangan Vaqti</th>
+                    <th style="width: 140px;" class="text-end">Amal</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in game_list %}
+                <tr>
+                    <td>
+                        <span class="fw-bold text-white">@{{ item.game.bot.telegram_username }}</span>
+                    </td>
+                    <td><code>{{ item.game.chat_id }}</code></td>
+                    <td>
+                        <span class="badge bg-primary bg-opacity-25 text-primary">{{ item.game.phase }}</span>
+                    </td>
+                    <td>
+                        <span class="fw-bold text-success">{{ item.living_count }}</span> / {{ item.total_count }} ta
+                    </td>
+                    <td>
+                        <small class="text-secondary">{{ item.game.created_at|date:"H:i:s d.m.Y" }}</small>
+                    </td>
+                    <td class="text-end">
+                        <form method="POST" action="{% url 'superadmin:game_force_end' item.game.id %}" onsubmit="return confirm('Ushbu o\'yinni to\'xtatmoqchimisiz?');">
+                            {% csrf_token %}
+                            <button type="submit" class="btn btn-sm btn-outline-danger px-2 py-1">
+                                <i class="fa-solid fa-stop small me-1"></i> To'xtatish
+                            </button>
+                        </form>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="6" class="text-center text-secondary py-5">Hozirda birorta ham faol o'yin ketmayapti.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

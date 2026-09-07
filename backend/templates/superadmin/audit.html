@@ -1,0 +1,66 @@
+{% extends "superadmin/base.html" %}
+
+{% block title %}Audit & Tizim Loglari (200){% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h3 class="fw-bold text-white mb-1">Audit & Tizim Loglari</h3>
+        <p class="text-secondary small mb-0">Platformada sodir bo'lgan so'nggi 200 ta hodisa, bot yoqish/o'chirish va balans o'zgarishlari</p>
+    </div>
+    <form method="POST" action="{% url 'superadmin:audit_clear' %}" onsubmit="return confirm('Rostdan ham barcha audit loglarini tozalamoqchimisiz?');">
+        {% csrf_token %}
+        <button type="submit" class="btn btn-outline-danger btn-sm px-3 rounded-pill">
+            <i class="fa-solid fa-trash me-1"></i> Loglarni Tozalash
+        </button>
+    </form>
+</div>
+
+<!-- Search -->
+<div class="card card-custom p-3 mb-4">
+    <form method="GET" class="row g-2">
+        <div class="col-md-10">
+            <div class="input-group">
+                <span class="input-group-text bg-dark border-secondary border-opacity-25 text-secondary"><i class="fa-solid fa-magnifying-glass"></i></span>
+                <input type="text" name="q" value="{{ query }}" class="form-control bg-dark border-secondary border-opacity-25 text-white" placeholder="Amal, admin yoki nishon bo'yicha qidirish...">
+            </div>
+        </div>
+        <div class="col-md-2">
+            <button type="submit" class="btn btn-primary-custom w-100"><i class="fa-solid fa-search me-1"></i> Qidirish</button>
+        </div>
+    </form>
+</div>
+
+<div class="card card-custom p-4">
+    <div class="table-responsive">
+        <table class="table table-custom mb-0">
+            <thead>
+                <tr>
+                    <th>Vaqt</th>
+                    <th>Amal (Action)</th>
+                    <th>Kim tomonidan (Actor)</th>
+                    <th>Nishon (Target)</th>
+                    <th>Tafsilotlar</th>
+                    <th>IP Manzil</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in audits %}
+                <tr>
+                    <td><small class="text-secondary">{{ item.created_at|date:"d.m.Y H:i:s" }}</small></td>
+                    <td><span class="badge bg-secondary bg-opacity-25 text-white">{{ item.action }}</span></td>
+                    <td class="fw-semibold text-white">{{ item.actor }}</td>
+                    <td><code>{{ item.target }}</code></td>
+                    <td class="small text-secondary">{{ item.details }}</td>
+                    <td><small class="text-secondary">{{ item.ip_address|default:"-" }}</small></td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="6" class="text-center text-secondary py-5">Audit loglari mavjud emas.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

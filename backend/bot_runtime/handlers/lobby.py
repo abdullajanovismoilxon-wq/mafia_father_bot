@@ -1,0 +1,1164 @@
+"""
+MAFIA BOT FATHER — Telegram Game Lobby Handlers
+Aligned with Telegram Mafia Bot UI Screenshots:
+- PM /start menu with official Mafia bot greeting and buttons.
+- Group /game lobby with live registered player names and '➕ Qo'shilish' button.
+- Registered Telegram group commands.
+- Deep-link join handling and role delivery for all 38 roles.
+"""
+import asyncio
+import html
+import random
+from datetime import timedelta
+import logging
+from aiogram import Router, types, Bot, F
+from aiogram.filters import Command, CommandStart, CommandObject
+from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, WebAppInfo
+from asgiref.sync import sync_to_async
+from django.utils import timezone
+
+from django.db.models import Q
+from apps.bots.models import Bot as BotModel
+from apps.games.models import Game, Player, GamePhase, RoleTeam
+from apps.games.engine.game_service import GameService
+from apps.games.engine.state_machine import InvalidStateTransitionError
+from apps.stats.services import StatsService
+from apps.superadmin.services import TextService, SettingService
+from bot_runtime.keyboards.inline import (
+    build_child_start_keyboard,
+    build_group_lobby_keyboard,
+    build_back_to_group_keyboard,
+    build_night_target_keyboard,
+    build_komissar_action_keyboard,
+    build_bot_pm_keyboard,
+    build_konchi_mines_keyboard,
+    build_joker_boxes_setup_keyboard,
+)
+
+logger = logging.getLogger(__name__)
+router = Router(name="lobby_router")
+
+
+def is_targeted_at_this_bot(message: types.Message, bot_username: str) -> bool:
+    """Returns False if message command explicitly mentions another bot (@other_bot)."""
+    if not message.text or not message.text.startswith('/'):
+        return True
+    first_token = message.text.split()[0]
+    if '@' in first_token:
+        target = first_token.split('@')[1].strip().lower()
+        if target != bot_username.lower():
+            return False
+    return True
+
+
+LOBBY_TIMERS: dict = {}
+
+async def check_user_group_permission(bot: Bot, chat_id: int, user_id: int, required_level: str = 'ADMINS') -> tuple[bool, str]:
+    """
+    Checks if user meets the required permission in the Telegram group.
+    Uses bot.get_chat_administrators for 100% reliable real-time admin detection.
+    required_level:
+      - 'ALL': anyone can execute
+      - 'ADMINS': group admins or group creator (owner)
+      - 'OWNER': only group creator (owner)
+    """
+    if required_level == 'ALL':
+        return True, ""
+
+    try:
+        admins = await bot.get_chat_administrators(chat_id=chat_id)
+        creator = next((m for m in admins if m.status == 'creator'), None)
+        creator_id = creator.user.id if creator else None
+        admin_ids = {m.user.id for m in admins}
+
+        if required_level == 'OWNER':
+            if creator_id and user_id == creator_id:
+                return True, ""
+            return False, "⚠️ Ushbu buyruqni faqat <b>guruh egasi (Creator)</b> bajara oladi!"
+
+        if required_level == 'ADMINS':
+            if user_id in admin_ids or (creator_id and user_id == creator_id):
+                return True, ""
+            return False, "⚠️ Ushbu buyruqni faqat <b>guruh adminlari yoki guruh egasi</b> bajara oladi!"
+
+        return True, ""
+    except Exception as e:
+        logger.warning(f"get_chat_administrators error for user {user_id} in {chat_id}: {e}")
+        try:
+            member = await bot.get_chat_member(chat_id=chat_id, user_id=user_id)
+            if required_level == 'OWNER':
+                if member.status == 'creator':
+                    return True, ""
+                return False, "⚠️ Ushbu buyruqni faqat <b>guruh egasi (Creator)</b> bajara oladi!"
+            if required_level == 'ADMINS':
+                if member.status in ['creator', 'administrator']:
+                    return True, ""
+                return False, "⚠️ Ushbu buyruqni faqat <b>guruh adminlari yoki guruh egasi</b> bajara oladi!"
+        except Exception as m_err:
+            logger.warning(f"get_chat_member error for user {user_id} in {chat_id}: {m_err}")
+            return False, "⚠️ Ushbu buyruqni faqat <b>guruh adminlari yoki guruh egasi</b> bajara oladi!"
+
+
+async def sync_group_info(bot: Bot, chat: types.Chat, bot_record: BotModel):
+    """Records/updates active group and owner information in real-time."""
+    if not chat or chat.type not in ["group", "supergroup"] or not bot_record:
+        return
+    try:
+        owner_id = None
+        owner_name = ""
+        owner_username = ""
+        try:
+            admins = await bot.get_chat_administrators(chat_id=chat.id)
+            creator = next((m for m in admins if m.status == 'creator'), None)
+            if creator:
+                owner_id = creator.user.id
+                owner_name = creator.user.full_name or creator.user.first_name
+                owner_username = creator.user.username or ""
+        except Exception:
+            pass
+
+        from apps.bots.models import BotGroup
+        from apps.games.models import Game
+        
+        def _db_save():
+            total_games = Game.objects.filter(bot=bot_record, chat_id=chat.id).count()
+            BotGroup.objects.update_or_create(
+                bot=bot_record,
+                chat_id=chat.id,
+                defaults={
+                    'title': chat.title or 'Telegram Guruh',
+                    'username': chat.username or '',
+                    'owner_telegram_id': owner_id,
+                    'owner_name': owner_name,
+                    'owner_username': owner_username,
+                    'total_games_played': total_games,
+                    'is_active': True,
+                }
+            )
+        await sync_to_async(_db_save)()
+    except Exception as e:
+        logger.debug(f"Error syncing group info: {e}")
+
+
+
+    except Exception as e:
+        logger.warning(f"Error checking group admin status for user {user_id} in {chat_id}: {e}")
+        return True, ""
+
+
+
+async def _run_lobby_timer(game_id: str, chat_id: int, bot: Bot, timeout: int = 300):
+    """Waits timeout seconds (configured in SuperAdmin); resets if /game is called again; cancels game if /start_game was not called."""
+    try:
+        if timeout <= 0:
+            timeout = 300
+
+        while True:
+            game = await sync_to_async(
+                lambda: Game.objects.filter(id=game_id, phase=GamePhase.WAITING).first()
+            )()
+            if not game:
+                break
+
+            now = timezone.now()
+            if not game.phase_ends_at:
+                game.phase_ends_at = now + timedelta(seconds=timeout)
+                await sync_to_async(game.save)(update_fields=['phase_ends_at'])
+
+            remaining = (game.phase_ends_at - now).total_seconds()
+            if remaining > 0.5:
+                # Sleep in short chunks to remain responsive to resets/cancellations
+                await asyncio.sleep(min(remaining, 3.0))
+                continue
+
+            # Timeout reached! Cancel lobby and delete message
+            game.phase = GamePhase.CANCELED
+            await sync_to_async(game.save)(update_fields=['phase'])
+
+            if game.lobby_message_id:
+                try:
+                    target_chat = game.chat_id or chat_id
+                    await bot.delete_message(chat_id=target_chat, message_id=game.lobby_message_id)
+                except Exception as del_err:
+                    logger.debug(f"Could not delete lobby message {game.lobby_message_id}: {del_err}")
+
+            minutes_display = max(1, timeout // 60)
+            try:
+                await bot.send_message(
+                    chat_id,
+                    f"⚠️ <b>Vaqt cho'zilib ketdi!</b>\n"
+                    f"<b>{minutes_display} daqiqa</b> ichida o'yin boshlanmaganligi sababli ro'yxatdan o'tish bekor qilindi.\n\n"
+                    "Yangi o'yin boshlash uchun <code>/game</code> buyrug'ini yuboring.",
+                    parse_mode="HTML"
+                )
+            except Exception as send_err:
+                logger.warning(f"Could not send timeout message to chat {chat_id}: {send_err}")
+
+            logger.info(f"Lobby for game {game_id} timed out after {timeout}s ({minutes_display} min) and was cancelled.")
+            break
+    except asyncio.CancelledError:
+        pass
+    except Exception as e:
+        logger.warning(f"Error in lobby timer for {game_id}: {e}")
+    finally:
+        LOBBY_TIMERS.pop(game_id, None)
+
+
+def start_lobby_timer(game_id: str, chat_id: int, bot: Bot, timeout: int = 300):
+    """Starts or resets a lobby timeout."""
+    existing = LOBBY_TIMERS.get(game_id)
+    if existing and not existing.done():
+        existing.cancel()
+    task = asyncio.create_task(_run_lobby_timer(game_id, chat_id, bot, timeout))
+    LOBBY_TIMERS[game_id] = task
+    return task
+
+
+def cancel_lobby_timer(game_id: str):
+    """Cancels running lobby timeout."""
+    task = LOBBY_TIMERS.pop(game_id, None)
+    if task and not task.done():
+        task.cancel()
+
+
+def format_lobby_text(game: Game, bot_name: str = "Bloody Mafia") -> str:
+    """Formats group lobby message querying real players from DB."""
+    from apps.games.models import Player
+    players = list(Player.objects.filter(game_id=game.id).order_by('created_at'))
+    player_count = len(players)
+
+    if players:
+        player_list_text = "\n".join([
+            f'{i+1}. <a href="tg://user?id={p.telegram_user_id}">{html.escape(p.display_name)}</a>'
+            for i, p in enumerate(players)
+        ])
+        return (
+            f"<b>{html.escape(bot_name)}</b>               <code>BM Admin</code>\n"
+            f"<b>Ro'yxatdan o'tish davom etmoqda!</b>\n"
+            f"<b>Ro'yxatdan o'tganlar:</b>\n\n"
+            f"{player_list_text}\n\n"
+            f"<b>Jami: {player_count} ta</b>"
+        )
+    else:
+        return (
+            f"<b>{html.escape(bot_name)}</b>               <code>BM Admin</code>\n"
+            f"<b>Ro'yxatdan o'tish davom etmoqda!</b>\n"
+            f"<b>Ro'yxatdan o'tganlar:</b>\n\n"
+            f"<b>Jami: 0 ta</b>"
+        )
+
+
+@router.message(CommandStart())
+async def cmd_start_private(message: types.Message, command: CommandObject, bot: Bot):
+    """Handles /start in PM and deep link game joining."""
+    if message.chat.type != "private":
+        return
+
+    bot_info = await bot.get_me()
+    args = command.args
+
+    if args and args.startswith("join_"):
+        game_id = args.replace("join_", "").strip()
+        try:
+            game = await sync_to_async(
+                lambda: Game.objects.select_related('bot').get(id=game_id)
+            )()
+            if game.phase != GamePhase.WAITING:
+                await message.answer("⚠️ Bu o'yinga ro'yxatdan o'tish yakunlangan.")
+                return
+
+            player, created = await sync_to_async(GameService.join_lobby)(
+                game=game,
+                telegram_user_id=message.from_user.id,
+                username=message.from_user.username or '',
+                display_name=message.from_user.full_name or message.from_user.first_name
+            )
+
+            if created:
+                await message.answer(
+                    "Siz o'yinga muvaffaqiyatli qo'shildingiz!",
+                    reply_markup=build_back_to_group_keyboard(chat_id=game.chat_id),
+                    parse_mode="HTML"
+                )
+                try:
+                    bot_name = game.bot.name if game.bot else "Bloody Mafia"
+                    new_text = await sync_to_async(format_lobby_text)(game, bot_name)
+                    kb = build_group_lobby_keyboard(bot_info.username, str(game.id))
+                    if game.lobby_message_id:
+                        try:
+                            await bot.edit_message_caption(
+                                chat_id=game.chat_id,
+                                message_id=game.lobby_message_id,
+                                caption=new_text,
+                                reply_markup=kb,
+                                parse_mode="HTML"
+                            )
+                        except Exception:
+                            await bot.edit_message_text(
+                                text=new_text,
+                                chat_id=game.chat_id,
+                                message_id=game.lobby_message_id,
+                                reply_markup=kb,
+                                parse_mode="HTML"
+                            )
+                except Exception as e:
+                    logger.warning(f"Could not update lobby message: {e}")
+            else:
+                await message.answer(
+                    "Siz allaqachon ro'yxatdan o'tgansiz!",
+                    reply_markup=build_back_to_group_keyboard(chat_id=game.chat_id),
+                    parse_mode="HTML"
+                )
+        except Exception as e:
+            logger.warning(f"Error in deep link join: {e}")
+            await message.answer("❌ O'yin topilmadi yoki xatolik yuz berdi.")
+        return
+
+    # Normal PM /start menu
+    greeting = (
+        f"Salom, <b>{html.escape(message.from_user.first_name)}</b>! 🎭\n\n"
+        "Men <b>Mafia Bot</b>man. Men guruhlarda do'stlaringiz bilan birga afsonaviy Mafiya o'yinini o'ynash uchun xizmat qilaman!\n\n"
+        "Guruhda yangi o'yin ochish uchun <code>/game</code> buyrug'ini yuboring.\n\n"
+        "💬 <i>Savol va takliflaringiz bo'lsa @ismoilo9 ga murojaat qiling.</i>"
+    )
+    await message.answer(greeting, reply_markup=build_child_start_keyboard(bot_info.username), parse_mode="HTML")
+
+
+@router.message(Command("game", "start_lobby"))
+async def cmd_create_game_lobby(message: types.Message, bot: Bot):
+    """Handles /game in group chat."""
+    if message.chat.type == "private":
+        await message.answer("⚠️ Ushbu buyruq faqat guruhlarda ishlaydi! Meni biror guruhga qo'shing va u yerda <code>/game</code> deb yozing.", parse_mode="HTML")
+        return
+
+    bot_info = await bot.get_me()
+    if not is_targeted_at_this_bot(message, bot_info.username):
+        return
+
+    chat_id = message.chat.id
+    bot_record = await sync_to_async(
+        lambda: BotModel.objects.filter(
+            Q(telegram_bot_id=bot.id) | Q(telegram_username__iexact=bot_info.username)
+        ).first()
+    )()
+    if not bot_record:
+        bot_record = await sync_to_async(BotModel.objects.first)()
+    await sync_group_info(bot, message.chat, bot_record)
+
+    active_running_game = await sync_to_async(
+        lambda: Game.objects.filter(
+            chat_id=chat_id,
+            phase__in=[GamePhase.STARTING, GamePhase.NIGHT, GamePhase.DAY, GamePhase.VOTING]
+        ).order_by('-created_at').first()
+    )()
+
+    if active_running_game:
+        now = timezone.now()
+        is_stale = (
+            (active_running_game.updated_at < now - timedelta(minutes=10)) or
+            (active_running_game.created_at < now - timedelta(minutes=20))
+        )
+        if is_stale:
+            active_running_game.phase = GamePhase.CANCELED
+            await sync_to_async(active_running_game.save)(update_fields=['phase'])
+            logger.info(f"Auto-cancelled stale running game {active_running_game.id} in chat {chat_id}")
+        else:
+            cancel_kb = InlineKeyboardMarkup(inline_keyboard=[
+                [InlineKeyboardButton(text="🛑 O'yinni to'xtatish va yangi ochish", callback_data=f"lobby:force_cancel:{active_running_game.id}")]
+            ])
+            await message.answer(
+                "⚠️ <b>Ushbu guruhda o'yin allaqachon davom etmoqda!</b>\n\n"
+                "O'yinni to'xtatish uchun /cancel yuboring yoki quyidagi tugmani bosing:",
+                reply_markup=cancel_kb,
+                parse_mode="HTML"
+            )
+            return
+
+    bot_id_str = str(bot_record.id) if bot_record else ''
+    game_perm = await sync_to_async(SettingService.get_group_or_bot_timing_str)(chat_id, bot_id_str, 'cmd_perm_game', 'ALL')
+    allowed, err_msg = await check_user_group_permission(bot, chat_id, message.from_user.id, game_perm)
+    if not allowed:
+        await message.answer(err_msg, parse_mode="HTML")
+        return
+
+    lobby_timeout_min = await sync_to_async(SettingService.get_group_or_bot_timing)(chat_id, bot_id_str, 'lobby_timeout_minutes', 5)
+    lobby_timeout_seconds = max(30, int(lobby_timeout_min) * 60)
+
+    now = timezone.now()
+
+    # Check if there is already a WAITING lobby in this chat - ALWAYS PRESERVE PLAYERS!
+    active_waiting_game = await sync_to_async(
+        lambda: Game.objects.filter(chat_id=chat_id, phase=GamePhase.WAITING).order_by('-created_at').first()
+    )()
+
+    if active_waiting_game:
+        game = active_waiting_game
+        # RESET COUNTDOWN: Every /game call gives a full fresh 5-minute timeout from now!
+        game.phase_ends_at = now + timedelta(seconds=lobby_timeout_seconds)
+        await sync_to_async(game.save)(update_fields=['phase_ends_at'])
+        if game.lobby_message_id:
+            try:
+                await bot.delete_message(chat_id=chat_id, message_id=game.lobby_message_id)
+            except Exception:
+                pass
+    else:
+        game = await sync_to_async(GameService.create_game)(
+            bot=bot_record,
+            chat_id=chat_id,
+            mode="CLASSIC"
+        )
+        game.phase_ends_at = now + timedelta(seconds=lobby_timeout_seconds)
+        await sync_to_async(game.save)(update_fields=['phase_ends_at'])
+
+    bot_name = bot_record.name if bot_record else "Bloody Mafia"
+    lobby_text = await sync_to_async(format_lobby_text)(game, bot_name)
+    kb = build_group_lobby_keyboard(bot_info.username, str(game.id))
+
+    from bot_runtime.handlers.night import send_dynamic_animation
+    sent_msg = await send_dynamic_animation(
+        bot=bot,
+        chat_id=chat_id,
+        media_key='gif_lobby',
+        fallback_url="https://media.giphy.com/media/26hirEPeos6yugLDO/giphy.gif",
+        caption=lobby_text,
+        reply_markup=kb,
+        parse_mode="HTML"
+    )
+
+    if sent_msg:
+        game.lobby_message_id = sent_msg.message_id
+        await sync_to_async(game.save)(update_fields=['lobby_message_id'])
+
+    start_lobby_timer(str(game.id), chat_id, bot, timeout=lobby_timeout_seconds)
+
+
+@router.message(Command("start_game", "go", "boshlash", "start"))
+async def cmd_start_game(message: types.Message, bot: Bot):
+    """Handles /start_game in group chat. Distributes roles for all 38 roles."""
+    if message.chat.type == "private":
+        return
+
+    bot_info = await bot.get_me()
+    if not is_targeted_at_this_bot(message, bot_info.username):
+        return
+
+    bot_record = await sync_to_async(
+        lambda: BotModel.objects.filter(telegram_username__iexact=bot_info.username).first()
+    )()
+    bot_id_str = str(bot_record.id) if bot_record else ''
+    start_perm = await sync_to_async(SettingService.get_group_or_bot_timing_str)(message.chat.id, bot_id_str, 'cmd_perm_start_game', 'ADMINS')
+    allowed, err_msg = await check_user_group_permission(bot, message.chat.id, message.from_user.id, start_perm)
+    if not allowed:
+        await message.answer(err_msg, parse_mode="HTML")
+        return
+
+    chat_id = message.chat.id
+    game = await sync_to_async(
+        lambda: Game.objects.filter(chat_id=chat_id, phase=GamePhase.WAITING).order_by('-created_at').first()
+    )()
+
+    if not game:
+        ongoing_game = await sync_to_async(
+            lambda: Game.objects.filter(
+                chat_id=chat_id,
+                phase__in=[GamePhase.NIGHT, GamePhase.DAY, GamePhase.VOTING]
+            ).order_by('-created_at').first()
+        )()
+        if ongoing_game:
+            cancel_kb = InlineKeyboardMarkup(inline_keyboard=[
+                [InlineKeyboardButton(text="🛑 O'yinni to'xtatish", callback_data=f"lobby:force_cancel:{ongoing_game.id}")]
+            ])
+            await message.answer(
+                "⚠️ <b>O'yin allaqachon boshlangan va davom etmoqda!</b>\n"
+                "To'xtatish uchun /cancel yuboring yoki quyidagi tugmani bosing:",
+                reply_markup=cancel_kb,
+                parse_mode="HTML"
+            )
+        else:
+            await message.answer("⚠️ Faol o'yin topilmadi. Yangi o'yin ochish uchun <code>/game</code> buyrug'ini yuboring.", parse_mode="HTML")
+        return
+
+    cancel_lobby_timer(str(game.id))
+
+    try:
+        start_result = await sync_to_async(GameService.start_game)(game=game)
+        if isinstance(start_result, tuple) and len(start_result) == 2 and isinstance(start_result[0], list):
+            assignments, game = start_result
+        else:
+            assignments = start_result
+
+        living_players = [p for p, r in assignments]
+
+        from bot_runtime.handlers.night import _register_ids, start_night_timer, role_icon, role_label
+        _register_ids(str(game.id), living_players)
+
+        living_roster = "\n".join([
+            f'{i+1}. <a href="tg://user?id={p.telegram_user_id}">{html.escape(p.display_name)}</a>'
+            for i, p in enumerate(living_players)
+        ])
+
+        mafia_members = [(p, r) for p, r in assignments if r.name in ["DON", "MAFIA", "ADVOKAT", "UBIYTSA", "JURNALIST", "AYGOQCHI", "LABORANT"]]
+
+        # Group Message 1
+        try:
+            await message.answer(
+                "🎮 <b>O'yin boshlandi!</b>\n\n"
+                "Rollar taqsimlanmoqda... Botga o'tib rolingizni ko'ring!",
+                reply_markup=build_bot_pm_keyboard(bot_info.username),
+                parse_mode="HTML"
+            )
+        except Exception:
+            pass
+
+        # Group Message 2 (Night GIF)
+        night_text = (
+            f"🌙 <b>Qorong'u va daxshatlarga to'la tun boshlandi.</b>\n"
+            f"Qo'rqmaslar ko'chaga chiqishga jur'at qilishdi.\n\n"
+            f"👥 <b>O'yinchilar:</b>\n{living_roster}\n\n"
+            f"Tun davomida ⏳ <b>60 sekund</b> vaqt bor."
+        )
+        from bot_runtime.handlers.night import send_dynamic_animation
+        await send_dynamic_animation(
+            bot=bot,
+            chat_id=message.chat.id,
+            media_key='gif_night',
+            fallback_url="https://media.giphy.com/media/26hirEPeos6yugLDO/giphy.gif",
+            caption=night_text,
+            reply_markup=build_bot_pm_keyboard(bot_info.username),
+            parse_mode="HTML"
+        )
+
+        # Send Role Cards (All 38 Roles matching Screenshot 1)
+        ROLE_DESCRIPTIONS = {
+            'DON': "Siz Donsiz, shahar Mafialarining yetakchisisiz. Tunda kim o'lishini hal qilasiz va Komissar tekshiruvida begunoh ko'rinasiz.",
+            'MAFIA': "Siz Mafiasiz, Donga bo'ysunasiz va sizga qarshilik qilganlarni o'ldirasiz. Don o'lsa siz yangi Don bo'lishingiz mumkin.",
+            'DOCTOR': "Siz Shifokorsiz. Bu tunda bir fuqaroning hayotini saqlab qolishingiz mumkin.",
+            'HAMSHIRA': "Siz Hamshirasiz. Shifokorning yordamchisisiz. Shifokor halok bo'lsa, uning o'rnini egallaysiz.",
+            'DETECTIVE': "Siz Komissarsiz, shahar himoyachisisiz. Har tunda shubhali shaxsni tekshirishingiz yoki qurolingizdan otishingiz mumkin.",
+            'KOMISSAR': "Siz Komissarsiz, shahar himoyachisisiz. Har tunda shubhali shaxsni tekshirishingiz yoki qurolingizdan otishingiz mumkin.",
+            'SHERIFF': "Siz Komissarsiz, shahar himoyachisisiz. Har tunda shubhali shaxsni tekshirishingiz yoki qurolingizdan otishingiz mumkin.",
+            'SERJANT': "Siz Serjantsiz, Komissarning o'ng qo'lisiz. Komissar halok bo'lsa, uning o'rniga o'tasiz.",
+            'CITIZEN': "Siz oddiy fuqarosiz. Shaharni Mafialardan tozalash uchun kunduzgi muhokama va ovoz berishda faol qatnashing.",
+            'OMADLI': "Siz Omadlisiz! Tungi suiqasd vaqtida omadingiz kulsa (50%) tirik qolasiz. Tunda vazifangiz yo'q, xotirjam uxlang.",
+            'JANOB': "Siz Janobsiz! Kunduzgi ovoz berishda ovozingiz 2 taga teng bo'ladi va shaxsingiz oshkor bo'lmaydi.",
+            'SOTQIN': "Siz Sotqinsiz. Tunda kimnidir tekshirasiz: agar u Mafia/Don/Qotil bo'lsa, tongda shaxsingizni yashirgan holda shaharga jar solasiz.",
+            'ADMIRAL': "Siz Admiralsiz. Komissar va Serjant tirik ekan, sizni hech kim o'ldirolmaydi. Ular o'lsa yangi Komissar bo'lasiz.",
+            'ROBINGUD': "Siz Robin Gudsiz! Har tunda 1 kishini o'ldira olasiz. Agar bitta o'yinda 2 ta tinch aholini o'ldirsangiz, aholi sizni toshbo'ron qiladi.",
+            'FOTOPARATCHI': "Siz Fotoparatchisiz. Tunda kimnidir kuzatasiz: agar u tunda mehmonga borgan bo'lsa, kimnikiga borganini rasmga olib fosh qilasiz.",
+            'DAYDI': "Siz Daydisiz. Tunda ichkilik so'rab mehmonga borasiz. Agar borgan joyingizda qotillik sodir bo'lsa, guvoh bo'lasiz.",
+            'KEZUVCHI': "Siz Kezuvchisiz. Tunda tanlagan odamingizning tungi harakatini va kunduzgi ovozini bloklaysiz.",
+            'ADVOKAT': "Siz Mafiyalar Advokatisiz. Tunda tanlagan hamkoringizni Komissar tekshiruvidan himoyalaysiz.",
+            'UBIYTSA': "Siz yollanma Ubiytsasiz. Har tunda o'zingiz tanlagan fuqaroni yo'q qilasiz.",
+            'JURNALIST': "Siz Jurnalistsiz. Tunda intervyu olgani borgan xonadoningizga kimlar kelganini kuzatib, Mafiyaga yetkazasiz.",
+            'AYGOQCHI': "Siz Ayg'oqchisiz. Tunda istalgan o'yinchining rolini aniqlab, Mafiyaga oshkor qilasiz.",
+            'LABORANT': "Siz Laborantsiz. Mafia a'zosini tanlasangiz himoya qilasiz, boshqalarni esa zaharlab o'ldirasiz.",
+            'KIMYOGAR': "Siz Kimyogarsiz. Erkin rolsiz! Hohlasangiz davolaysiz, hohlasangiz zahar berasiz. Omon qolsangiz yutasiz.",
+            'RAIS': "Siz Raissiz. Erkin rolsiz! Har tunda kimgadir 1-100 $ tarqatasiz. Omon qolsangiz yutasiz.",
+            'BORI': "Siz Bo'risiz. Agar Mafia o'ldirsa — Mafiyaga aylanasiz, Komissar o'ldirsa — Serjantga aylanasiz. Boshqalar o'ldirsa — o'lasiz.",
+            'AFERIST': "Siz Aferistsiz. Tunda kimningdir ovozini o'g'irlaysiz. Ertaga u ovoz berolmaydi, uning nomidan siz ovoz berasiz.",
+            'GAZABKOR': "Siz G'azabkorsiz. Har tunda 1 kishini belgilaysiz. O'lganingizda barcha belgilanganlar siz bilan o'ladi. 3+ kishi belgilab o'lsangiz yutasiz.",
+            'SEHRGAR': "Siz Sehrgarsiz. Don, Qotil, Komissar hujum qilsa o'lmaysiz va ularga rahm qilish yoki o'ldirish tanlovi beriladi.",
+            'QOTIL': "Siz shafqatsiz Qotilsiz. Yakka o'ynaysiz. Har tunda 1 kishini o'ldirasiz.",
+            'KONCHI': "Siz Konchisiz. Har tunda 10 ta kondan birini tanlaysiz (3 ta o'lim, 2 ta 💎, 5 ta 💵). Omon qolsangiz yutasiz.",
+            'QAROQCHI': "Siz Qaroqchisiz. Tunda kimnikigadir pul o'g'irlashga borasiz. Pul topolmasangiz 50% HP urib ketasiz.",
+            'QORBOBO': "Siz Qorbobosiz! Har tunda odamlarga qurollar yoki faol rollarni sovg'a qilasiz. Omon qolsangiz yutasiz.",
+            'OSHPAZ': "Siz Oshpazsiz. Tunda maxsus taomingizni berasiz. Ertaga jabrlanuvchining boshi aylanib, ovozi adashib ketadi.",
+            'AFSUNGAR': "Siz Afsungarsiz. Tunda sizni o'ldirgan qotil o'ladi. Kunduzi osilsangiz 1 kishini birga olib ketasiz.",
+            'TUZOQCHI': "Siz Tuzoqchisiz. Tunda kimningdir uyiga tuzoq qo'yasiz. Oldiga kelgan har qanday mehmon o'ladi.",
+            'AXMOQ': "Siz Axmoqsiz. Tunda kalla qo'yasiz. Mafiyaga teginsangiz u o'ladi!",
+            'BUQALAMUN': "Siz Buqalamunsiz. 1-tunda tanlagan odamingizning roliga aylanasiz.",
+            'JOKER': "Siz Jokersiz. Qutilarga bomba joylab aholini sinovdan o'tkazasiz.",
+            'SUIDSID': "Siz Suidsidsiz. Agar sizni kunduzi osib o'ldirishsa — yakka o'zingiz g'alaba qozonasiz!",
+            'ZOMBI': "Siz Zombisiz. Har tunda boshqalarni tishlab zombiga aylantirasiz.",
+        }
+
+        for player, role in assignments:
+            rname = role.name
+            gid = str(game.id)
+            icon = role_icon(rname)
+            label = role_label(rname)
+            desc = ROLE_DESCRIPTIONS.get(rname, "Siz o'yin ishtirokchisisiz. Kunduzgi muhokama va ovoz berishda faol qatnashing.")
+
+            # 1. Send Role Card Message (Image 1 top card)
+            role_card_text = (
+                f"<b>Siz - {icon} {label}siz!</b>\n\n"
+                f"{desc}"
+            )
+            try:
+                await bot.send_message(
+                    player.telegram_user_id,
+                    role_card_text,
+                    reply_markup=build_back_to_group_keyboard(chat_id=game.chat_id),
+                    parse_mode="HTML"
+                )
+            except Exception as e:
+                logger.warning(f"Failed to send role card to {player.telegram_user_id}: {e}")
+
+            # 2. Send Teammates Reminder if Mafia / Don (Image 1 middle card)
+            if rname in ["DON", "MAFIA", "ADVOKAT", "UBIYTSA", "JURNALIST", "AYGOQCHI", "LABORANT"] and len(mafia_members) > 1:
+                team_lines = []
+                for mp, mr in mafia_members:
+                    m_icon = role_icon(mr.name)
+                    m_label = role_label(mr.name)
+                    team_lines.append(f"<b>{html.escape(mp.display_name)}</b> - {m_icon} <b>{m_label}</b>")
+                team_msg = "<b>Sheriklaringizni eslab qoling!</b>\n\n" + "\n".join(team_lines)
+                try:
+                    await bot.send_message(
+                        player.telegram_user_id,
+                        team_msg,
+                        parse_mode="HTML"
+                    )
+                except Exception:
+                    pass
+
+            # 3. Send Night Action Prompt (Image 1 bottom card)
+            if rname in ["DON", "MAFIA"]:
+                kb = build_night_target_keyboard(gid, "k", living_players, str(player.id))
+                await bot.send_message(player.telegram_user_id, "<b>Kimni o'ldiramiz?</b>", reply_markup=kb, parse_mode="HTML")
+
+            elif rname in ["DOCTOR", "HAMSHIRA"] and rname == "DOCTOR":
+                kb = build_night_target_keyboard(gid, "p", living_players, str(player.id))
+                await bot.send_message(player.telegram_user_id, "<b>Kimni davolaymiz?</b>", reply_markup=kb, parse_mode="HTML")
+
+            elif rname in ["DETECTIVE", "KOMISSAR", "SHERIFF"]:
+                kb = build_komissar_action_keyboard(gid)
+                await bot.send_message(player.telegram_user_id, "<b>Harakatingizni tanlang:</b>", reply_markup=kb, parse_mode="HTML")
+
+            elif rname == "QOTIL":
+                kb = build_night_target_keyboard(gid, "qot", living_players, str(player.id))
+                await bot.send_message(player.telegram_user_id, "<b>Qurbonni tanlang:</b>", reply_markup=kb, parse_mode="HTML")
+
+            elif rname == "KEZUVCHI":
+                kb = build_night_target_keyboard(gid, "kez", living_players, str(player.id))
+                await bot.send_message(player.telegram_user_id, "<b>Kimnikiga mehmonga borasiz?</b>", reply_markup=kb, parse_mode="HTML")
+
+            elif rname == "DAYDI":
+                kb = build_night_target_keyboard(gid, "day", living_players, str(player.id))
+                await bot.send_message(player.telegram_user_id, "<b>Kimnikiga borasiz?</b>", reply_markup=kb, parse_mode="HTML")
+
+            elif rname == "ADVOKAT":
+                kb = build_night_target_keyboard(gid, "adv", living_players)
+                await bot.send_message(player.telegram_user_id, "<b>Kimni himoyalaysiz?</b>", reply_markup=kb, parse_mode="HTML")
+
+            elif rname == "UBIYTSA":
+                kb = build_night_target_keyboard(gid, "ubi", living_players, str(player.id))
+                await bot.send_message(player.telegram_user_id, "<b>Kimni o'ldirasiz?</b>", reply_markup=kb, parse_mode="HTML")
+
+            elif rname == "TUZOQCHI":
+                kb = build_night_target_keyboard(gid, "tuz", living_players, str(player.id))
+                await bot.send_message(player.telegram_user_id, "<b>Tuzoqni kimga qo'yasiz?</b>", reply_markup=kb, parse_mode="HTML")
+
+            elif rname == "ZOMBI":
+                kb = build_night_target_keyboard(gid, "zom", living_players, str(player.id))
+                await bot.send_message(player.telegram_user_id, "<b>Kimni tishlaysiz?</b>", reply_markup=kb, parse_mode="HTML")
+
+            elif rname == "KIMYOGAR":
+                kb = build_night_target_keyboard(gid, "kim", living_players, str(player.id))
+                await bot.send_message(player.telegram_user_id, "<b>Eliksirni kimga berasiz?</b>", reply_markup=kb, parse_mode="HTML")
+
+            elif rname == "RAIS":
+                kb = build_night_target_keyboard(gid, "rai", living_players, str(player.id))
+                await bot.send_message(player.telegram_user_id, "<b>Sovg'ani kimga berasiz?</b>", reply_markup=kb, parse_mode="HTML")
+
+            elif rname == "AFERIST":
+                kb = build_night_target_keyboard(gid, "afer", living_players, str(player.id))
+                await bot.send_message(player.telegram_user_id, "<b>Kimning ovozini o'g'irlamoqchisiz?</b>", reply_markup=kb, parse_mode="HTML")
+
+            elif rname == "GAZABKOR":
+                kb = build_night_target_keyboard(gid, "gaz", living_players)
+                await bot.send_message(player.telegram_user_id, "<b>Kimni belgilamoqchisiz?</b>", reply_markup=kb, parse_mode="HTML")
+
+            elif rname == "JURNALIST":
+                kb = build_night_target_keyboard(gid, "jurn", living_players, str(player.id))
+                await bot.send_message(player.telegram_user_id, "<b>Kimnikiga intervyuga borasiz?</b>", reply_markup=kb, parse_mode="HTML")
+
+            elif rname == "SOTQIN":
+                kb = build_night_target_keyboard(gid, "sotq", living_players, str(player.id))
+                await bot.send_message(player.telegram_user_id, "<b>Kimni tekshirmoqchisiz?</b>", reply_markup=kb, parse_mode="HTML")
+
+            elif rname == "ROBINGUD":
+                kb = build_night_target_keyboard(gid, "rob", living_players, str(player.id))
+                await bot.send_message(player.telegram_user_id, "<b>Kamon o'qi bilan kimni otasiz?</b>", reply_markup=kb, parse_mode="HTML")
+
+            elif rname == "AYGOQCHI":
+                kb = build_night_target_keyboard(gid, "ayg", living_players, str(player.id))
+                await bot.send_message(player.telegram_user_id, "<b>Qaysi o'yinchining rolini bilmoqchisiz?</b>", reply_markup=kb, parse_mode="HTML")
+
+            elif rname == "KONCHI":
+                kb = build_konchi_mines_keyboard(gid)
+                await bot.send_message(player.telegram_user_id, "<b>Qaysi konni qazimoqchisiz?</b>", reply_markup=kb, parse_mode="HTML")
+
+            elif rname == "FOTOPARATCHI":
+                kb = build_night_target_keyboard(gid, "foto", living_players, str(player.id))
+                await bot.send_message(player.telegram_user_id, "<b>Kimni rasmga olmoqchisiz?</b>", reply_markup=kb, parse_mode="HTML")
+
+            elif rname == "QAROQCHI":
+                kb = build_night_target_keyboard(gid, "qar", living_players, str(player.id))
+                await bot.send_message(player.telegram_user_id, "<b>Kimning pullarini shilmoqchisiz?</b>", reply_markup=kb, parse_mode="HTML")
+
+            elif rname == "LABORANT":
+                kb = build_night_target_keyboard(gid, "lab", living_players, str(player.id))
+                await bot.send_message(player.telegram_user_id, "<b>Nishonni tanlang:</b>", reply_markup=kb, parse_mode="HTML")
+
+            elif rname == "QORBOBO":
+                kb = build_night_target_keyboard(gid, "qor", living_players, str(player.id))
+                await bot.send_message(player.telegram_user_id, "<b>Sovg'ani kimga topshirasiz?</b>", reply_markup=kb, parse_mode="HTML")
+
+            elif rname == "OSHPAZ":
+                kb = build_night_target_keyboard(gid, "osh", living_players, str(player.id))
+                await bot.send_message(player.telegram_user_id, "<b>Maxsus taomingizni kimga yedirasiz?</b>", reply_markup=kb, parse_mode="HTML")
+
+            elif rname == "AXMOQ":
+                kb = build_night_target_keyboard(gid, "axm", living_players, str(player.id))
+                await bot.send_message(player.telegram_user_id, "<b>Kimni tanlaysiz?</b>", reply_markup=kb, parse_mode="HTML")
+
+            elif rname == "JOKER":
+                kb = build_joker_boxes_setup_keyboard(gid)
+                await bot.send_message(player.telegram_user_id, "<b>Bombani qaysi qutilarga joylaysiz?</b>", reply_markup=kb, parse_mode="HTML")
+
+        # Start Night Timer with bot timing setting
+        bot_id_str = str(game.bot.id) if game and game.bot else ''
+        n_dur = await sync_to_async(SettingService.get_group_or_bot_timing)(game.chat_id, bot_id_str, 'night_duration', 60)
+        start_night_timer(str(game.id), bot, duration=n_dur)
+
+    except ValueError as e:
+        await message.answer(
+            f"⚠️ <b>O'yinni boshlab bo'lmadi:</b>\n"
+            f"Kamida <b>4 nafar o'yinchi</b> ro'yxatdan o'tishi kerak! Iltimos, o'yinchilar <b>Qo'shilish ↗</b> tugmasi orqali qo'shilishini kuting.",
+            parse_mode="HTML"
+        )
+    except Exception as e:
+        logger.exception("Error starting game:")
+        await message.answer(f"❌ O'yinni boshlashda xatolik yuz berdi.", parse_mode="HTML")
+
+
+@router.message(Command("roles", "rollar", "qoidalar"))
+async def cmd_roles_catalog(message: types.Message, bot: Bot):
+    """Handles /roles command opening the Roles Mini App."""
+    bot_info = await bot.get_me()
+    if not is_targeted_at_this_bot(message, bot_info.username):
+        return
+
+    from apps.superadmin.services import SettingService
+    base_url = SettingService.get('webapp_base_url', os.environ.get('WEBAPP_BASE_URL', 'https://16-171-175-23.sslip.io')).rstrip('/')
+    webapp_url = f"{base_url}/webapp/roles/"
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="🎭 Rollar Katalogi (Mini App) ↗", web_app=WebAppInfo(url=webapp_url))]
+    ])
+    await message.answer(
+        "🎭 <b>Mafia Rollar Katalogi:</b>\n\n"
+        "O'yindagi barcha <b>38 ta rollar</b>, ularning qobiliyatlari, jamoalari va vazifalarini ko'rish uchun quyidagi Mini App tugmasini bosing:",
+        reply_markup=kb,
+        parse_mode="HTML"
+    )
+
+
+@router.message(Command("cancel", "stop", "toxtatish", "reset"))
+async def cmd_stop_game(message: types.Message, bot: Bot):
+    """Cancels ongoing or waiting game."""
+    if message.chat.type == "private":
+        return
+
+    bot_info = await bot.get_me()
+    if not is_targeted_at_this_bot(message, bot_info.username):
+        return
+
+    bot_record = await sync_to_async(
+        lambda: BotModel.objects.filter(telegram_username__iexact=bot_info.username).first()
+    )()
+    bot_id_str = str(bot_record.id) if bot_record else ''
+    stop_perm = await sync_to_async(SettingService.get_group_or_bot_timing_str)(message.chat.id, bot_id_str, 'cmd_perm_stop_game', 'ADMINS')
+    allowed, err_msg = await check_user_group_permission(bot, message.chat.id, message.from_user.id, stop_perm)
+    if not allowed:
+        await message.answer(err_msg, parse_mode="HTML")
+        return
+
+    chat_id = message.chat.id
+    active_game = await sync_to_async(
+        lambda: Game.objects.filter(
+            chat_id=chat_id,
+            phase__in=[GamePhase.WAITING, GamePhase.STARTING, GamePhase.NIGHT, GamePhase.DAY, GamePhase.VOTING]
+        ).order_by('-created_at').first()
+    )()
+
+    if not active_game:
+        await message.answer("ℹ️ Guruhda to'xtatish uchun faol o'yin topilmadi.")
+        return
+
+    active_game.phase = GamePhase.CANCELED
+    await sync_to_async(active_game.save)(update_fields=['phase'])
+    cancel_lobby_timer(str(active_game.id))
+
+    if active_game.lobby_message_id:
+        try:
+            await bot.delete_message(chat_id=chat_id, message_id=active_game.lobby_message_id)
+        except Exception:
+            pass
+
+    await message.answer("🛑 <b>O'yin to'xtatildi va ro'yxatdan o'tish bekor qilindi.</b>\nYangi o'yin boshlash uchun /game buyrug'ini yuboring.", parse_mode="HTML")
+
+
+@router.message(Command("leave", "chiqish", "tark", "quit"))
+async def cmd_leave_game(message: types.Message, bot: Bot):
+    """Allows players to leave either a waiting lobby or an active ongoing game."""
+    user = message.from_user
+    if not user:
+        return
+
+    chat_id = message.chat.id
+    bot_info = await bot.get_me()
+    if not is_targeted_at_this_bot(message, bot_info.username):
+        return
+
+    # Find the active or waiting game in this chat, or player's active game if in private
+    if message.chat.type in ["group", "supergroup"]:
+        game = await sync_to_async(
+            lambda: Game.objects.filter(
+                chat_id=chat_id,
+                phase__in=[GamePhase.WAITING, GamePhase.STARTING, GamePhase.NIGHT, GamePhase.DAY, GamePhase.VOTING]
+            ).order_by('-created_at').first()
+        )()
+    else:
+        player_record = await sync_to_async(
+            lambda: Player.objects.filter(
+                telegram_user_id=user.id,
+                game__phase__in=[GamePhase.WAITING, GamePhase.STARTING, GamePhase.NIGHT, GamePhase.DAY, GamePhase.VOTING]
+            ).select_related('game').order_by('-game__created_at').first()
+        )()
+        game = player_record.game if player_record else None
+
+    if not game:
+        await message.answer("ℹ️ Siz qatnashayotgan yoki guruhda faol bo'lgan o'yin topilmadi.")
+        return
+
+    success, phase_mode, display_name, role_name, winner = await sync_to_async(GameService.leave_game)(
+        game=game, telegram_user_id=user.id
+    )
+
+    if not success:
+        if phase_mode == 'ALREADY_DEAD':
+            await message.answer("⚠️ Siz allaqachon o'yindan chiqqansiz yoki halok bo'lgansiz.")
+        else:
+            await message.answer("ℹ️ Siz ushbu o'yin ro'yxatida emassiz.")
+        return
+
+    # 1. Left Waiting Lobby
+    if phase_mode == 'LOBBY':
+        bot_name = game.bot.name if game.bot else "Bloody Mafia"
+        new_text = await sync_to_async(format_lobby_text)(game, bot_name)
+        kb = build_group_lobby_keyboard(bot_info.username, str(game.id))
+
+        if game.lobby_message_id and message.chat.type in ["group", "supergroup"]:
+            try:
+                await bot.edit_message_caption(
+                    chat_id=game.chat_id,
+                    message_id=game.lobby_message_id,
+                    caption=new_text,
+                    reply_markup=kb,
+                    parse_mode="HTML"
+                )
+            except Exception:
+                try:
+                    await bot.edit_message_text(
+                        chat_id=game.chat_id,
+                        message_id=game.lobby_message_id,
+                        text=new_text,
+                        reply_markup=kb,
+                        parse_mode="HTML"
+                    )
+                except Exception:
+                    pass
+
+        if message.chat.type in ["group", "supergroup"]:
+            await message.answer(f"🚪 <b>{display_name}</b> ro'yxatdan chiqdi.", parse_mode="HTML")
+        else:
+            await message.answer("🚪 Siz o'yin ro'yxatidan muvaffaqiyatli chiqdingiz.")
+
+    # 2. Left Active Ongoing Game
+    elif phase_mode == 'ACTIVE':
+        from bot_runtime.handlers.night import role_label, role_icon
+        r_icon = role_icon(role_name)
+        r_name = role_label(role_name)
+        role_display = f"{r_icon} {r_name}".strip()
+
+        mention = f'<a href="tg://user?id={user.id}">{html.escape(display_name)}</a>'
+        leave_msg = f"{mention} bu shaxarning yovuzliklariga chiday olmay o'zini osib qo'ydi. U {role_display} edi"
+
+        if game.chat_id:
+            try:
+                await bot.send_message(game.chat_id, leave_msg, parse_mode="HTML")
+            except Exception:
+                pass
+
+        if message.chat.type == "private":
+            await message.answer("🚪 Siz o'yinni tark etdingiz.")
+
+        if winner:
+            from bot_runtime.handlers.night import _announce_game_winner
+            try:
+                await _announce_game_winner(game, winner, bot)
+            except Exception as v_err:
+                logger.warning(f"Error announcing victory after leave: {v_err}")
+
+
+@router.callback_query(lambda c: c.data and c.data.startswith("lobby:"))
+async def handle_lobby_callback(callback: types.CallbackQuery, bot: Bot):
+    """Handles lobby join/leave/start/cancel inline buttons."""
+    parts = callback.data.split(":")
+    action = parts[1]
+    game_id = parts[2]
+
+    bot_info = await bot.get_me()
+
+    try:
+        game = await sync_to_async(
+            lambda: Game.objects.select_related('bot').get(id=game_id)
+        )()
+
+        if action == "force_cancel":
+            game.phase = GamePhase.CANCELED
+            await sync_to_async(game.save)(update_fields=['phase'])
+            cancel_lobby_timer(str(game.id))
+            if game.lobby_message_id:
+                try:
+                    await bot.delete_message(chat_id=game.chat_id, message_id=game.lobby_message_id)
+                except Exception:
+                    pass
+            await callback.answer("🛑 O'yin to'xtatildi!")
+            await callback.message.edit_text(
+                "🛑 <b>Oldingi o'yin to'xtatildi va lobby o'chirildi!</b>\n\n"
+                "Yangi o'yin boshlash uchun /game buyrug'ini yuboring.",
+                parse_mode="HTML"
+            )
+            return
+
+        if game.phase != GamePhase.WAITING:
+            await callback.answer("⚠️ O'yinga yozilish yakunlangan.", show_alert=True)
+            return
+
+        if action == "join":
+            player, created = await sync_to_async(GameService.join_lobby)(
+                game=game,
+                telegram_user_id=callback.from_user.id,
+                username=callback.from_user.username or '',
+                display_name=callback.from_user.full_name or callback.from_user.first_name
+            )
+            if created:
+                await callback.answer("✅ Siz o'yinga qo'shildingiz!")
+                bot_name = game.bot.name if game.bot else "Bloody Mafia"
+                new_text = await sync_to_async(format_lobby_text)(game, bot_name)
+                kb = build_group_lobby_keyboard(bot_info.username, str(game.id))
+                try:
+                    await callback.message.edit_text(text=new_text, reply_markup=kb, parse_mode="HTML")
+                except Exception:
+                    pass
+            else:
+                await callback.answer("ℹ️ Siz allaqachon ro'yxatdan o'tgansiz.", show_alert=True)
+
+        elif action == "leave":
+            removed = await sync_to_async(GameService.leave_lobby)(
+                game=game, telegram_user_id=callback.from_user.id
+            )
+            if removed:
+                await callback.answer("🚪 Siz o'yindan chiqdingiz.")
+                bot_name = game.bot.name if game.bot else "Bloody Mafia"
+                new_text = await sync_to_async(format_lobby_text)(game, bot_name)
+                kb = build_group_lobby_keyboard(bot_info.username, str(game.id))
+                try:
+                    await callback.message.edit_text(text=new_text, reply_markup=kb, parse_mode="HTML")
+                except Exception:
+                    pass
+            else:
+                await callback.answer("Siz ro'yxatda yo'qsiz.", show_alert=True)
+
+    except Exception as e:
+        logger.warning(f"Error in lobby callback: {e}")
+        await callback.answer("Xatolik yuz berdi.", show_alert=True)
+
+
+
+# Child bot feedback callback
+@router.callback_query(lambda c: c.data == "start:feedback")
+async def handle_child_feedback_button_click(callback: types.CallbackQuery):
+    """Prompts user in child bot to type their question or suggestion."""
+    from bot_runtime.handlers.father_master import FEEDBACK_WAITING_USERS
+    FEEDBACK_WAITING_USERS[callback.from_user.id] = True
+    await callback.answer()
+    await callback.message.answer(
+        "✍️ <b>Savol yoki taklifingizni yozib qoldiring:</b>\n\n"
+        "Sizning murojaatingiz to'g'ridan-to'g'ri platforma administratoriga (@ismoilo9) yetkaziladi.\n"
+        "Iltimos, xabaringizni shu yerga yozib yuboring:",
+        parse_mode="HTML"
+    )
+
+
+# ---------------------------------------------------------------------------
+# Creative Group Member Tagging (@utag / /utag)
+# ---------------------------------------------------------------------------
+ACTIVE_TAG_TASKS: dict = {}
+
+UTAG_CREATIVE_PHRASES = [
+    "O'yin boshlanishiga soniyalar qoldi. ⌛",
+    "Sukut rekord o'rnatmoqdami? 😂",
+    "Biror kulgili gap aytaymi? 😂",
+    "Aziz Madinani sevadi ❤️",
+    "Ismingizni bilsak bo'ladimi? 😊",
+    "Biror mem esingizga tushdimi? 🤣",
+    "Arvoxladan qorqasmi ? Masalan mendan 😂",
+    "Siz haqingizda ko'proq bilsak bo'ladimi? 🌷",
+    "Xabar kutayotganmidingiz? 📩",
+    "Keling, bugunni esda qolarli qilamiz! 🎉",
+    "Bugun kulmagan odam jarimaga. 😂",
+    "Guruhga ozgina shovqin kerak. 🎉",
+    "Mafiya shahriga xush kelibsiz, o'yinga kiring! 🕵️‍♂️",
+    "Sizsiz guruhda fayz yo'q, bir o'yin o'ynaylik! 🎭",
+    "Qahvangiz sovib qolmasin, o'yin boshlanyapti! ☕",
+    "Don sizni kutmoqda, kechikmang! 🤵",
+    "Bugun kim yutadi deb o'ylaysiz? 🏆",
+    "Guruh ahli yig'ilmoqda, siz qayerdasiz? 👀",
+    "Jimjitlikni buzish vaqti keldi! 💣",
+    "Bir dona qizg'in o'yin o'ynab ko'rmaymizmi? 🎲",
+    "Qani, faol bo'ling, hamma sizni kutyapti! 🔥",
+    "Niqobingizni taqing, shaharga tun tushmoqda! 👺",
+    "Bugun kimdir shahar qahramoni bo'ladi! 🦸",
+    "Salom berib o'yinga qo'shilib ketamiz! 👋",
+    "Komissar allaqachon nishonni qidirmoqda! 🔍",
+    "Keling, kayfiyatni 100% ko'taramiz! 🚀",
+    "Bugun mafiyani birgalikda yengamiz! ⚔️",
+    "Siz ham qatnashasizmi yoki shunchaki kuzatasizmi? 😎",
+    "Shahar aholisiga sizdek jasur o'yinchi kerak! 🛡️",
+    "O'yin qizig'i endi boshlanyapti, qo'shiling! 🎮",
+]
+
+
+@router.message(Command("stop_tag", "cancel_tag"))
+@router.message(F.text.func(lambda t: bool(t and (
+    t.lower().strip() in ['@stop', '@stop_tag', '!stop', '/stop_tag', '/cancel_tag', '!stop_tag', 'stop_tag', '@stop!'] or
+    t.lower().startswith('@stop ') or
+    t.lower().startswith('@stop\n') or
+    t.lower().startswith('/stop_tag')
+))))
+async def cmd_stop_utag(message: types.Message, bot: Bot):
+    """Cancels ongoing @utag tagging process in the group with @stop or /stop_tag."""
+    chat_id = message.chat.id
+    bot_info = await bot.get_me()
+    bot_record = await sync_to_async(
+        lambda: BotModel.objects.filter(telegram_username__iexact=bot_info.username).first()
+    )()
+    bot_id_str = str(bot_record.id) if bot_record else ''
+    stop_tag_perm = await sync_to_async(SettingService.get_group_or_bot_timing_str)(chat_id, bot_id_str, 'cmd_perm_stop_tag', 'ADMINS')
+    allowed, err_msg = await check_user_group_permission(bot, chat_id, message.from_user.id if message.from_user else 0, stop_tag_perm)
+    if not allowed:
+        await message.reply(err_msg, parse_mode="HTML")
+        return
+
+    if chat_id in ACTIVE_TAG_TASKS:
+        task = ACTIVE_TAG_TASKS.pop(chat_id, None)
+        if task and not task.done():
+            task.cancel()
+        await message.answer("🛑 <b>A'zolarni chaqirish jarayoni to'xtatildi!</b>", parse_mode="HTML")
+    else:
+        await message.answer("ℹ️ Hozirda faol chaqirish (@utag) jarayoni mavjud emas.")
+
+
+@router.message(Command("utag"))
+@router.message(F.text.func(lambda t: bool(t and ('@utag' in t.lower() or t.lower().startswith('/utag') or t.lower().startswith('!utag') or t.lower().strip() == 'utag'))))
+async def handle_utag_mention_or_command(message: types.Message, bot: Bot):
+    """
+    Handles @utag call in groups:
+    Iterates over group members and tags them one-by-one with creative inviting messages.
+    """
+    if message.chat.type not in ["group", "supergroup"]:
+        return
+
+    chat_id = message.chat.id
+    user_id = message.from_user.id if message.from_user else 0
+
+    bot_info = await bot.get_me()
+    bot_record = await sync_to_async(
+        lambda: BotModel.objects.filter(telegram_username__iexact=bot_info.username).first()
+    )()
+    bot_id_str = str(bot_record.id) if bot_record else ''
+
+    # 1. Permission check with dynamic group setting (OWNER, ADMINS, ALL)
+    utag_perm = await sync_to_async(SettingService.get_group_or_bot_timing_str)(chat_id, bot_id_str, 'cmd_perm_utag', 'ADMINS')
+    allowed, err_msg = await check_user_group_permission(bot, chat_id, user_id, required_level=utag_perm)
+    if not allowed:
+        await message.reply(err_msg, parse_mode="HTML")
+        return
+
+    # Cancel previous tag task if running
+    if chat_id in ACTIVE_TAG_TASKS:
+        prev_task = ACTIVE_TAG_TASKS.pop(chat_id, None)
+        if prev_task and not prev_task.done():
+            prev_task.cancel()
+
+    bot_info = await bot.get_me()
+
+    # 2. Collect distinct group members / active players
+    def _collect_group_members():
+        players_qs = Player.objects.filter(game__chat_id=chat_id).values('telegram_user_id', 'display_name', 'username').distinct()
+        members_map = {}
+        for p in players_qs:
+            uid = p['telegram_user_id']
+            if uid and uid != bot_info.id and uid != 777000:
+                members_map[uid] = {
+                    'telegram_user_id': uid,
+                    'display_name': p['display_name'] or "O'yinchi",
+                    'username': p['username'] or ''
+                }
+        return members_map
+
+    members_dict = await sync_to_async(_collect_group_members)()
+
+    # Also collect admins from Telegram
+    try:
+        admins = await bot.get_chat_administrators(chat_id=chat_id)
+        for a in admins:
+            if not a.user.is_bot and a.user.id != 777000:
+                if a.user.id not in members_dict:
+                    members_dict[a.user.id] = {
+                        'telegram_user_id': a.user.id,
+                        'display_name': a.user.full_name or a.user.first_name,
+                        'username': a.user.username or ''
+                    }
+    except Exception as e:
+        logger.warning(f"Error fetching administrators for @utag: {e}")
+
+    members_list = list(members_dict.values())
+    if not members_list:
+        await message.reply("ℹ️ Guruhda chaqirish uchun a'zolar topilmadi.")
+        return
+
+    random.shuffle(members_list)
+    try:
+        await message.reply("📢 <b>Guruh a'zolarini chaqirish boshlandi!</b>\n<i>(To'xtatish uchun: <code>@stop</code> yozing)</i>", parse_mode="HTML")
+    except Exception:
+        pass
+
+    async def _tag_loop():
+        try:
+            for m in members_list:
+                if chat_id not in ACTIVE_TAG_TASKS:
+                    break
+                phrase = random.choice(UTAG_CREATIVE_PHRASES)
+                if m.get('username'):
+                    tag_str = f"@{m['username']}"
+                else:
+                    name_esc = html.escape(m.get('display_name') or "O'yinchi")
+                    tag_str = f'<a href="tg://user?id={m["telegram_user_id"]}">{name_esc}</a>'
+                
+                text = f"{tag_str} {phrase}"
+                try:
+                    await bot.send_message(chat_id, text, parse_mode="HTML")
+                except Exception as send_err:
+                    logger.debug(f"Failed to send utag message for {m}: {send_err}")
+                await asyncio.sleep(0.75)
+        except asyncio.CancelledError:
+            pass
+        finally:
+            ACTIVE_TAG_TASKS.pop(chat_id, None)
+
+    task = asyncio.create_task(_tag_loop())
+    ACTIVE_TAG_TASKS[chat_id] = task
+

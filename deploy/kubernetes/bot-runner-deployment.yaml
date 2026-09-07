@@ -1,0 +1,82 @@
+---
+# MAFIA BOT FATHER — Bot Runner Kubernetes Deployment
+#
+# CRITICAL CONSTRAINT: replicas MUST be 1.
+# Multiple instances would conflict on Telegram's getUpdates long-polling endpoint.
+# Telegram only allows one active polling session per bot token at a time.
+# If you need high availability, use Telegram webhooks instead of polling.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mafia-bot-runner
+  namespace: mafia-botfather
+  labels:
+    app: mafia-bot-runner
+    component: bot-polling
+spec:
+  # ⚠️  DO NOT CHANGE THIS VALUE. See note above.
+  replicas: 1
+  strategy:
+    # Recreate (not RollingUpdate) ensures the old pod is FULLY stopped before
+    # the new one starts, preventing any brief dual-polling overlap.
+    type: Recreate
+  selector:
+    matchLabels:
+      app: mafia-bot-runner
+  template:
+    metadata:
+      labels:
+        app: mafia-bot-runner
+        component: bot-polling
+    spec:
+      # Give the process enough time to gracefully stop and flush pending messages.
+      terminationGracePeriodSeconds: 30
+      containers:
+        - name: bot-runner
+          image: mafiabotfather/backend:latest  # Replace with your registry image
+          imagePullPolicy: Always
+          command: ["python", "run_master_bot.py"]
+          env:
+            - name: DJANGO_SETTINGS_MODULE
+              value: "config.settings"
+            - name: DJANGO_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: mafia-botfather-secrets
+                  key: django-secret-key
+            - name: ENCRYPTION_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: mafia-botfather-secrets
+                  key: encryption-key
+            - name: MASTER_BOT_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: mafia-botfather-secrets
+                  key: master-bot-token
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: mafia-botfather-secrets
+                  key: database-url
+            - name: REDIS_URL
+              valueFrom:
+                secretKeyRef:
+                  name: mafia-botfather-secrets
+                  key: redis-url
+            - name: DEBUG
+              value: "False"
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "256Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
+          livenessProbe:
+            exec:
+              command: ["python", "-c", "import sys; sys.exit(0)"]
+            initialDelaySeconds: 30
+            periodSeconds: 60
+            failureThreshold: 3
+      restartPolicy: Always
