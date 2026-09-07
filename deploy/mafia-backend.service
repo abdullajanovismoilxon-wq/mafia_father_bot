@@ -1,0 +1,17 @@
+[Unit]
+Description=Mafia Father Django Backend Gunicorn Service
+After=network.target
+
+[Service]
+User=ec2-user
+Group=ec2-user
+WorkingDirectory=/home/ec2-user/mafia_father_bot/backend
+Environment="PATH=/home/ec2-user/mafia_father_bot/backend/venv/bin"
+EnvironmentFile=/home/ec2-user/mafia_father_bot/.env
+ExecStart=/home/ec2-user/mafia_father_bot/backend/venv/bin/gunicorn --workers 3 --bind 127.0.0.1:8000 --timeout 120 --access-logfile /home/ec2-user/mafia_father_bot/backend/gunicorn_access.log --error-logfile /home/ec2-user/mafia_father_bot/backend/gunicorn_error.log config.wsgi:application
+
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

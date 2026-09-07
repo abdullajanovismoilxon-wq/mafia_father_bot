@@ -1,0 +1,17 @@
+[Unit]
+Description=Mafia Father Telegram Bot Master Poller Daemon
+After=network.target mafia-backend.service
+
+[Service]
+User=ec2-user
+Group=ec2-user
+WorkingDirectory=/home/ec2-user/mafia_father_bot/backend
+Environment="PATH=/home/ec2-user/mafia_father_bot/backend/venv/bin"
+EnvironmentFile=/home/ec2-user/mafia_father_bot/.env
+ExecStart=/home/ec2-user/mafia_father_bot/backend/venv/bin/python run_master_bot.py
+
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
