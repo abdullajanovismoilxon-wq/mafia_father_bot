@@ -39,6 +39,16 @@ from bot_runtime.keyboards.inline import (
 logger = logging.getLogger(__name__)
 router = Router(name="lobby_router")
 
+TIER_RANKS = {
+    'STANDARD': 1,
+    'SUPER': 2,
+    'MEGA': 3,
+}
+
+def _check_bot_tier_access(bot_type: str, required_tier: str) -> bool:
+    """Returns True if bot_type tier meets or exceeds required_tier."""
+    return TIER_RANKS.get(str(bot_type).upper(), 1) >= TIER_RANKS.get(str(required_tier).upper(), 1)
+
 
 def is_targeted_at_this_bot(message: types.Message, bot_username: str) -> bool:
     """Returns False if message command explicitly mentions another bot (@other_bot)."""
@@ -606,109 +616,112 @@ async def cmd_start_game(message: types.Message, bot: Bot):
                     pass
 
             # 3. Send Night Action Prompt (Image 1 bottom card)
-            if rname in ["DON", "MAFIA"]:
-                kb = build_night_target_keyboard(gid, "k", living_players, str(player.id))
-                await bot.send_message(player.telegram_user_id, "<b>Kimni o'ldiramiz?</b>", reply_markup=kb, parse_mode="HTML")
+            try:
+                if rname in ["DON", "MAFIA"]:
+                    kb = build_night_target_keyboard(gid, "k", living_players, str(player.id))
+                    await bot.send_message(player.telegram_user_id, "<b>Kimni o'ldiramiz?</b>", reply_markup=kb, parse_mode="HTML")
 
-            elif rname in ["DOCTOR", "HAMSHIRA"] and rname == "DOCTOR":
-                kb = build_night_target_keyboard(gid, "p", living_players, str(player.id))
-                await bot.send_message(player.telegram_user_id, "<b>Kimni davolaymiz?</b>", reply_markup=kb, parse_mode="HTML")
+                elif rname in ["DOCTOR", "HAMSHIRA"] and rname == "DOCTOR":
+                    kb = build_night_target_keyboard(gid, "p", living_players, str(player.id))
+                    await bot.send_message(player.telegram_user_id, "<b>Kimni davolaymiz?</b>", reply_markup=kb, parse_mode="HTML")
 
-            elif rname in ["DETECTIVE", "KOMISSAR", "SHERIFF"]:
-                kb = build_komissar_action_keyboard(gid)
-                await bot.send_message(player.telegram_user_id, "<b>Harakatingizni tanlang:</b>", reply_markup=kb, parse_mode="HTML")
+                elif rname in ["DETECTIVE", "KOMISSAR", "SHERIFF"]:
+                    kb = build_komissar_action_keyboard(gid)
+                    await bot.send_message(player.telegram_user_id, "<b>Harakatingizni tanlang:</b>", reply_markup=kb, parse_mode="HTML")
 
-            elif rname == "QOTIL":
-                kb = build_night_target_keyboard(gid, "qot", living_players, str(player.id))
-                await bot.send_message(player.telegram_user_id, "<b>Qurbonni tanlang:</b>", reply_markup=kb, parse_mode="HTML")
+                elif rname == "QOTIL":
+                    kb = build_night_target_keyboard(gid, "qot", living_players, str(player.id))
+                    await bot.send_message(player.telegram_user_id, "<b>Qurbonni tanlang:</b>", reply_markup=kb, parse_mode="HTML")
 
-            elif rname == "KEZUVCHI":
-                kb = build_night_target_keyboard(gid, "kez", living_players, str(player.id))
-                await bot.send_message(player.telegram_user_id, "<b>Kimnikiga mehmonga borasiz?</b>", reply_markup=kb, parse_mode="HTML")
+                elif rname == "KEZUVCHI":
+                    kb = build_night_target_keyboard(gid, "kez", living_players, str(player.id))
+                    await bot.send_message(player.telegram_user_id, "<b>Kimnikiga mehmonga borasiz?</b>", reply_markup=kb, parse_mode="HTML")
 
-            elif rname == "DAYDI":
-                kb = build_night_target_keyboard(gid, "day", living_players, str(player.id))
-                await bot.send_message(player.telegram_user_id, "<b>Kimnikiga borasiz?</b>", reply_markup=kb, parse_mode="HTML")
+                elif rname == "DAYDI":
+                    kb = build_night_target_keyboard(gid, "day", living_players, str(player.id))
+                    await bot.send_message(player.telegram_user_id, "<b>Kimnikiga borasiz?</b>", reply_markup=kb, parse_mode="HTML")
 
-            elif rname == "ADVOKAT":
-                kb = build_night_target_keyboard(gid, "adv", living_players)
-                await bot.send_message(player.telegram_user_id, "<b>Kimni himoyalaysiz?</b>", reply_markup=kb, parse_mode="HTML")
+                elif rname == "ADVOKAT":
+                    kb = build_night_target_keyboard(gid, "adv", living_players)
+                    await bot.send_message(player.telegram_user_id, "<b>Kimni himoyalaysiz?</b>", reply_markup=kb, parse_mode="HTML")
 
-            elif rname == "UBIYTSA":
-                kb = build_night_target_keyboard(gid, "ubi", living_players, str(player.id))
-                await bot.send_message(player.telegram_user_id, "<b>Kimni o'ldirasiz?</b>", reply_markup=kb, parse_mode="HTML")
+                elif rname == "UBIYTSA":
+                    kb = build_night_target_keyboard(gid, "ubi", living_players, str(player.id))
+                    await bot.send_message(player.telegram_user_id, "<b>Kimni o'ldirasiz?</b>", reply_markup=kb, parse_mode="HTML")
 
-            elif rname == "TUZOQCHI":
-                kb = build_night_target_keyboard(gid, "tuz", living_players, str(player.id))
-                await bot.send_message(player.telegram_user_id, "<b>Tuzoqni kimga qo'yasiz?</b>", reply_markup=kb, parse_mode="HTML")
+                elif rname == "TUZOQCHI":
+                    kb = build_night_target_keyboard(gid, "tuz", living_players, str(player.id))
+                    await bot.send_message(player.telegram_user_id, "<b>Tuzoqni kimga qo'yasiz?</b>", reply_markup=kb, parse_mode="HTML")
 
-            elif rname == "ZOMBI":
-                kb = build_night_target_keyboard(gid, "zom", living_players, str(player.id))
-                await bot.send_message(player.telegram_user_id, "<b>Kimni tishlaysiz?</b>", reply_markup=kb, parse_mode="HTML")
+                elif rname == "ZOMBI":
+                    kb = build_night_target_keyboard(gid, "zom", living_players, str(player.id))
+                    await bot.send_message(player.telegram_user_id, "<b>Kimni tishlaysiz?</b>", reply_markup=kb, parse_mode="HTML")
 
-            elif rname == "KIMYOGAR":
-                kb = build_night_target_keyboard(gid, "kim", living_players, str(player.id))
-                await bot.send_message(player.telegram_user_id, "<b>Eliksirni kimga berasiz?</b>", reply_markup=kb, parse_mode="HTML")
+                elif rname == "KIMYOGAR":
+                    kb = build_night_target_keyboard(gid, "kim", living_players, str(player.id))
+                    await bot.send_message(player.telegram_user_id, "<b>Eliksirni kimga berasiz?</b>", reply_markup=kb, parse_mode="HTML")
 
-            elif rname == "RAIS":
-                kb = build_night_target_keyboard(gid, "rai", living_players, str(player.id))
-                await bot.send_message(player.telegram_user_id, "<b>Sovg'ani kimga berasiz?</b>", reply_markup=kb, parse_mode="HTML")
+                elif rname == "RAIS":
+                    kb = build_night_target_keyboard(gid, "rai", living_players, str(player.id))
+                    await bot.send_message(player.telegram_user_id, "<b>Sovg'ani kimga berasiz?</b>", reply_markup=kb, parse_mode="HTML")
 
-            elif rname == "AFERIST":
-                kb = build_night_target_keyboard(gid, "afer", living_players, str(player.id))
-                await bot.send_message(player.telegram_user_id, "<b>Kimning ovozini o'g'irlamoqchisiz?</b>", reply_markup=kb, parse_mode="HTML")
+                elif rname == "AFERIST":
+                    kb = build_night_target_keyboard(gid, "afer", living_players, str(player.id))
+                    await bot.send_message(player.telegram_user_id, "<b>Kimning ovozini o'g'irlamoqchisiz?</b>", reply_markup=kb, parse_mode="HTML")
 
-            elif rname == "GAZABKOR":
-                kb = build_night_target_keyboard(gid, "gaz", living_players)
-                await bot.send_message(player.telegram_user_id, "<b>Kimni belgilamoqchisiz?</b>", reply_markup=kb, parse_mode="HTML")
+                elif rname == "GAZABKOR":
+                    kb = build_night_target_keyboard(gid, "gaz", living_players)
+                    await bot.send_message(player.telegram_user_id, "<b>Kimni belgilamoqchisiz?</b>", reply_markup=kb, parse_mode="HTML")
 
-            elif rname == "JURNALIST":
-                kb = build_night_target_keyboard(gid, "jurn", living_players, str(player.id))
-                await bot.send_message(player.telegram_user_id, "<b>Kimnikiga intervyuga borasiz?</b>", reply_markup=kb, parse_mode="HTML")
+                elif rname == "JURNALIST":
+                    kb = build_night_target_keyboard(gid, "jurn", living_players, str(player.id))
+                    await bot.send_message(player.telegram_user_id, "<b>Kimnikiga intervyuga borasiz?</b>", reply_markup=kb, parse_mode="HTML")
 
-            elif rname == "SOTQIN":
-                kb = build_night_target_keyboard(gid, "sotq", living_players, str(player.id))
-                await bot.send_message(player.telegram_user_id, "<b>Kimni tekshirmoqchisiz?</b>", reply_markup=kb, parse_mode="HTML")
+                elif rname == "SOTQIN":
+                    kb = build_night_target_keyboard(gid, "sotq", living_players, str(player.id))
+                    await bot.send_message(player.telegram_user_id, "<b>Kimni tekshirmoqchisiz?</b>", reply_markup=kb, parse_mode="HTML")
 
-            elif rname == "ROBINGUD":
-                kb = build_night_target_keyboard(gid, "rob", living_players, str(player.id))
-                await bot.send_message(player.telegram_user_id, "<b>Kamon o'qi bilan kimni otasiz?</b>", reply_markup=kb, parse_mode="HTML")
+                elif rname == "ROBINGUD":
+                    kb = build_night_target_keyboard(gid, "rob", living_players, str(player.id))
+                    await bot.send_message(player.telegram_user_id, "<b>Kamon o'qi bilan kimni otasiz?</b>", reply_markup=kb, parse_mode="HTML")
 
-            elif rname == "AYGOQCHI":
-                kb = build_night_target_keyboard(gid, "ayg", living_players, str(player.id))
-                await bot.send_message(player.telegram_user_id, "<b>Qaysi o'yinchining rolini bilmoqchisiz?</b>", reply_markup=kb, parse_mode="HTML")
+                elif rname == "AYGOQCHI":
+                    kb = build_night_target_keyboard(gid, "ayg", living_players, str(player.id))
+                    await bot.send_message(player.telegram_user_id, "<b>Qaysi o'yinchining rolini bilmoqchisiz?</b>", reply_markup=kb, parse_mode="HTML")
 
-            elif rname == "KONCHI":
-                kb = build_konchi_mines_keyboard(gid)
-                await bot.send_message(player.telegram_user_id, "<b>Qaysi konni qazimoqchisiz?</b>", reply_markup=kb, parse_mode="HTML")
+                elif rname == "KONCHI":
+                    kb = build_konchi_mines_keyboard(gid)
+                    await bot.send_message(player.telegram_user_id, "<b>Qaysi konni qazimoqchisiz?</b>", reply_markup=kb, parse_mode="HTML")
 
-            elif rname == "FOTOPARATCHI":
-                kb = build_night_target_keyboard(gid, "foto", living_players, str(player.id))
-                await bot.send_message(player.telegram_user_id, "<b>Kimni rasmga olmoqchisiz?</b>", reply_markup=kb, parse_mode="HTML")
+                elif rname == "FOTOPARATCHI":
+                    kb = build_night_target_keyboard(gid, "foto", living_players, str(player.id))
+                    await bot.send_message(player.telegram_user_id, "<b>Kimni rasmga olmoqchisiz?</b>", reply_markup=kb, parse_mode="HTML")
 
-            elif rname == "QAROQCHI":
-                kb = build_night_target_keyboard(gid, "qar", living_players, str(player.id))
-                await bot.send_message(player.telegram_user_id, "<b>Kimning pullarini shilmoqchisiz?</b>", reply_markup=kb, parse_mode="HTML")
+                elif rname == "QAROQCHI":
+                    kb = build_night_target_keyboard(gid, "qar", living_players, str(player.id))
+                    await bot.send_message(player.telegram_user_id, "<b>Kimning pullarini shilmoqchisiz?</b>", reply_markup=kb, parse_mode="HTML")
 
-            elif rname == "LABORANT":
-                kb = build_night_target_keyboard(gid, "lab", living_players, str(player.id))
-                await bot.send_message(player.telegram_user_id, "<b>Nishonni tanlang:</b>", reply_markup=kb, parse_mode="HTML")
+                elif rname == "LABORANT":
+                    kb = build_night_target_keyboard(gid, "lab", living_players, str(player.id))
+                    await bot.send_message(player.telegram_user_id, "<b>Nishonni tanlang:</b>", reply_markup=kb, parse_mode="HTML")
 
-            elif rname == "QORBOBO":
-                kb = build_night_target_keyboard(gid, "qor", living_players, str(player.id))
-                await bot.send_message(player.telegram_user_id, "<b>Sovg'ani kimga topshirasiz?</b>", reply_markup=kb, parse_mode="HTML")
+                elif rname == "QORBOBO":
+                    kb = build_night_target_keyboard(gid, "qor", living_players, str(player.id))
+                    await bot.send_message(player.telegram_user_id, "<b>Sovg'ani kimga topshirasiz?</b>", reply_markup=kb, parse_mode="HTML")
 
-            elif rname == "OSHPAZ":
-                kb = build_night_target_keyboard(gid, "osh", living_players, str(player.id))
-                await bot.send_message(player.telegram_user_id, "<b>Maxsus taomingizni kimga yedirasiz?</b>", reply_markup=kb, parse_mode="HTML")
+                elif rname == "OSHPAZ":
+                    kb = build_night_target_keyboard(gid, "osh", living_players, str(player.id))
+                    await bot.send_message(player.telegram_user_id, "<b>Maxsus taomingizni kimga yedirasiz?</b>", reply_markup=kb, parse_mode="HTML")
 
-            elif rname == "AXMOQ":
-                kb = build_night_target_keyboard(gid, "axm", living_players, str(player.id))
-                await bot.send_message(player.telegram_user_id, "<b>Kimni tanlaysiz?</b>", reply_markup=kb, parse_mode="HTML")
+                elif rname == "AXMOQ":
+                    kb = build_night_target_keyboard(gid, "axm", living_players, str(player.id))
+                    await bot.send_message(player.telegram_user_id, "<b>Kimni tanlaysiz?</b>", reply_markup=kb, parse_mode="HTML")
 
-            elif rname == "JOKER":
-                kb = build_joker_boxes_setup_keyboard(gid)
-                await bot.send_message(player.telegram_user_id, "<b>Bombani qaysi qutilarga joylaysiz?</b>", reply_markup=kb, parse_mode="HTML")
+                elif rname == "JOKER":
+                    kb = build_joker_boxes_setup_keyboard(gid)
+                    await bot.send_message(player.telegram_user_id, "<b>Bombani qaysi qutilarga joylaysiz?</b>", reply_markup=kb, parse_mode="HTML")
+            except Exception as e:
+                logger.warning(f"Failed to send night prompt to {player.telegram_user_id}: {e}")
 
         # Start Night Timer with bot timing setting
         bot_id_str = str(game.bot.id) if game and game.bot else ''

@@ -60,7 +60,7 @@ ROLE_DEFINITIONS = [
 
 class RoleDistributionService:
     @classmethod
-    def get_or_create_base_roles(cls) -> Dict[str, Role]:
+    def get_or_create_base_roles(cls, all_roles: bool = False) -> Dict[str, Role]:
         roles = {}
         for item in ROLE_DEFINITIONS:
             r, _ = Role.objects.update_or_create(
@@ -75,12 +75,30 @@ class RoleDistributionService:
                 }
             )
             roles[item["name"]] = r
+
+        if not all_roles:
+            base_keys = [RoleType.CITIZEN, RoleType.MAFIA, RoleType.DON, RoleType.DOCTOR, RoleType.DETECTIVE]
+            return {k: roles[k] for k in base_keys if k in roles}
+
         return roles
+
+    @classmethod
+    def get_or_create_all_roles(cls) -> Dict[str, Role]:
+        return cls.get_or_create_base_roles(all_roles=True)
 
     @classmethod
     def calculate_role_list(cls, player_count: int) -> List[str]:
         if player_count < 4:
-            return ["DON", "DOCTOR", "DETECTIVE", "CITIZEN"][:player_count]
+            raise ValueError("Minimum player count is 4")
+
+        if player_count == 4:
+            return [RoleType.MAFIA, RoleType.DOCTOR, RoleType.CITIZEN, RoleType.CITIZEN]
+
+        if player_count == 5:
+            return [RoleType.MAFIA, RoleType.DOCTOR, RoleType.DETECTIVE, RoleType.CITIZEN, RoleType.CITIZEN]
+
+        if player_count == 6:
+            return [RoleType.DON, RoleType.MAFIA, RoleType.DOCTOR, RoleType.DETECTIVE, RoleType.CITIZEN, RoleType.CITIZEN]
 
         inactive_role_names = set()
         try:
@@ -97,74 +115,48 @@ class RoleDistributionService:
             random.shuffle(valid)
             return valid[:count]
 
-        roles: List[str] = ["DON", "DOCTOR", "DETECTIVE"]
+        roles: List[str] = [RoleType.DON, RoleType.MAFIA, RoleType.DOCTOR, RoleType.DETECTIVE]
 
         town_pool = ["OMADLI", "JANOB", "SOTQIN", "ADMIRAL", "ROBINGUD", "FOTOPARATCHI", "KEZUVCHI", "DAYDI", "SERJANT", "HAMSHIRA"]
-        mafia_pool = ["MAFIA", "ADVOKAT", "UBIYTSA", "JURNALIST", "AYGOQCHI", "LABORANT"]
+        mafia_pool = ["ADVOKAT", "UBIYTSA", "JURNALIST", "AYGOQCHI", "LABORANT"]
         solo_pool = ["KIMYOGAR", "RAIS", "BORI", "AFERIST", "GAZABKOR", "SEHRGAR", "QOTIL", "KONCHI", "QAROQCHI", "QORBOBO", "OSHPAZ", "AFSUNGAR", "TUZOQCHI", "AXMOQ", "BUQALAMUN", "JOKER", "SUIDSID", "ZOMBI"]
 
-        if player_count == 4:
-            roles.append(pick_active(["OMADLI", "JANOB", "CITIZEN"]))
-            return roles
-
-        if player_count == 5:
-            sp = pick_active(town_pool, "CITIZEN")
-            roles.extend([sp, "CITIZEN"])
-            return roles
-
-        if player_count == 6:
-            m2 = pick_active(mafia_pool, "MAFIA")
-            sp = pick_active(solo_pool + town_pool, "CITIZEN")
-            roles.extend([m2, sp, "CITIZEN"])
-            return roles
-
         if player_count == 7:
-            m2 = pick_active(mafia_pool, "MAFIA")
-            t_sp = pick_active(town_pool, "CITIZEN")
-            s_sp = pick_active(solo_pool, "CITIZEN")
-            roles.extend([m2, t_sp, s_sp, "CITIZEN"])
-            return roles
+            sp = pick_active(town_pool + solo_pool, "CITIZEN")
+            roles.extend([sp, RoleType.CITIZEN, RoleType.CITIZEN])
+            return roles[:player_count]
 
         if player_count == 8:
-            m2 = pick_active(mafia_pool, "MAFIA")
             t1 = pick_active(town_pool, "SERJANT")
             t2 = pick_active(town_pool, "OMADLI")
             s1 = pick_active(solo_pool, "QOTIL")
-            roles.extend([m2, t1, t2, s1, "CITIZEN"])
-            return roles
+            roles.extend([t1, t2, s1, RoleType.CITIZEN])
+            return roles[:player_count]
 
         if player_count in (9, 10):
-            m_list = pick_multiple_active(mafia_pool, 2)
-            while len(m_list) < 2:
-                m_list.append("MAFIA")
-            roles.extend(m_list)
-
+            m_picks = pick_multiple_active(mafia_pool, 1)
+            roles.extend(m_picks)
             roles.append(pick_active(town_pool, "SERJANT"))
             roles.append(pick_active(town_pool, "JANOB"))
             roles.append(pick_active(solo_pool, "QOTIL"))
 
             while len(roles) < player_count:
-                roles.append("CITIZEN")
-            return roles
+                roles.append(RoleType.CITIZEN)
+            return roles[:player_count]
 
         if player_count in (11, 12):
-            m_list = pick_multiple_active(mafia_pool, 2)
-            while len(m_list) < 2:
-                m_list.append("MAFIA")
-            roles.extend(m_list)
-
+            m_picks = pick_multiple_active(mafia_pool, 1)
+            roles.extend(m_picks)
             roles.extend(pick_multiple_active(town_pool, 3))
             roles.extend(pick_multiple_active(solo_pool, 2))
 
             while len(roles) < player_count:
-                roles.append("CITIZEN")
-            return roles
+                roles.append(RoleType.CITIZEN)
+            return roles[:player_count]
 
         if player_count >= 13:
             maf_count = min(5, max(3, player_count // 4))
-            m_list = pick_multiple_active(mafia_pool, maf_count - 1)
-            while len(m_list) < maf_count - 1:
-                m_list.append("MAFIA")
+            m_list = pick_multiple_active(mafia_pool, maf_count - 2)
             roles.extend(m_list)
 
             town_picks = pick_multiple_active(town_pool, min(len(town_pool), player_count // 3))
@@ -174,51 +166,101 @@ class RoleDistributionService:
             roles.extend(solo_picks)
 
             while len(roles) < player_count:
-                roles.append("CITIZEN")
+                roles.append(RoleType.CITIZEN)
             return roles[:player_count]
 
+        return roles
+
     @classmethod
-    def assign_roles_to_players(cls, players: List[Player], configuration=None) -> List[Tuple[Player, Role]]:
+    def calculate_role_list_from_configuration(cls, player_count: int, configuration=None, seed: Optional[int] = None) -> List[str]:
+        if player_count < 4:
+            raise ValueError("Minimum player count is 4")
+
+        if configuration is None or not hasattr(configuration, 'distribution_rules') or not configuration.distribution_rules.exists():
+            return cls.calculate_role_list(player_count)
+
+        from apps.games.models import DistributionType
+        rules = list(configuration.distribution_rules.select_related('role').order_by('-priority', 'role__name'))
+
+        roles: List[str] = []
+        rng = random.Random(seed) if seed is not None else random
+
+        for rule in rules:
+            if not rule.role:
+                continue
+            rname = rule.role.name
+            if rule.distribution_type == DistributionType.EXACT:
+                count = rule.min_count
+            elif rule.distribution_type == DistributionType.RANGE:
+                count = rng.randint(rule.min_count, rule.max_count)
+            elif rule.distribution_type == DistributionType.PERCENTAGE:
+                count = max(1, round(player_count * rule.percentage / 100))
+            else:
+                count = rule.min_count
+
+            roles.extend([rname] * count)
+            if len(roles) >= player_count:
+                break
+
+        while len(roles) < player_count:
+            roles.append(RoleType.CITIZEN)
+
+        return roles[:player_count]
+
+    @classmethod
+    def assign_roles_to_players(cls, players: List[Player], configuration=None, seed: Optional[int] = None) -> List[Tuple[Player, Role]]:
         """
         Assigns roles to a list of players.
         Considers inventory active roles (purchased in shop/profile), then fills remaining roles using calculate_role_list.
         """
-        roles_dict = cls.get_or_create_base_roles()
+        all_roles_dict = cls.get_or_create_base_roles(all_roles=True)
         player_count = len(players)
-        
-        # Calculate ideal role distribution list
-        needed_role_names = cls.calculate_role_list(player_count)
-        random.shuffle(players)
+
+        if configuration:
+            needed_role_names = cls.calculate_role_list_from_configuration(player_count, configuration, seed=seed)
+        else:
+            needed_role_names = cls.calculate_role_list(player_count)
+
+        rng = random.Random(seed) if seed is not None else random
+
+        player_list = list(players)
+        if seed is not None:
+            player_list.sort(key=lambda p: (p.telegram_user_id or 0, str(p.id)))
+
+        role_pool = list(needed_role_names)
+        rng.shuffle(role_pool)
+        rng.shuffle(player_list)
 
         from apps.economy.models import Inventory
 
         assignments: List[Tuple[Player, Role]] = []
         unassigned_players: List[Player] = []
 
-        # 1. First priority: Check purchased active role items in inventory
-        for p in players:
-            active_role_inv = Inventory.objects.filter(
-                telegram_id=p.telegram_user_id,
-                item__code__startswith='role_',
-                is_active=True,
-                quantity__gt=0
-            ).select_related('item').first()
+        # 1. First priority: Check purchased active role items in inventory (if not in deterministic seed test)
+        for p in player_list:
+            active_role_inv = None
+            if seed is None:
+                active_role_inv = Inventory.objects.filter(
+                    telegram_id=p.telegram_user_id,
+                    item__code__startswith='role_',
+                    is_active=True,
+                    quantity__gt=0
+                ).select_related('item').first()
 
             if active_role_inv:
                 role_code = active_role_inv.item.code.replace('role_', '').lower()
                 matched_role = None
-                for r_name, r_obj in roles_dict.items():
+                for r_name, r_obj in all_roles_dict.items():
                     if r_obj.code.lower() == role_code:
                         matched_role = r_obj
                         break
-                
+
                 if matched_role:
                     p.role = matched_role
                     p.save(update_fields=['role'])
                     assignments.append((p, matched_role))
-                    if matched_role.name in needed_role_names:
-                        needed_role_names.remove(matched_role.name)
-                    # Decrement inventory item quantity and deactivate if used
+                    if matched_role.name in role_pool:
+                        role_pool.remove(matched_role.name)
                     active_role_inv.quantity -= 1
                     if active_role_inv.quantity <= 0:
                         active_role_inv.is_active = False
@@ -227,15 +269,14 @@ class RoleDistributionService:
 
             unassigned_players.append(p)
 
-        # 2. Assign remaining roles from needed_role_names
-        random.shuffle(needed_role_names)
+        # 2. Assign remaining roles from role_pool
         for p in unassigned_players:
-            if needed_role_names:
-                r_name = needed_role_names.pop(0)
+            if role_pool:
+                r_name = role_pool.pop(0)
             else:
                 r_name = "CITIZEN"
-            
-            r_obj = roles_dict.get(r_name) or roles_dict.get("CITIZEN")
+
+            r_obj = all_roles_dict.get(r_name) or all_roles_dict.get("CITIZEN")
             p.role = r_obj
             p.save(update_fields=['role'])
             assignments.append((p, r_obj))

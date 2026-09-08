@@ -332,9 +332,9 @@ async def advance_night_to_day(game: Game, bot: Bot):
 
         death_lines = []
         for el in eliminated_list:
-            p = el['player']
-            rname = el['role_name']
-            ktype = el.get('killer_type', 'mafia')
+            p = el['player'] if isinstance(el, dict) else el
+            rname = el['role_name'] if isinstance(el, dict) else (p.role.name if p.role else 'CITIZEN')
+            ktype = el.get('killer_type', 'mafia') if isinstance(el, dict) else 'mafia'
             icon = role_icon(rname)
             label = role_label(rname)
             target_mention = f'<a href="tg://user?id={p.telegram_user_id}">{html.escape(p.display_name)}</a>'
@@ -385,9 +385,9 @@ async def advance_night_to_day(game: Game, bot: Bot):
 
         death_lines = []
         for el in eliminated_list:
-            p = el['player']
-            rname = el['role_name']
-            ktype = el.get('killer_type', 'mafia')
+            p = el['player'] if isinstance(el, dict) else el
+            rname = el['role_name'] if isinstance(el, dict) else (p.role.name if p.role else 'CITIZEN')
+            ktype = el.get('killer_type', 'mafia') if isinstance(el, dict) else 'mafia'
             icon = role_icon(rname)
             label = role_label(rname)
             target_mention = f'<a href="tg://user?id={p.telegram_user_id}">{html.escape(p.display_name)}</a>'
@@ -636,7 +636,8 @@ async def advance_night_to_day(game: Game, bot: Bot):
 
         # --- Prompt Last Words (50s) to killed players ---
         for el in eliminated_list:
-            p = el['player']
+            p = el['player'] if isinstance(el, dict) else el
+            rname = el['role_name'] if isinstance(el, dict) else (p.role.name if p.role else 'CITIZEN')
             try:
                 await bot.send_message(
                     p.telegram_user_id,
@@ -648,7 +649,7 @@ async def advance_night_to_day(game: Game, bot: Bot):
                 LAST_WORDS_PENDING[p.telegram_user_id] = {
                     'game_id': str(game.id),
                     'chat_id': game.chat_id,
-                    'role_name': el['role_name'],
+                    'role_name': rname,
                     'display_name': p.display_name,
                 }
                 asyncio.create_task(_expire_last_words(p.telegram_user_id))

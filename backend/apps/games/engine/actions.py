@@ -33,6 +33,18 @@ _LEGACY_ROLE_ACTION_MAP = {
     RoleType.BUQALAMUN: NightActionType.BUQALAMUN_MORPH,
     RoleType.RAIS: NightActionType.RAIS_GIFT,
     RoleType.JOKER: NightActionType.JOKER_BOXES,
+    RoleType.SOTQIN: NightActionType.SOTQIN_CHECK,
+    RoleType.ROBINGUD: NightActionType.ROBINGUD_SHOOT,
+    RoleType.AYGOQCHI: NightActionType.AYGOQCHI_SPY,
+    RoleType.KONCHI: NightActionType.KONCHI_MINE,
+    RoleType.FOTOPARATCHI: NightActionType.FOTOPARATCHI_SNAP,
+    RoleType.QAROQCHI: NightActionType.QAROQCHI_ROB,
+    RoleType.LABORANT: NightActionType.LABORANT_ACTION,
+    RoleType.QORBOBO: NightActionType.QORBOBO_GIFT,
+    RoleType.OSHPAZ: NightActionType.OSHPAZ_FEED,
+    RoleType.AFERIST: NightActionType.AFERIST_STEAL,
+    RoleType.GAZABKOR: NightActionType.GAZABKOR_MARK,
+    RoleType.JURNALIST: NightActionType.JURNALIST_INVESTIGATE,
 }
 
 # Map AbilityType → NightActionType

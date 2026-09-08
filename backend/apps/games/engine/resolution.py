@@ -34,6 +34,7 @@ class GameResolutionService:
             # -------------------------------------------------------------
             blocked_actor_ids = set()
             kezuvchi_blocked_players = []
+            kezuvchi_visited_players = []
             dori_shield_saved_players = []
 
             # Kezuvchi
@@ -41,6 +42,7 @@ class GameResolutionService:
             for ka in kezuvchi_actions:
                 if ka.target_id in alive_player_map:
                     target_p = alive_player_map[ka.target_id]
+                    kezuvchi_visited_players.append(target_p)
                     if not target_p.metadata:
                         target_p.metadata = {}
 
@@ -119,6 +121,7 @@ class GameResolutionService:
 
             # Rais ($ gift)
             rais_actions = [a for a in valid_actions if a.action_type == NightActionType.RAIS_GIFT and a.target]
+            rais_gifts = []
             for ra in rais_actions:
                 if ra.target_id in alive_player_map:
                     target_p = alive_player_map[ra.target_id]
@@ -126,6 +129,11 @@ class GameResolutionService:
                     t_wallet, _ = Wallet.objects.get_or_create(telegram_id=target_p.telegram_user_id)
                     t_wallet.money += gift_amount
                     t_wallet.save(update_fields=['money'])
+                    rais_gifts.append({
+                        'target_user_id': target_p.telegram_user_id,
+                        'coins': int(gift_amount),
+                        'diamonds': 0,
+                    })
 
             # Qorbobo (Gift random item)
             qorbobo_actions = [a for a in valid_actions if a.action_type == NightActionType.QORBOBO_GIFT and a.target]
@@ -169,10 +177,12 @@ class GameResolutionService:
             # Kimyogar (Heals or Kills)
             kimyogar_actions = [a for a in valid_actions if a.action_type == NightActionType.KIMYOGAR_POTION and a.target]
             kimyogar_kills = []
+            kimyogar_healed_players = []
             for kma in kimyogar_actions:
-                # If meta says heal or target is mafia
                 if kma.metadata and kma.metadata.get('choice') == 'heal':
                     protected_target_ids.add(kma.target_id)
+                    if kma.target_id in alive_player_map:
+                        kimyogar_healed_players.append(alive_player_map[kma.target_id])
                 else:
                     kimyogar_kills.append(kma)
 
@@ -188,7 +198,48 @@ class GameResolutionService:
                 ga.actor.save(update_fields=['metadata'])
 
             # -------------------------------------------------------------
-            # 4. Lethal Attack Targets Gathering
+            # 4. Detective / Komissar Investigations
+            # -------------------------------------------------------------
+            investigation_results = []
+            hujjat_used_players = []
+            detective_checks = [a for a in valid_actions if a.action_type == NightActionType.DETECTIVE_INVESTIGATE and a.target]
+            for dc in detective_checks:
+                if dc.target_id in alive_player_map:
+                    target_p = alive_player_map[dc.target_id]
+                    # Check if target has Hujjat (fake document)
+                    has_fake_doc = False
+                    if not target_p.metadata:
+                        target_p.metadata = {}
+                    if not target_p.metadata.get('used_hujjat'):
+                        hujjat_inv = Inventory.objects.filter(
+                            telegram_id=target_p.telegram_user_id, item__code='hujjat', is_active=True, quantity__gt=0
+                        ).first()
+                        if hujjat_inv:
+                            hujjat_inv.quantity -= 1
+                            if hujjat_inv.quantity <= 0:
+                                hujjat_inv.is_active = False
+                            hujjat_inv.save(update_fields=['quantity', 'is_active'])
+                            target_p.metadata['used_hujjat'] = True
+                            target_p.save(update_fields=['metadata'])
+                            has_fake_doc = True
+                            hujjat_used_players.append(target_p)
+
+                    # Target appears innocent if DON, protected by ADVOKAT, or has fake document
+                    is_mafia_role = (
+                        target_p.role and target_p.role.team == RoleTeam.MAFIA
+                        and target_p.role.name not in ['DON']
+                        and target_p.id not in advokat_protected_ids
+                        and not has_fake_doc
+                    )
+                    investigation_results.append({
+                        'actor_id': dc.actor_id,
+                        'target_id': target_p.id,
+                        'is_mafia': is_mafia_role,
+                        'role_name': target_p.role.name if target_p.role and not has_fake_doc else 'CITIZEN',
+                    })
+
+            # -------------------------------------------------------------
+            # 5. Lethal Attack Targets Gathering
             # -------------------------------------------------------------
             lethal_hits: List[Dict[str, Any]] = []
 
@@ -205,47 +256,54 @@ class GameResolutionService:
 
                 target_id = don_kills[0].target_id if don_kills else top_targets[0]
                 actor = don_kills[0].actor if don_kills else mafia_kills[0].actor
-                lethal_hits.append({'target_id': target_id, 'actor': actor, 'source': 'MAFIA'})
+                lethal_hits.append({'target_id': target_id, 'actor': actor, 'source': 'MAFIA', 'killer_type': 'mafia'})
 
             # Detective / Komissar shoot
             for a in [x for x in valid_actions if x.action_type == NightActionType.DETECTIVE_SHOOT and x.target]:
-                lethal_hits.append({'target_id': a.target_id, 'actor': a.actor, 'source': 'KOMISSAR'})
+                lethal_hits.append({'target_id': a.target_id, 'actor': a.actor, 'source': 'KOMISSAR', 'killer_type': 'komissar'})
 
             # Qotil kill
             for a in [x for x in valid_actions if x.action_type == NightActionType.QOTIL_KILL and x.target]:
-                lethal_hits.append({'target_id': a.target_id, 'actor': a.actor, 'source': 'QOTIL'})
+                lethal_hits.append({'target_id': a.target_id, 'actor': a.actor, 'source': 'QOTIL', 'killer_type': 'qotil'})
 
             # Ubiytsa kill
             for a in [x for x in valid_actions if x.action_type == NightActionType.UBIYTSA_KILL and x.target]:
-                lethal_hits.append({'target_id': a.target_id, 'actor': a.actor, 'source': 'UBIYTSA'})
+                # If target is Komissar, Ubiytsa dies instead!
+                if a.target and a.target.role and a.target.role.name in ['DETECTIVE', 'KOMISSAR']:
+                    lethal_hits.append({'target_id': a.actor_id, 'actor': a.target, 'source': 'KOMISSAR', 'killer_type': 'komissar_retaliate'})
+                else:
+                    lethal_hits.append({'target_id': a.target_id, 'actor': a.actor, 'source': 'UBIYTSA', 'killer_type': 'ubiytsa'})
 
             # Robin Gud shoot
             for a in [x for x in valid_actions if x.action_type == NightActionType.ROBINGUD_SHOOT and x.target]:
-                lethal_hits.append({'target_id': a.target_id, 'actor': a.actor, 'source': 'ROBINGUD'})
+                lethal_hits.append({'target_id': a.target_id, 'actor': a.actor, 'source': 'ROBINGUD', 'killer_type': 'robingud'})
 
             # Laborant poison
             for a in laborant_kills:
-                lethal_hits.append({'target_id': a.target_id, 'actor': a.actor, 'source': 'LABORANT'})
+                lethal_hits.append({'target_id': a.target_id, 'actor': a.actor, 'source': 'LABORANT', 'killer_type': 'laborant'})
 
             # Kimyogar poison
             for a in kimyogar_kills:
-                lethal_hits.append({'target_id': a.target_id, 'actor': a.actor, 'source': 'KIMYOGAR'})
+                lethal_hits.append({'target_id': a.target_id, 'actor': a.actor, 'source': 'KIMYOGAR', 'killer_type': 'kimyogar_poison'})
 
             # Axmoq headbutt (if target is Mafia -> target dies; if town -> saved)
             for a in [x for x in valid_actions if x.action_type == NightActionType.AXMOQ_VISIT and x.target]:
-                if a.target.role and a.target.role.team == RoleTeam.MAFIA:
-                    lethal_hits.append({'target_id': a.target_id, 'actor': a.actor, 'source': 'AXMOQ'})
+                if a.target and a.target.role and a.target.role.team == RoleTeam.MAFIA:
+                    lethal_hits.append({'target_id': a.target_id, 'actor': a.actor, 'source': 'AXMOQ', 'killer_type': 'axmoq_headbutt'})
+
+            # Tuzoqchi: anyone visiting a trapped player gets caught
+            for act in valid_actions:
+                if act.target_id in trapped_player_ids and act.actor_id != trapped_player_ids[act.target_id].id:
+                    lethal_hits.append({'target_id': act.actor_id, 'actor': trapped_player_ids[act.target_id], 'source': 'TUZOQCHI', 'killer_type': 'tuzoqchi'})
 
             # -------------------------------------------------------------
-            # 5. Konchi (Miner) Mining Results
+            # 6. Konchi (Miner) Mining Results
             # -------------------------------------------------------------
             konchi_actions = [a for a in valid_actions if a.action_type == NightActionType.KONCHI_MINE]
             konchi_dead = set()
             for ka in konchi_actions:
                 picked_mine = (ka.metadata or {}).get('mine_index', random.randint(1, 10))
-                # 3 deadly mines (1, 4, 7), 2 diamonds (2, 5), 5 dollars (3, 6, 8, 9, 10)
                 if picked_mine in (1, 4, 7):
-                    # Check 'sirpanish_himoya' in inventory
                     if not ka.actor.metadata:
                         ka.actor.metadata = {}
                     if not ka.actor.metadata.get('used_sirpanish_himoya'):
@@ -271,10 +329,11 @@ class GameResolutionService:
                     w.save(update_fields=['money'])
 
             # -------------------------------------------------------------
-            # 6. Lethal Hits Resolution & Protections / Specials
+            # 7. Lethal Hits Resolution & Protections / Specials
             # -------------------------------------------------------------
             eliminated_player_ids = set()
-            eliminated_players = []
+            eliminated_dict_list: List[Dict[str, Any]] = []
+            protected_hits_set = set()
             shield_saved_players = []
             omadli_saved_players = []
             sehrgar_spared_actions = []
@@ -294,9 +353,22 @@ class GameResolutionService:
                 target_p = alive_player_map[tid]
                 actor_p = hit['actor']
                 source = hit['source']
+                ktype = hit.get('killer_type', 'mafia')
 
                 # Doctor / Healer protected
                 if tid in protected_target_ids:
+                    protected_hits_set.add(tid)
+                    continue
+
+                # Afsungar counter-attack (attacker dies instead)
+                if target_p.role and target_p.role.name == 'AFSUNGAR' and actor_p and actor_p.id != target_p.id:
+                    if actor_p.id not in eliminated_player_ids:
+                        eliminated_player_ids.add(actor_p.id)
+                        eliminated_dict_list.append({
+                            'player': actor_p,
+                            'role_name': actor_p.role.name if actor_p.role else 'CITIZEN',
+                            'killer_type': 'afsungar'
+                        })
                     continue
 
                 # Admiral immunity
@@ -349,53 +421,68 @@ class GameResolutionService:
                     actor_p.metadata['robin_civ_kills'] = civ_kills
                     actor_p.save(update_fields=['metadata'])
                     if civ_kills >= 2:
-                        # Mob stones Robin Gud to death!
                         eliminated_player_ids.add(actor_p.id)
-                        eliminated_players.append(actor_p)
+                        eliminated_dict_list.append({
+                            'player': actor_p,
+                            'role_name': actor_p.role.name if actor_p.role else 'CITIZEN',
+                            'killer_type': 'town_stoned'
+                        })
 
-                # Qaroqchi 0% HP death check
-                if target_p.metadata and target_p.metadata.get('hp', 100) <= 0:
-                    eliminated_player_ids.add(tid)
-                    eliminated_players.append(target_p)
-                else:
-                    eliminated_player_ids.add(tid)
-                    eliminated_players.append(target_p)
+                # Target eliminated
+                eliminated_player_ids.add(tid)
+                eliminated_dict_list.append({
+                    'player': target_p,
+                    'role_name': target_p.role.name if target_p.role else 'CITIZEN',
+                    'killer_type': ktype
+                })
 
             # Konchi deaths
             for kid in konchi_dead:
                 if kid in alive_player_map and kid not in eliminated_player_ids:
                     p = alive_player_map[kid]
                     eliminated_player_ids.add(kid)
-                    eliminated_players.append(p)
+                    eliminated_dict_list.append({
+                        'player': p,
+                        'role_name': p.role.name if p.role else 'KONCHI',
+                        'killer_type': 'mine_explosion'
+                    })
 
             # -------------------------------------------------------------
-            # 7. G'azabkor Chain Deaths
+            # 8. G'azabkor Chain Deaths
             # -------------------------------------------------------------
             gazabkor_players = [p for p in alive_players if p.role and p.role.name == 'GAZABKOR']
             for gp in gazabkor_players:
-                # If G'azabkor is dead or targeted self
                 marks = (gp.metadata or {}).get('gazabkor_marked_ids', [])
                 if gp.id in eliminated_player_ids or str(gp.id) in marks:
-                    eliminated_player_ids.add(gp.id)
-                    if gp not in eliminated_players:
-                        eliminated_players.append(gp)
+                    if gp.id not in eliminated_player_ids:
+                        eliminated_player_ids.add(gp.id)
+                        eliminated_dict_list.append({
+                            'player': gp,
+                            'role_name': gp.role.name if gp.role else 'GAZABKOR',
+                            'killer_type': 'gazabkor'
+                        })
                     for mid in marks:
                         try:
                             mid_int = int(mid)
                             if mid_int in alive_player_map and mid_int not in eliminated_player_ids:
                                 mp = alive_player_map[mid_int]
                                 eliminated_player_ids.add(mid_int)
-                                eliminated_players.append(mp)
+                                eliminated_dict_list.append({
+                                    'player': mp,
+                                    'role_name': mp.role.name if mp.role else 'CITIZEN',
+                                    'killer_type': 'gazabkor_chain'
+                                })
                         except Exception:
                             pass
 
             # Mark all eliminated players as dead
-            for ep in eliminated_players:
+            for item in eliminated_dict_list:
+                ep = item['player']
                 ep.is_alive = False
                 ep.save(update_fields=['is_alive'])
 
             # -------------------------------------------------------------
-            # 8. Role Conversions & Successions
+            # 9. Role Conversions & Successions
             # -------------------------------------------------------------
             # Wolf conversions
             for wp, target_role_name in wolf_conversions:
@@ -404,19 +491,45 @@ class GameResolutionService:
                     wp.role = r
                     wp.save(update_fields=['role'])
 
-            # Admiral promotion (if Komissar & Serjant both dead)
-            kom_alive = any(p.is_alive and p.role and p.role.name == 'DETECTIVE' for p in alive_players if p.id not in eliminated_player_ids)
-            ser_alive = any(p.is_alive and p.role and p.role.name == 'SERJANT' for p in alive_players if p.id not in eliminated_player_ids)
-            if not kom_alive and not ser_alive:
-                admiral_p = next((p for p in alive_players if p.is_alive and p.role and p.role.name == 'ADMIRAL' and p.id not in eliminated_player_ids), None)
-                if admiral_p:
+            # Successions
+            new_don = None
+            don_alive = any(p.is_alive and p.role and p.role.name == 'DON' for p in alive_players if p.id not in eliminated_player_ids)
+            if not don_alive:
+                living_mafias = [p for p in alive_players if p.is_alive and p.id not in eliminated_player_ids and p.role and p.role.name == 'MAFIA']
+                if living_mafias:
+                    chosen_mafia = random.choice(living_mafias)
+                    don_role = Role.objects.filter(name='DON').first()
+                    if don_role:
+                        chosen_mafia.role = don_role
+                        chosen_mafia.save(update_fields=['role'])
+                        new_don = chosen_mafia
+
+            new_komissar = None
+            kom_alive = any(p.is_alive and p.role and p.role.name in ['DETECTIVE', 'KOMISSAR'] for p in alive_players if p.id not in eliminated_player_ids)
+            if not kom_alive:
+                ser_p = next((p for p in alive_players if p.is_alive and p.id not in eliminated_player_ids and p.role and p.role.name == 'SERJANT'), None)
+                if not ser_p:
+                    ser_p = next((p for p in alive_players if p.is_alive and p.id not in eliminated_player_ids and p.role and p.role.name == 'ADMIRAL'), None)
+                if ser_p:
                     kom_role = Role.objects.filter(name='DETECTIVE').first()
                     if kom_role:
-                        admiral_p.role = kom_role
-                        admiral_p.save(update_fields=['role'])
+                        ser_p.role = kom_role
+                        ser_p.save(update_fields=['role'])
+                        new_komissar = ser_p
+
+            new_doctor = None
+            doc_alive = any(p.is_alive and p.role and p.role.name in ['DOCTOR', 'SHIFOKOR'] for p in alive_players if p.id not in eliminated_player_ids)
+            if not doc_alive:
+                ham_p = next((p for p in alive_players if p.is_alive and p.id not in eliminated_player_ids and p.role and p.role.name == 'HAMSHIRA'), None)
+                if ham_p:
+                    doc_role = Role.objects.filter(name='DOCTOR').first()
+                    if doc_role:
+                        ham_p.role = doc_role
+                        ham_p.save(update_fields=['role'])
+                        new_doctor = ham_p
 
             # -------------------------------------------------------------
-            # 9. Intelligence & Witness Logs (Sotqin, Fotoparatchi, Jurnalist, Aygoqchi, Daydi)
+            # 10. Intelligence & Witness Logs (Sotqin, Fotoparatchi, Daydi)
             # -------------------------------------------------------------
             sotqin_snitches = []
             sotqin_actions = [a for a in valid_actions if a.action_type == NightActionType.SOTQIN_CHECK and a.target]
@@ -427,24 +540,49 @@ class GameResolutionService:
             fotoparatchi_snaps = []
             fotoparatchi_actions = [a for a in valid_actions if a.action_type == NightActionType.FOTOPARATCHI_SNAP and a.target]
             for fa in fotoparatchi_actions:
-                # Find if target made an action
                 target_acts = [x for x in actions if x.actor_id == fa.target_id and x.target_id]
                 if target_acts:
                     fotoparatchi_snaps.append((fa.target, target_acts[0].target))
 
             daydi_witnesses = []
+            daydi_results = []
+            daydi_visited_players = []
             daydi_actions = [a for a in valid_actions if a.action_type == NightActionType.DAYDI_VISIT and a.target]
             for da in daydi_actions:
+                if da.target_id in alive_player_map:
+                    daydi_visited_players.append(alive_player_map[da.target_id])
                 if da.target_id in eliminated_player_ids:
-                    # Find who killed this target
                     killers = [h['actor'] for h in lethal_hits if h['target_id'] == da.target_id]
                     if killers:
                         daydi_witnesses.append((da.actor, da.target, killers[0]))
+                        daydi_results.append({
+                            'daydi_user_id': da.actor.telegram_user_id,
+                            'message': f"🍾 <b>Daydi guvohligi:</b> Siz borgan xonadonda {html.escape(da.target.display_name)} o'ldirildi. Qotil: {html.escape(killers[0].display_name)}!",
+                        })
 
             # -------------------------------------------------------------
-            # 10. AFK Inactivity Check (Exempt passive roles)
+            # 11. Zombie Infections & Joker
             # -------------------------------------------------------------
-            # Passive roles with no active night action: OMADLI, JANOB, BORI, SEHRGAR, ADMIRAL, CITIZEN
+            infected_players = []
+            zombi_actions = [a for a in valid_actions if a.action_type == NightActionType.ZOMBI_BITE and a.target]
+            for za in zombi_actions:
+                if za.target_id in alive_player_map and za.target_id not in eliminated_player_ids:
+                    infected_p = alive_player_map[za.target_id]
+                    z_role = Role.objects.filter(name='ZOMBI').first()
+                    if z_role:
+                        infected_p.role = z_role
+                        infected_p.save(update_fields=['role'])
+                        infected_players.append(infected_p)
+
+            joker_deliveries = []
+            joker_actions = [a for a in valid_actions if a.action_type == NightActionType.JOKER_BOXES and a.target]
+            for ja in joker_actions:
+                if ja.target_id in alive_player_map and ja.target_id not in eliminated_player_ids:
+                    joker_deliveries.append({'target_user_id': ja.target.telegram_user_id})
+
+            # -------------------------------------------------------------
+            # 12. AFK Inactivity Check (Exempt passive roles)
+            # -------------------------------------------------------------
             PASSIVE_ROLES = {'CITIZEN', 'OMADLI', 'JANOB', 'BORI', 'SEHRGAR', 'ADMIRAL', 'HAMSHIRA', 'SUIDSID'}
             afk_eliminated = []
             acted_actor_ids = {a.actor_id for a in actions}
@@ -454,7 +592,7 @@ class GameResolutionService:
                     continue
                 rname = p.role.name if p.role else 'CITIZEN'
                 if rname in PASSIVE_ROLES:
-                    continue  # EXEMPT from AFK penalty!
+                    continue  # EXEMPT from AFK penalty
 
                 if p.id not in acted_actor_ids:
                     if not p.metadata:
@@ -472,12 +610,122 @@ class GameResolutionService:
                         p.save(update_fields=['metadata'])
 
             return {
-                'eliminated_players': eliminated_players,
+                'eliminated_players': eliminated_dict_list,
+                'eliminated_player': eliminated_dict_list[0]['player'] if eliminated_dict_list else None,
+                'eliminated_role_name': eliminated_dict_list[0]['role_name'] if eliminated_dict_list else None,
+                'saved_by_doctor': len(protected_hits_set) > 0,
                 'shield_saved_players': shield_saved_players,
                 'omadli_saved_players': omadli_saved_players,
+                'doctor_saved_players': [alive_player_map[tid] for tid in protected_hits_set if tid in alive_player_map],
+                'doctor_visited_players': [alive_player_map[a.target_id] for a in doctor_protects if a.target_id in alive_player_map],
+                'kezuvchi_visited_players': kezuvchi_visited_players,
+                'daydi_visited_players': daydi_visited_players,
+                'advokat_visited_players': [alive_player_map[a.target_id] for a in advokat_actions if a.target_id in alive_player_map],
+                'kimyogar_healed_players': kimyogar_healed_players,
+                'dori_shield_saved_players': dori_shield_saved_players,
+                'hujjat_used_players': hujjat_used_players,
+                'investigation_results': investigation_results,
+                'daydi_results': daydi_results,
+                'rais_gifts': rais_gifts,
+                'joker_deliveries': joker_deliveries,
+                'infected_players': infected_players,
+                'new_don': new_don,
+                'new_komissar': new_komissar,
+                'new_doctor': new_doctor,
                 'sotqin_snitches': sotqin_snitches,
                 'fotoparatchi_snaps': fotoparatchi_snaps,
                 'daydi_witnesses': daydi_witnesses,
                 'robbery_logs': robbery_logs,
+                'afk_eliminated_players': afk_eliminated,
                 'afk_eliminated': afk_eliminated,
+            }
+
+    @classmethod
+    def resolve_voting_phase(cls, game: Game) -> Dict[str, Any]:
+        """
+        Resolves voting phase for the current round:
+        Counts votes, handles ties, Janob weight, Aferist proxies, shields, and eliminates suspect.
+        """
+        with transaction.atomic():
+            votes = list(Vote.objects.filter(game=game, round=game.round_number).select_related('voter', 'target', 'target__role', 'voter__role'))
+            alive_players = list(Player.objects.filter(game=game, is_alive=True).select_related('role'))
+            alive_map = {p.id: p for p in alive_players}
+
+            vote_counts: Dict[Any, int] = {}
+            for v in votes:
+                if v.voter_id not in alive_map or v.target_id not in alive_map:
+                    continue
+                # Weight Janob vote as 2
+                weight = 2 if v.voter.role and v.voter.role.name == 'JANOB' else 1
+                vote_counts[v.target_id] = vote_counts.get(v.target_id, 0) + weight
+
+            if not vote_counts:
+                return {
+                    'eliminated_player': None,
+                    'eliminated_role_name': None,
+                    'is_tie': True,
+                    'vote_counts': vote_counts,
+                }
+
+            max_votes = max(vote_counts.values())
+            top_targets = [tid for tid, cnt in vote_counts.items() if cnt == max_votes]
+
+            if len(top_targets) > 1:
+                return {
+                    'eliminated_player': None,
+                    'eliminated_role_name': None,
+                    'is_tie': True,
+                    'vote_counts': vote_counts,
+                }
+
+            elim_id = top_targets[0]
+            elim_player = alive_map[elim_id]
+
+            # Check 'osish_himoya' item in Inventory
+            if not elim_player.metadata:
+                elim_player.metadata = {}
+            saved_by_shield = False
+            if not elim_player.metadata.get('used_osish_himoya'):
+                shield_inv = Inventory.objects.filter(
+                    telegram_id=elim_player.telegram_user_id, item__code='osish_himoya', is_active=True, quantity__gt=0
+                ).first()
+                if shield_inv:
+                    shield_inv.quantity -= 1
+                    if shield_inv.quantity <= 0:
+                        shield_inv.is_active = False
+                    shield_inv.save(update_fields=['quantity', 'is_active'])
+                    elim_player.metadata['used_osish_himoya'] = True
+                    elim_player.save(update_fields=['metadata'])
+                    saved_by_shield = True
+
+            if saved_by_shield:
+                return {
+                    'eliminated_player': None,
+                    'eliminated_role_name': None,
+                    'saved_by_shield': True,
+                    'is_tie': False,
+                    'vote_counts': vote_counts,
+                }
+
+            suicide_won = bool(elim_player.role and elim_player.role.name == 'SUIDSID')
+
+            elim_player.is_alive = False
+            elim_player.save(update_fields=['is_alive'])
+
+            # Don lynched -> promotion to living Mafia
+            if elim_player.role and elim_player.role.name == 'DON':
+                living_mafias = [p for p in alive_players if p.id != elim_player.id and p.is_alive and p.role and p.role.name == 'MAFIA']
+                if living_mafias:
+                    chosen_mafia = random.choice(living_mafias)
+                    don_role = Role.objects.filter(name='DON').first()
+                    if don_role:
+                        chosen_mafia.role = don_role
+                        chosen_mafia.save(update_fields=['role'])
+
+            return {
+                'eliminated_player': elim_player,
+                'eliminated_role_name': elim_player.role.name if elim_player.role else 'CITIZEN',
+                'is_tie': False,
+                'suicide_won': suicide_won,
+                'vote_counts': vote_counts,
             }

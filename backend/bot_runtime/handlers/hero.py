@@ -290,7 +290,7 @@ async def handle_daytime_hero_shoot(message: types.Message):
 
     # 2. Check shooter role and living status
     def _get_shooter_player(g_obj, tg_id):
-        return Player.objects.filter(game=g_obj, telegram_id=tg_id, is_alive=True).select_related('role').first()
+        return Player.objects.filter(game=g_obj, telegram_user_id=tg_id, is_alive=True).select_related('role').first()
 
     shooter_player = await sync_to_async(_get_shooter_player)(game, shooter_tg_id)
     if not shooter_player:
@@ -329,7 +329,7 @@ async def handle_daytime_hero_shoot(message: types.Message):
                 def _get_by_num(g_obj, p_num):
                     players = list(Player.objects.filter(game=g_obj, is_alive=True).order_by('id'))
                     if 1 <= p_num <= len(players):
-                        return players[p_num - 1].telegram_id
+                        return players[p_num - 1].telegram_user_id
                     return None
                 target_tg_id = await sync_to_async(_get_by_num)(game, num)
             elif arg.startswith('@'):
@@ -348,7 +348,7 @@ async def handle_daytime_hero_shoot(message: types.Message):
 
     # 5. Check victim living in game
     def _get_victim_player(g_obj, tg_id):
-        return Player.objects.filter(game=g_obj, telegram_id=tg_id, is_alive=True).first()
+        return Player.objects.filter(game=g_obj, telegram_user_id=tg_id, is_alive=True).first()
 
     victim_player = await sync_to_async(_get_victim_player)(game, target_tg_id)
     if not victim_player:
@@ -359,7 +359,7 @@ async def handle_daytime_hero_shoot(message: types.Message):
     hero.charges -= 1
     await sync_to_async(hero.save)(update_fields=['charges'])
 
-    victim_name = victim_player.full_name if hasattr(victim_player, 'full_name') else f"O'yinchi {target_tg_id}"
+    victim_name = victim_player.display_name or victim_player.username or f"O'yinchi {target_tg_id}"
     dmg_percent = random.randint(hero.power_min, hero.power_max)
 
     # Check geroy_himoya defense item on victim

@@ -537,6 +537,7 @@ async def _advance_to_next_night(game: Game, bot: Bot, reason: str = ""):
         from bot_runtime.keyboards.inline import (
             build_night_target_keyboard,
             build_komissar_action_keyboard,
+            build_konchi_mines_keyboard,
             build_joker_boxes_setup_keyboard,
             build_back_to_group_keyboard
         )
@@ -571,35 +572,71 @@ async def _advance_to_next_night(game: Game, bot: Bot, reason: str = ""):
                         parse_mode="HTML"
                     )
                 elif rname == "QOTIL":
-                    kb = build_night_target_keyboard(game_id, "qotil", living_players, str(player.id))
+                    kb = build_night_target_keyboard(game_id, "qot", living_players, str(player.id))
                     await bot.send_message(player.telegram_user_id, f"🌙 <b>{round_num}-TUN:</b> Qurbonni tanlang:", reply_markup=kb, parse_mode="HTML")
                 elif rname == "KEZUVCHI":
-                    kb = build_night_target_keyboard(game_id, "kezuvchi", living_players, str(player.id))
+                    kb = build_night_target_keyboard(game_id, "kez", living_players, str(player.id))
                     await bot.send_message(player.telegram_user_id, f"🌙 <b>{round_num}-TUN:</b> Kimnikiga mehmonga borasiz?", reply_markup=kb, parse_mode="HTML")
                 elif rname == "DAYDI":
-                    kb = build_night_target_keyboard(game_id, "daydi", living_players, str(player.id))
+                    kb = build_night_target_keyboard(game_id, "day", living_players, str(player.id))
                     await bot.send_message(player.telegram_user_id, f"🌙 <b>{round_num}-TUN:</b> Kimnikiga ichkilik so'rab borasiz?", reply_markup=kb, parse_mode="HTML")
                 elif rname == "ADVOKAT":
-                    kb = build_night_target_keyboard(game_id, "advokat", living_players)
+                    kb = build_night_target_keyboard(game_id, "adv", living_players)
                     await bot.send_message(player.telegram_user_id, f"🌙 <b>{round_num}-TUN:</b> Kimni himoyalaysiz?", reply_markup=kb, parse_mode="HTML")
                 elif rname == "UBIYTSA":
-                    kb = build_night_target_keyboard(game_id, "ubiytsa", living_players, str(player.id))
+                    kb = build_night_target_keyboard(game_id, "ubi", living_players, str(player.id))
                     await bot.send_message(player.telegram_user_id, f"🌙 <b>{round_num}-TUN:</b> Kimni o'ldirasiz?", reply_markup=kb, parse_mode="HTML")
                 elif rname == "TUZOQCHI":
-                    kb = build_night_target_keyboard(game_id, "tuzoqchi", living_players, str(player.id))
+                    kb = build_night_target_keyboard(game_id, "tuz", living_players, str(player.id))
                     await bot.send_message(player.telegram_user_id, f"🌙 <b>{round_num}-TUN:</b> Tuzoqni kimga qo'yasiz?", reply_markup=kb, parse_mode="HTML")
                 elif rname == "ZOMBI":
-                    kb = build_night_target_keyboard(game_id, "zombi", living_players, str(player.id))
+                    kb = build_night_target_keyboard(game_id, "zom", living_players, str(player.id))
                     await bot.send_message(player.telegram_user_id, f"🌙 <b>{round_num}-TUN:</b> Kimni tishlaysiz?", reply_markup=kb, parse_mode="HTML")
                 elif rname == "KIMYOGAR":
-                    kb = build_night_target_keyboard(game_id, "kimyogar", living_players, str(player.id))
+                    kb = build_night_target_keyboard(game_id, "kim", living_players, str(player.id))
                     await bot.send_message(player.telegram_user_id, f"🌙 <b>{round_num}-TUN:</b> Eliksirni kimga berasiz?", reply_markup=kb, parse_mode="HTML")
                 elif rname == "AXMOQ":
-                    kb = build_night_target_keyboard(game_id, "axmoq", living_players, str(player.id))
+                    kb = build_night_target_keyboard(game_id, "axm", living_players, str(player.id))
                     await bot.send_message(player.telegram_user_id, f"🌙 <b>{round_num}-TUN:</b> Kimni tanlaysiz?", reply_markup=kb, parse_mode="HTML")
                 elif rname == "RAIS":
-                    kb = build_night_target_keyboard(game_id, "rais", living_players, str(player.id))
+                    kb = build_night_target_keyboard(game_id, "rai", living_players, str(player.id))
                     await bot.send_message(player.telegram_user_id, f"🌙 <b>{round_num}-TUN:</b> Sovg'ani kimga berasiz?", reply_markup=kb, parse_mode="HTML")
+                elif rname == "AFERIST":
+                    kb = build_night_target_keyboard(game_id, "afer", living_players, str(player.id))
+                    await bot.send_message(player.telegram_user_id, f"🌙 <b>{round_num}-TUN:</b> Kimning ovozini o'g'irlamoqchisiz?", reply_markup=kb, parse_mode="HTML")
+                elif rname == "GAZABKOR":
+                    kb = build_night_target_keyboard(game_id, "gaz", living_players)
+                    await bot.send_message(player.telegram_user_id, f"🌙 <b>{round_num}-TUN:</b> Kimni belgilamoqchisiz?", reply_markup=kb, parse_mode="HTML")
+                elif rname == "JURNALIST":
+                    kb = build_night_target_keyboard(game_id, "jurn", living_players, str(player.id))
+                    await bot.send_message(player.telegram_user_id, f"🌙 <b>{round_num}-TUN:</b> Kimnikiga intervyuga borasiz?", reply_markup=kb, parse_mode="HTML")
+                elif rname == "SOTQIN":
+                    kb = build_night_target_keyboard(game_id, "sotq", living_players, str(player.id))
+                    await bot.send_message(player.telegram_user_id, f"🌙 <b>{round_num}-TUN:</b> Kimni tekshirmoqchisiz?", reply_markup=kb, parse_mode="HTML")
+                elif rname == "ROBINGUD":
+                    kb = build_night_target_keyboard(game_id, "rob", living_players, str(player.id))
+                    await bot.send_message(player.telegram_user_id, f"🌙 <b>{round_num}-TUN:</b> Kamon o'qi bilan kimni otasiz?", reply_markup=kb, parse_mode="HTML")
+                elif rname == "AYGOQCHI":
+                    kb = build_night_target_keyboard(game_id, "ayg", living_players, str(player.id))
+                    await bot.send_message(player.telegram_user_id, f"🌙 <b>{round_num}-TUN:</b> Qaysi o'yinchining rolini bilmoqchisiz?", reply_markup=kb, parse_mode="HTML")
+                elif rname == "KONCHI":
+                    kb = build_konchi_mines_keyboard(game_id)
+                    await bot.send_message(player.telegram_user_id, f"🌙 <b>{round_num}-TUN:</b> Qaysi konni qazimoqchisiz?", reply_markup=kb, parse_mode="HTML")
+                elif rname == "FOTOPARATCHI":
+                    kb = build_night_target_keyboard(game_id, "foto", living_players, str(player.id))
+                    await bot.send_message(player.telegram_user_id, f"🌙 <b>{round_num}-TUN:</b> Kimni rasmga olmoqchisiz?", reply_markup=kb, parse_mode="HTML")
+                elif rname == "QAROQCHI":
+                    kb = build_night_target_keyboard(game_id, "qar", living_players, str(player.id))
+                    await bot.send_message(player.telegram_user_id, f"🌙 <b>{round_num}-TUN:</b> Kimning pullarini shilmoqchisiz?", reply_markup=kb, parse_mode="HTML")
+                elif rname == "LABORANT":
+                    kb = build_night_target_keyboard(game_id, "lab", living_players, str(player.id))
+                    await bot.send_message(player.telegram_user_id, f"🌙 <b>{round_num}-TUN:</b> Nishonni tanlang:", reply_markup=kb, parse_mode="HTML")
+                elif rname == "QORBOBO":
+                    kb = build_night_target_keyboard(game_id, "qor", living_players, str(player.id))
+                    await bot.send_message(player.telegram_user_id, f"🌙 <b>{round_num}-TUN:</b> Sovg'ani kimga topshirasiz?", reply_markup=kb, parse_mode="HTML")
+                elif rname == "OSHPAZ":
+                    kb = build_night_target_keyboard(game_id, "osh", living_players, str(player.id))
+                    await bot.send_message(player.telegram_user_id, f"🌙 <b>{round_num}-TUN:</b> Maxsus taomingizni kimga yedirasiz?", reply_markup=kb, parse_mode="HTML")
                 elif rname == "JOKER":
                     kb = build_joker_boxes_setup_keyboard(game_id)
                     await bot.send_message(player.telegram_user_id, f"🌙 <b>{round_num}-TUN:</b> Bombani qaysi qutilarga joylaysiz?", reply_markup=kb, parse_mode="HTML")
