@@ -432,6 +432,14 @@ async def cmd_create_game_lobby(message: types.Message, bot: Bot):
     if sent_msg:
         game.lobby_message_id = sent_msg.message_id
         await sync_to_async(game.save)(update_fields=['lobby_message_id'])
+        try:
+            await bot.pin_chat_message(
+                chat_id=chat_id,
+                message_id=sent_msg.message_id,
+                disable_notification=False
+            )
+        except Exception as pin_err:
+            logger.warning(f"Could not pin lobby message in chat {chat_id}: {pin_err}")
 
     start_lobby_timer(str(game.id), chat_id, bot, timeout=lobby_timeout_seconds)
 
@@ -483,6 +491,11 @@ async def cmd_start_game(message: types.Message, bot: Bot):
         return
 
     cancel_lobby_timer(str(game.id))
+    if game.lobby_message_id:
+        try:
+            await bot.unpin_chat_message(chat_id=game.chat_id, message_id=game.lobby_message_id)
+        except Exception:
+            pass
 
     try:
         start_result = await sync_to_async(GameService.start_game)(game=game)
@@ -797,6 +810,10 @@ async def cmd_stop_game(message: types.Message, bot: Bot):
     cancel_lobby_timer(str(active_game.id))
 
     if active_game.lobby_message_id:
+        try:
+            await bot.unpin_chat_message(chat_id=chat_id, message_id=active_game.lobby_message_id)
+        except Exception:
+            pass
         try:
             await bot.delete_message(chat_id=chat_id, message_id=active_game.lobby_message_id)
         except Exception:
