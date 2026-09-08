@@ -23,24 +23,64 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(level
 logger = logging.getLogger(__name__)
 
 
-async def periodic_lobby_watchdog():
-    """Background watchdog ensuring expired waiting lobbies are auto-cancelled precisely."""
+async def periodic_game_watchdog(master_bot: Bot):
+    """
+    Continuous self-healing watchdog:
+    1. Auto-cancels expired WAITING lobbies.
+    2. Auto-advances stranded NIGHT games that exceed timeout.
+    3. Auto-closes stranded VOTING games that exceed timeout.
+    """
     from apps.games.models import Game, GamePhase
     from django.utils import timezone
+    from datetime import timedelta
+    from bot_runtime.handlers.night import advance_night_to_day
+    from bot_runtime.handlers.voting import auto_close_voting
+
     while True:
         try:
             now = timezone.now()
-            expired_games = await sync_to_async(lambda: list(
+
+            # 1. Cancel expired waiting lobbies
+            expired_lobbies = await sync_to_async(lambda: list(
                 Game.objects.filter(
                     phase=GamePhase.WAITING,
                     phase_ends_at__isnull=False,
                     phase_ends_at__lt=now
                 ).select_related('bot')
             ))()
-            for g in expired_games:
+            for g in expired_lobbies:
                 g.phase = GamePhase.CANCELED
                 await sync_to_async(g.save)(update_fields=['phase'])
                 logger.info(f"Watchdog auto-cancelled expired lobby {g.id} in chat {g.chat_id}")
+
+            # 2. Recover stranded NIGHT games (updated_at > 90s ago)
+            stuck_night_games = await sync_to_async(lambda: list(
+                Game.objects.filter(
+                    phase=GamePhase.NIGHT,
+                    updated_at__lt=now - timedelta(seconds=90)
+                ).select_related('bot')
+            ))()
+            for g in stuck_night_games:
+                logger.warning(f"Watchdog detected stuck NIGHT in game {g.id}. Advancing to Day.")
+                try:
+                    await advance_night_to_day(g, master_bot)
+                except Exception as ne:
+                    logger.exception(f"Watchdog night advance error for game {g.id}: {ne}")
+
+            # 3. Recover stranded VOTING games (updated_at > 75s ago)
+            stuck_voting_games = await sync_to_async(lambda: list(
+                Game.objects.filter(
+                    phase=GamePhase.VOTING,
+                    updated_at__lt=now - timedelta(seconds=75)
+                ).select_related('bot')
+            ))()
+            for g in stuck_voting_games:
+                logger.warning(f"Watchdog detected stuck VOTING in game {g.id}. Closing voting.")
+                try:
+                    await auto_close_voting(g, master_bot)
+                except Exception as ve:
+                    logger.exception(f"Watchdog voting close error for game {g.id}: {ve}")
+
         except Exception as e:
             logger.debug(f"Watchdog check error: {e}")
         await asyncio.sleep(5)
@@ -67,7 +107,7 @@ async def main():
     dp = create_master_dispatcher()
 
     # Start background watchdog
-    asyncio.create_task(periodic_lobby_watchdog())
+    asyncio.create_task(periodic_game_watchdog(bot))
 
     # Also start polling for any child bots registered in DB
     try:

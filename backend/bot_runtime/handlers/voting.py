@@ -301,13 +301,19 @@ async def auto_close_voting(game: Game, bot: Bot):
             'kill': 0, 'save': 0, 'voters': set(), 'target': suspect, 'message': None
         }
 
-        bot_info = await bot.get_me()
+        bot_first_name = "Mafia Bot"
+        try:
+            bot_info = await bot.get_me()
+            bot_first_name = bot_info.first_name
+        except Exception:
+            pass
+
         prompt_tpl = await sync_to_async(TextService.get_text)(
             'hanging_prompt_text',
             fallback="<b>{bot_name}</b>               <code>BM Admin</code>\n<b>Rostdan ham {target_name}ni osmoqchimisiz?</b>"
         )
         announcement = (
-            prompt_tpl.replace('{bot_name}', html.escape(bot_info.first_name))
+            prompt_tpl.replace('{bot_name}', html.escape(bot_first_name))
             .replace('{target_name}', suspect_mention)
         )
         kb = build_hanging_keyboard(game_id, str(suspect.id), kill_count=0, save_count=0)
@@ -495,7 +501,12 @@ async def _advance_to_next_night(game: Game, bot: Bot, reason: str = ""):
         await sync_to_async(game.save)(update_fields=['phase', 'round_number'])
 
         round_num = game.round_number
-        bot_info = await bot.get_me()
+        bot_username = "mafia_bot"
+        try:
+            bot_info = await bot.get_me()
+            bot_username = bot_info.username
+        except Exception:
+            pass
 
         living_players = await sync_to_async(
             lambda: list(game.players.filter(is_alive=True).select_related('role'))
@@ -517,15 +528,18 @@ async def _advance_to_next_night(game: Game, bot: Bot, reason: str = ""):
             .replace('{players_list}', living_roster)
         )
         from bot_runtime.handlers.night import send_dynamic_animation
-        await send_dynamic_animation(
-            bot=bot,
-            chat_id=game.chat_id,
-            media_key='gif_night',
-            fallback_url="https://media.giphy.com/media/26hirEPeos6yugLDO/giphy.gif",
-            caption=night_text,
-            reply_markup=build_bot_pm_keyboard(bot_info.username),
-            parse_mode="HTML"
-        )
+        try:
+            await send_dynamic_animation(
+                bot=bot,
+                chat_id=game.chat_id,
+                media_key='gif_night',
+                fallback_url="https://media.giphy.com/media/26hirEPeos6yugLDO/giphy.gif",
+                caption=night_text,
+                reply_markup=build_bot_pm_keyboard(bot_username),
+                parse_mode="HTML"
+            )
+        except Exception as na_err:
+            logger.warning(f"Night animation error: {na_err}")
 
         living_players = await sync_to_async(
             lambda: list(game.players.filter(is_alive=True).select_related('role'))

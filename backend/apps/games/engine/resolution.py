@@ -233,7 +233,9 @@ class GameResolutionService:
                     )
                     investigation_results.append({
                         'actor_id': dc.actor_id,
+                        'detective_user_id': dc.actor.telegram_user_id,
                         'target_id': target_p.id,
+                        'target_display_name': target_p.display_name,
                         'is_mafia': is_mafia_role,
                         'role_name': target_p.role.name if target_p.role and not has_fake_doc else 'CITIZEN',
                     })

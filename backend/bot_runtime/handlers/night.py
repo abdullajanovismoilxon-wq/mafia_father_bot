@@ -195,6 +195,70 @@ def start_night_timer(game_id: str, bot: Any, duration: int = 60, **kwargs):
     NIGHT_TASKS[game_id] = new_task
 
 
+PASSIVE_NIGHT_ROLES = {
+    'CITIZEN', 'OMADLI', 'JANOB', 'BORI', 'SEHRGAR', 'ADMIRAL', 'HAMSHIRA', 'SUIDSID'
+}
+
+
+async def _check_and_advance_night_if_ready(game: Game, bot: Bot):
+    """
+    Checks if all living players with active night actions have submitted their action
+    for the current round. If so, cancels the night timer and advances to Day/Dawn immediately.
+    """
+    try:
+        from apps.games.models import NightAction
+        game_id = str(game.id)
+        current_game = await sync_to_async(Game.objects.select_related('bot').get)(id=game_id)
+        if current_game.phase != GamePhase.NIGHT:
+            return
+
+        living_players = await sync_to_async(
+            lambda: list(current_game.players.filter(is_alive=True).select_related('role'))
+        )()
+
+        # Collect living players with active night roles
+        active_actors = [
+            p for p in living_players
+            if p.role and p.role.name not in PASSIVE_NIGHT_ROLES
+        ]
+
+        if not active_actors:
+            # If no active night roles exist, advance immediately
+            logger.info(f"No active night roles living in game {game_id}. Advancing to Dawn.")
+            cancel_night_timer(game_id)
+            await advance_night_to_day(current_game, bot)
+            return
+
+        # Check submitted actions for this round
+        submitted_actor_ids = await sync_to_async(
+            lambda: set(NightAction.objects.filter(
+                game=current_game,
+                round=current_game.round_number
+            ).values_list('actor_id', flat=True))
+        )()
+
+        all_acted = True
+        for actor in active_actors:
+            # If actor is MAFIA and DON is alive, if DON has acted or MAFIA has acted, team decision is satisfied
+            if actor.role and actor.role.name == 'MAFIA':
+                don_alive = any(p.role and p.role.name == 'DON' for p in living_players)
+                if don_alive:
+                    don_actor = next((p for p in living_players if p.role and p.role.name == 'DON'), None)
+                    if don_actor and don_actor.id in submitted_actor_ids:
+                        continue
+            if actor.id not in submitted_actor_ids:
+                all_acted = False
+                break
+
+        if all_acted:
+            logger.info(f"All {len(active_actors)} active night roles have submitted actions in game {game_id}. Advancing early!")
+            cancel_night_timer(game_id)
+            await advance_night_to_day(current_game, bot)
+
+    except Exception as e:
+        logger.warning(f"Error checking early night advance in game {game.id}: {e}")
+
+
 # ---------------------------------------------------------------------------
 # Night → Dawn Transition & Group Event Announcements
 # ---------------------------------------------------------------------------
@@ -274,7 +338,7 @@ async def send_dynamic_animation(
             # If direct URL fails, download buffer and send as BufferedInputFile
             try:
                 async with aiohttp.ClientSession() as session:
-                    async with session.get(media_val, timeout=aiohttp.ClientTimeout(total=10)) as resp:
+                    async with session.get(media_val, timeout=aiohttp.ClientTimeout(total=4)) as resp:
                         if resp.status == 200:
                             content_bytes = await resp.read()
                             buffered = types.BufferedInputFile(content_bytes, filename=f"{media_key}.gif")
@@ -364,18 +428,21 @@ async def advance_night_to_day(game: Game, bot: Bot):
             return
 
         # --- Dawn Announcement Msg 1 (with dynamic Dawn GIF) ---
-        dawn_msg1 = await sync_to_async(TextService.get_text)(
-            'dawn_intro_text',
-            fallback="🌅 <b>Tong otdi!</b>\nShahar aholisi uyg'onmoqda..."
-        )
-        await send_dynamic_animation(
-            bot=bot,
-            chat_id=game.chat_id,
-            media_key='gif_dawn',
-            fallback_url="https://media.giphy.com/media/l41JGlWa1xOjJSsV2/giphy.gif",
-            caption=dawn_msg1,
-            parse_mode="HTML"
-        )
+        try:
+            dawn_msg1 = await sync_to_async(TextService.get_text)(
+                'dawn_intro_text',
+                fallback="🌅 <b>Tong otdi!</b>\nShahar aholisi uyg'onmoqda..."
+            )
+            await send_dynamic_animation(
+                bot=bot,
+                chat_id=game.chat_id,
+                media_key='gif_dawn',
+                fallback_url="https://media.giphy.com/media/l41JGlWa1xOjJSsV2/giphy.gif",
+                caption=dawn_msg1,
+                parse_mode="HTML"
+            )
+        except Exception as d1_err:
+            logger.warning(f"Dawn msg 1 failed: {d1_err}")
 
         await asyncio.sleep(2)
 
@@ -669,7 +736,13 @@ async def advance_night_to_day(game: Game, bot: Bot):
             for p in living_players
         ])
 
-        bot_info = await bot.get_me()
+        bot_username = "mafia_bot"
+        try:
+            bot_info = await bot.get_me()
+            bot_username = bot_info.username
+        except Exception:
+            pass
+
         dawn_template = await sync_to_async(TextService.get_text)(
             'dawn_living_players_format',
             fallback="👥 <b>Tirik o'yinchilar: ({count} ta)</b>\n{players_list}\n\nOvoz berishgacha ⏳ <b>20 sekund</b> qoldi"
@@ -683,26 +756,40 @@ async def advance_night_to_day(game: Game, bot: Bot):
             await bot.send_message(
                 game.chat_id,
                 dawn_msg3,
-                reply_markup=build_bot_pm_keyboard(bot_info.username),
+                reply_markup=build_bot_pm_keyboard(bot_username),
                 parse_mode="HTML"
             )
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning(f"Dawn msg 3 failed: {e}")
 
         # --- Send Detective Investigation Results ---
         inv_results = night_result.get('investigation_results', [])
         for inv in inv_results:
             try:
-                faction = "🔴 MAFIA" if inv['is_mafia'] else "🟢 Tinch aholi"
-                await bot.send_message(
-                    inv['detective_user_id'],
-                    f"🕵🏻‍♂️ <b>Tekshiruv natijasi:</b>\n\n"
-                    f"Tekshirilgan: <b>{html.escape(inv['target_display_name'])}</b>\n"
-                    f"Jamoa: <b>{faction}</b>",
-                    parse_mode="HTML"
-                )
-            except Exception:
-                pass
+                det_uid = inv.get('detective_user_id')
+                if not det_uid and 'actor_id' in inv:
+                    actor_p = await sync_to_async(Player.objects.filter(id=inv['actor_id']).first)()
+                    if actor_p:
+                        det_uid = actor_p.telegram_user_id
+
+                target_name = inv.get('target_display_name')
+                if not target_name and 'target_id' in inv:
+                    tp = await sync_to_async(Player.objects.filter(id=inv['target_id']).first)()
+                    if tp:
+                        target_name = tp.display_name
+                target_name = target_name or "Gumonlanuvchi"
+
+                faction = "🔴 MAFIA" if inv.get('is_mafia') else "🟢 Tinch aholi"
+                if det_uid:
+                    await bot.send_message(
+                        det_uid,
+                        f"🕵🏻‍♂️ <b>Tekshiruv natijasi:</b>\n\n"
+                        f"Tekshirilgan: <b>{html.escape(target_name)}</b>\n"
+                        f"Jamoa: <b>{faction}</b>",
+                        parse_mode="HTML"
+                    )
+            except Exception as inv_err:
+                logger.warning(f"Investigation result delivery error: {inv_err}")
 
         # --- Wait configured seconds then start voting ---
         bot_id_str = str(game.bot.id) if game.bot else ''
@@ -720,7 +807,7 @@ async def advance_night_to_day(game: Game, bot: Bot):
                 f"⚖️ <b>Aybdorlarni aniqlash va jazolash vaqti keldi!</b>\n\n"
                 f"Ovoz berish uchun <b>{voting_duration} sekund</b> vaqtingiz bor.\n"
                 f"Botga o'tib, gumondor o'yinchini tanlang!",
-                reply_markup=build_bot_pm_keyboard(bot_info.username),
+                reply_markup=build_bot_pm_keyboard(bot_username),
                 parse_mode="HTML"
             )
         except Exception:
@@ -1112,6 +1199,9 @@ async def handle_night_action_callback(callback: CallbackQuery, bot: Bot):
                 except Exception:
                     pass
 
+        # Check if all living active roles have acted -> advance night to day early!
+        await _check_and_advance_night_if_ready(game, bot)
+
     except ActionValidationError as ve:
         await callback.answer(str(ve), show_alert=True)
     except Exception as e:
@@ -1465,6 +1555,8 @@ async def handle_konchi_mine_callback(callback: CallbackQuery, bot: Bot):
             reply_markup=build_back_to_group_keyboard(chat_id=game.chat_id),
             parse_mode="HTML"
         )
+
+        await _check_and_advance_night_if_ready(game, bot)
     except Exception as e:
         logger.exception("Error in konchi mine callback:")
         await callback.answer(f"Xatolik: {e}", show_alert=True)
