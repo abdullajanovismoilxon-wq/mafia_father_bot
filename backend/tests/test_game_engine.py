@@ -23,16 +23,18 @@ class MafiaGameEngineTests(TestCase):
     def test_role_distribution(self):
         """Test dynamic role allocation logic across player group sizes."""
         r4 = RoleDistributionService.calculate_role_list(4)
-        self.assertEqual(r4.count(RoleType.MAFIA), 1)
+        self.assertEqual(r4.count(RoleType.DON), 1)
         self.assertEqual(r4.count(RoleType.DOCTOR), 1)
-        self.assertEqual(r4.count(RoleType.CITIZEN), 2)
-        self.assertEqual(r4.count(RoleType.DON), 0)  # No DON at 4 players
+        self.assertEqual(r4.count(RoleType.DETECTIVE), 1)
+        self.assertEqual(r4.count(RoleType.CITIZEN), 1)
+        self.assertEqual(r4.count(RoleType.MAFIA), 0)
 
         r5 = RoleDistributionService.calculate_role_list(5)
-        self.assertEqual(r5.count(RoleType.MAFIA), 1)
+        self.assertEqual(r5.count(RoleType.DON), 1)
         self.assertEqual(r5.count(RoleType.DOCTOR), 1)
         self.assertEqual(r5.count(RoleType.DETECTIVE), 1)
-        self.assertEqual(r5.count(RoleType.DON), 0)  # No DON at 5 players
+        self.assertEqual(r5.count(RoleType.CITIZEN), 2)
+        self.assertEqual(r5.count(RoleType.MAFIA), 0)
 
         # Band 2 fix: 6+ players always include DON (mafia team = DON + regular Mafia)
         r6 = RoleDistributionService.calculate_role_list(6)
@@ -66,14 +68,14 @@ class MafiaGameEngineTests(TestCase):
         self.assertEqual(game.phase, GamePhase.NIGHT)
         self.assertEqual(game.round_number, 1)
 
-        # Identify roles
-        mafia = [p for p, r in assignments if r.name == RoleType.MAFIA][0]
+        # Identify roles (4 players: DON, DOCTOR, DETECTIVE, CITIZEN)
+        don = [p for p, r in assignments if r.name == RoleType.DON][0]
         doctor = [p for p, r in assignments if r.name == RoleType.DOCTOR][0]
-        citizens = [p for p, r in assignments if r.name == RoleType.CITIZEN]
+        citizen = [p for p, r in assignments if r.name == RoleType.CITIZEN][0]
 
-        # 4. Submit Night Actions (Doctor protects citizens[0], Mafia targets citizens[0])
-        target = citizens[0]
-        NightActionService.submit_action(game, mafia, target, NightActionType.MAFIA_KILL)
+        # 4. Submit Night Actions (Doctor protects citizen, Don targets citizen)
+        target = citizen
+        NightActionService.submit_action(game, don, target, NightActionType.MAFIA_KILL)
         NightActionService.submit_action(game, doctor, target, NightActionType.DOCTOR_PROTECT)
 
         # 5. Resolve Night Phase -> Target should SURVIVE because of Doctor!
@@ -94,11 +96,13 @@ class MafiaGameEngineTests(TestCase):
         p3 = GameService.join_game(game, 203, 'p3', 'Player 3')
         p4 = GameService.join_game(game, 204, 'p4', 'Player 4')
         p5 = GameService.join_game(game, 205, 'p5', 'Player 5')
+        p6 = GameService.join_game(game, 206, 'p6', 'Player 6')
 
         assignments = GameService.start_game(game)
         game.refresh_from_db()
 
         mafia = [p for p, r in assignments if r.name == RoleType.MAFIA][0]
+        don = [p for p, r in assignments if r.name == RoleType.DON][0]
         detective = [p for p, r in assignments if r.name == RoleType.DETECTIVE][0]
 
         # Detective investigates Mafia
@@ -123,6 +127,10 @@ class MafiaGameEngineTests(TestCase):
         result = GameService.advance_phase(game)
         game.refresh_from_db()
         self.assertEqual(result['voting']['eliminated_player'].id, mafia.id)
+
+        # Eliminate remaining DON to achieve Civilian victory
+        don.is_alive = False
+        don.save()
 
         # Check Win Condition -> Citizens Win (0 Mafia left!)
         winner = WinConditionService.check_win_condition(game)

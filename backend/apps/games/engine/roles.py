@@ -92,10 +92,10 @@ class RoleDistributionService:
             raise ValueError("Minimum player count is 4")
 
         if player_count == 4:
-            return [RoleType.MAFIA, RoleType.DOCTOR, RoleType.CITIZEN, RoleType.CITIZEN]
+            return [RoleType.DON, RoleType.DOCTOR, RoleType.DETECTIVE, RoleType.CITIZEN]
 
         if player_count == 5:
-            return [RoleType.MAFIA, RoleType.DOCTOR, RoleType.DETECTIVE, RoleType.CITIZEN, RoleType.CITIZEN]
+            return [RoleType.DON, RoleType.DOCTOR, RoleType.DETECTIVE, RoleType.CITIZEN, RoleType.CITIZEN]
 
         if player_count == 6:
             return [RoleType.DON, RoleType.MAFIA, RoleType.DOCTOR, RoleType.DETECTIVE, RoleType.CITIZEN, RoleType.CITIZEN]
@@ -280,5 +280,41 @@ class RoleDistributionService:
             p.role = r_obj
             p.save(update_fields=['role'])
             assignments.append((p, r_obj))
+
+        # Guarantee: Mafia team always has a DON. If Mafia is assigned without a DON, promote to DON.
+        has_don = any(r and r.name == 'DON' for _, r in assignments)
+        if not has_don and configuration is None:
+            for idx, (p, r) in enumerate(assignments):
+                if r and r.name == 'MAFIA':
+                    don_role = all_roles_dict.get('DON')
+                    if don_role:
+                        p.role = don_role
+                        p.save(update_fields=['role'])
+                        assignments[idx] = (p, don_role)
+                    break
+
+        # Guarantee: Police always has a DETECTIVE. If SERJANT or ADMIRAL is assigned without a DETECTIVE, promote to DETECTIVE.
+        has_detective = any(r and r.name in ['DETECTIVE', 'KOMISSAR'] for _, r in assignments)
+        if not has_detective and configuration is None:
+            for idx, (p, r) in enumerate(assignments):
+                if r and r.name in ['SERJANT', 'ADMIRAL']:
+                    det_role = all_roles_dict.get('DETECTIVE')
+                    if det_role:
+                        p.role = det_role
+                        p.save(update_fields=['role'])
+                        assignments[idx] = (p, det_role)
+                    break
+
+        # Guarantee: Medical always has a DOCTOR. If HAMSHIRA is assigned without a DOCTOR, promote to DOCTOR.
+        has_doctor = any(r and r.name == 'DOCTOR' for _, r in assignments)
+        if not has_doctor and configuration is None:
+            for idx, (p, r) in enumerate(assignments):
+                if r and r.name == 'HAMSHIRA':
+                    doc_role = all_roles_dict.get('DOCTOR')
+                    if doc_role:
+                        p.role = doc_role
+                        p.save(update_fields=['role'])
+                        assignments[idx] = (p, doc_role)
+                    break
 
         return assignments

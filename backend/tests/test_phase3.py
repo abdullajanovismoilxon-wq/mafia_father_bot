@@ -177,19 +177,22 @@ class TestRoleModels(TestCase):
 
 class TestRoleDistributionService(TestCase):
     def test_hardcoded_4_players(self):
-        """Phase 2 fallback: 4 players -> 1 Mafia, 1 Doctor, 2 Citizens."""
+        """Phase 2 fallback: 4 players -> 1 Don, 1 Doctor, 1 Detective, 1 Citizen."""
         result = RoleDistributionService.calculate_role_list(4)
         self.assertEqual(len(result), 4)
-        self.assertEqual(result.count(RoleType.MAFIA), 1)
+        self.assertEqual(result.count(RoleType.DON), 1)
         self.assertEqual(result.count(RoleType.DOCTOR), 1)
-        self.assertEqual(result.count(RoleType.CITIZEN), 2)
+        self.assertEqual(result.count(RoleType.DETECTIVE), 1)
+        self.assertEqual(result.count(RoleType.CITIZEN), 1)
 
     def test_hardcoded_5_players(self):
-        """Phase 2 fallback: 5 players -> 1 Mafia, 1 Doctor, 1 Detective, 2 Citizens."""
+        """Phase 2 fallback: 5 players -> 1 Don, 1 Doctor, 1 Detective, 2 Citizens."""
         result = RoleDistributionService.calculate_role_list(5)
         self.assertEqual(len(result), 5)
-        self.assertEqual(result.count(RoleType.MAFIA), 1)
+        self.assertEqual(result.count(RoleType.DON), 1)
+        self.assertEqual(result.count(RoleType.DOCTOR), 1)
         self.assertEqual(result.count(RoleType.DETECTIVE), 1)
+        self.assertEqual(result.count(RoleType.CITIZEN), 2)
 
     def test_hardcoded_6_players(self):
         """Phase 2 fallback: 6 players -> 1 DON + 1 MAFIA (2 total Mafia team)."""
