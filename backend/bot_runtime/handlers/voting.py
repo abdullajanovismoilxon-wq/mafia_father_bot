@@ -333,6 +333,12 @@ async def auto_close_voting(game: Game, bot: Bot):
 
     except Exception as e:
         logger.exception(f"Error in auto_close_voting: {e}")
+        try:
+            g = await sync_to_async(Game.objects.select_related('bot').get)(id=game_id)
+            if g.phase == GamePhase.VOTING and g.status not in ['FINISHED', 'CANCELED']:
+                await _advance_to_next_night(g, bot, reason="auto_close_error_fallback")
+        except Exception as fb_err:
+            logger.error(f"Fallback advance to next night failed: {fb_err}")
 
 
 async def _hanging_timer(game_id: str, bot: Bot, original_msg=None):
@@ -341,11 +347,18 @@ async def _hanging_timer(game_id: str, bot: Bot, original_msg=None):
         await asyncio.sleep(20)
         if game_id in HANGING_VOTES:
             game = await sync_to_async(Game.objects.select_related('bot').get)(id=game_id)
-            await resolve_hanging(game, bot, original_msg)
+            if game.phase == GamePhase.VOTING and game.status not in ['FINISHED', 'CANCELED']:
+                await resolve_hanging(game, bot, original_msg)
     except asyncio.CancelledError:
         logger.info(f"Hanging timer cancelled for game {game_id}.")
     except Exception as e:
         logger.exception(f"Error in hanging timer: {e}")
+        try:
+            game = await sync_to_async(Game.objects.select_related('bot').get)(id=game_id)
+            if game.phase == GamePhase.VOTING and game.status not in ['FINISHED', 'CANCELED']:
+                await _advance_to_next_night(game, bot, reason="hanging_timer_error")
+        except Exception:
+            pass
     finally:
         HANGING_TASKS.pop(game_id, None)
 
@@ -353,136 +366,146 @@ async def _hanging_timer(game_id: str, bot: Bot, original_msg=None):
 async def resolve_hanging(game: Game, bot: Bot, original_msg=None):
     """Resolves hanging: eliminates or saves, then win-check → next night."""
     game_id = str(game.id)
-    h_data = HANGING_VOTES.pop(game_id, None)
-    if not h_data:
-        return
+    try:
+        h_data = HANGING_VOTES.pop(game_id, None)
+        if not h_data:
+            return
 
-    suspect = h_data['target']
-    kill_votes = h_data['kill']
-    save_votes = h_data['save']
-    suspect_mention = f'<a href="tg://user?id={suspect.telegram_user_id}">{html.escape(suspect.display_name)}</a>'
+        suspect = h_data['target']
+        kill_votes = h_data['kill']
+        save_votes = h_data['save']
+        suspect_mention = f'<a href="tg://user?id={suspect.telegram_user_id}">{html.escape(suspect.display_name)}</a>'
 
-    if kill_votes > save_votes:
-        # Check osish_himoya inventory shield (STRICT: MAX 1 PER GAME)
-        from apps.economy.models import Inventory
-        if not suspect.metadata:
-            suspect.metadata = {}
+        if kill_votes > save_votes:
+            # Check osish_himoya inventory shield (STRICT: MAX 1 PER GAME)
+            from apps.economy.models import Inventory
+            if not suspect.metadata:
+                suspect.metadata = {}
 
-        osish_inv = None
-        if not suspect.metadata.get('used_osish_himoya'):
-            osish_inv = await sync_to_async(
-                lambda: Inventory.objects.filter(
-                    telegram_id=suspect.telegram_user_id,
-                    item__code='osish_himoya',
-                    is_active=True,
-                    quantity__gt=0
-                ).first()
-            )()
+            osish_inv = None
+            if not suspect.metadata.get('used_osish_himoya'):
+                osish_inv = await sync_to_async(
+                    lambda: Inventory.objects.filter(
+                        telegram_id=suspect.telegram_user_id,
+                        item__code='osish_himoya',
+                        is_active=True,
+                        quantity__gt=0
+                    ).first()
+                )()
 
-        if osish_inv:
-            osish_inv.quantity -= 1
-            if osish_inv.quantity <= 0:
-                osish_inv.is_active = False
-            await sync_to_async(osish_inv.save)(update_fields=['quantity', 'is_active'])
-            suspect.metadata['used_osish_himoya'] = True
-            await sync_to_async(suspect.save)(update_fields=['metadata'])
-            try:
-                await bot.send_message(
-                    suspect.telegram_user_id,
-                    "🛡 <b>Inventaringizdagi 'Osishdan himoya' ishlatildi!</b>\n\n"
-                    "Shahar aholisi sizni osishga ovoz berdi, ammo inventaringizdagi himoya qalqoni sizni dordan asrab qoldi va siz tirik qoldingiz!",
-                    parse_mode="HTML"
+            if osish_inv:
+                osish_inv.quantity -= 1
+                if osish_inv.quantity <= 0:
+                    osish_inv.is_active = False
+                await sync_to_async(osish_inv.save)(update_fields=['quantity', 'is_active'])
+                suspect.metadata['used_osish_himoya'] = True
+                await sync_to_async(suspect.save)(update_fields=['metadata'])
+                try:
+                    await bot.send_message(
+                        suspect.telegram_user_id,
+                        "🛡 <b>Inventaringizdagi 'Osishdan himoya' ishlatildi!</b>\n\n"
+                        "Shahar aholisi sizni osishga ovoz berdi, ammo inventaringizdagi himoya qalqoni sizni dordan asrab qoldi va siz tirik qoldingiz!",
+                        parse_mode="HTML"
+                    )
+                except Exception:
+                    pass
+                result_text = (
+                    f"⚖️ {suspect_mention} <b>osishdan shaxsiy himoyasi evaziga dorga osilmadi va tirik qoldi!</b>\n\n"
+                    f"Ovoz berish: {kill_votes} 👍xa  |  {save_votes} 👎yo'q"
                 )
-            except Exception:
-                pass
-            result_text = (
-                f"⚖️ {suspect_mention} <b>osishdan shaxsiy himoyasi evaziga dorga osilmadi va tirik qoldi!</b>\n\n"
-                f"Ovoz berish: {kill_votes} 👍xa  |  {save_votes} 👎yo'q"
-            )
+            else:
+                await sync_to_async(
+                    lambda: Player.objects.filter(id=suspect.id).update(is_alive=False)
+                )()
+
+                rname = suspect.role.name if suspect.role else "CITIZEN"
+                from bot_runtime.handlers.night import role_icon, role_label
+                icon = role_icon(rname)
+                label = role_label(rname)
+
+                from apps.superadmin.services import TextService
+                tpl = await sync_to_async(TextService.get_text)(
+                    'voting_elimination_format',
+                    fallback="<b>Ovoz berish natijalari:</b>\n<b>{kill_votes} 👍 | {save_votes} 👎</b>\n\n<b>{target_name} kunduzgi yig'ilishda osildi!</b>\n<b>U edi  {role_icon} {role_name}.</b>"
+                )
+                result_text = (
+                    tpl.replace('{target_name}', suspect_mention)
+                    .replace('{kill_votes}', str(kill_votes))
+                    .replace('{save_votes}', str(save_votes))
+                    .replace('{role_icon}', icon)
+                    .replace('{role_name}', label)
+                )
+
+                # Don succession if hanged Don had Mafia teammates
+                if rname == "DON":
+                    import random
+                    living_mafia = await sync_to_async(
+                        lambda: list(Player.objects.filter(game=game, is_alive=True, role__name='MAFIA').select_related('role'))
+                    )()
+                    if living_mafia:
+                        new_don = random.choice(living_mafia)
+                        from apps.games.models import Role
+                        don_role = await sync_to_async(lambda: Role.objects.filter(name='DON').first())()
+                        if don_role:
+                            await sync_to_async(lambda: Player.objects.filter(id=new_don.id).update(role=don_role))()
+                        try:
+                            new_don_mention = f'<a href="tg://user?id={new_don.telegram_user_id}">{html.escape(new_don.display_name)}</a>'
+                            await bot.send_message(
+                                game.chat_id,
+                                f"🤵🏻 {new_don_mention} <b>Don bo'ldi!</b>\nO'yin davom etadi...",
+                                parse_mode="HTML"
+                            )
+                            await bot.send_message(
+                                new_don.telegram_user_id,
+                                "🤵🏻 <b>Siz endi DON siz!</b>\n"
+                                "Don osildi. Endi Mafiya sardori siz bo'ldingiz!",
+                                parse_mode="HTML"
+                            )
+                        except Exception:
+                            pass
         else:
-            await sync_to_async(
-                lambda: Player.objects.filter(id=suspect.id).update(is_alive=False)
-            )()
-
-            rname = suspect.role.name if suspect.role else "CITIZEN"
-            from bot_runtime.handlers.night import role_icon, role_label
-            icon = role_icon(rname)
-            label = role_label(rname)
-
-            from apps.superadmin.services import TextService
-            tpl = await sync_to_async(TextService.get_text)(
-                'voting_elimination_format',
-                fallback="<b>Ovoz berish natijalari:</b>\n<b>{kill_votes} 👍 | {save_votes} 👎</b>\n\n<b>{target_name} kunduzgi yig'ilishda osildi!</b>\n<b>U edi  {role_icon} {role_name}.</b>"
+            tpl_pardon = await sync_to_async(TextService.get_text)(
+                'voting_pardon_format',
+                fallback="<b>Ovoz berish natijalari:</b>\n<b>{kill_votes} 👍 | {save_votes} 👎</b>\n\n🕊️ <b>Aholi {target_name} ni afv etdi!</b>\n<b>Hech kim osilmadi.</b>"
             )
             result_text = (
-                tpl.replace('{target_name}', suspect_mention)
+                tpl_pardon.replace('{target_name}', suspect_mention)
                 .replace('{kill_votes}', str(kill_votes))
                 .replace('{save_votes}', str(save_votes))
-                .replace('{role_icon}', icon)
-                .replace('{role_name}', label)
             )
 
-            # Don succession if hanged Don had Mafia teammates
-            if rname == "DON":
-                import random
-                living_mafia = await sync_to_async(
-                    lambda: list(Player.objects.filter(game=game, is_alive=True, role__name='MAFIA').select_related('role'))
-                )()
-                if living_mafia:
-                    new_don = random.choice(living_mafia)
-                    from apps.games.models import Role
-                    don_role = await sync_to_async(lambda: Role.objects.filter(name='DON').first())()
-                    if don_role:
-                        await sync_to_async(lambda: Player.objects.filter(id=new_don.id).update(role=don_role))()
-                    try:
-                        new_don_mention = f'<a href="tg://user?id={new_don.telegram_user_id}">{html.escape(new_don.display_name)}</a>'
-                        await bot.send_message(
-                            game.chat_id,
-                            f"🤵🏻 {new_don_mention} <b>Don bo'ldi!</b>\nO'yin davom etadi...",
-                            parse_mode="HTML"
-                        )
-                        await bot.send_message(
-                            new_don.telegram_user_id,
-                            "🤵🏻 <b>Siz endi DON siz!</b>\n"
-                            "Don osildi. Endi Mafiya sardori siz bo'ldingiz!",
-                            parse_mode="HTML"
-                        )
-                    except Exception:
-                        pass
-    else:
-        tpl_pardon = await sync_to_async(TextService.get_text)(
-            'voting_pardon_format',
-            fallback="<b>Ovoz berish natijalari:</b>\n<b>{kill_votes} 👍 | {save_votes} 👎</b>\n\n🕊️ <b>Aholi {target_name} ni afv etdi!</b>\n<b>Hech kim osilmadi.</b>"
-        )
-        result_text = (
-            tpl_pardon.replace('{target_name}', suspect_mention)
-            .replace('{kill_votes}', str(kill_votes))
-            .replace('{save_votes}', str(save_votes))
-        )
-
-    # Send/edit result
-    try:
-        if original_msg:
-            await original_msg.edit_text(result_text, parse_mode="HTML")
-        else:
-            await bot.send_message(game.chat_id, result_text, parse_mode="HTML")
-    except Exception as e:
-        logger.warning(f"Could not send hanging result: {e}")
+        # Send/edit result
         try:
-            await bot.send_message(game.chat_id, result_text, parse_mode="HTML")
-        except Exception:
-            pass
+            if original_msg:
+                await original_msg.edit_text(result_text, parse_mode="HTML")
+            else:
+                await bot.send_message(game.chat_id, result_text, parse_mode="HTML")
+        except Exception as e:
+            logger.warning(f"Could not send hanging result: {e}")
+            try:
+                await bot.send_message(game.chat_id, result_text, parse_mode="HTML")
+            except Exception:
+                pass
 
-    # Win check
-    game = await sync_to_async(Game.objects.select_related('bot').get)(id=game.id)
-    winner = await sync_to_async(WinConditionService.check_win_condition)(game)
+        # Win check
+        game = await sync_to_async(Game.objects.select_related('bot').get)(id=game.id)
+        winner = await sync_to_async(WinConditionService.check_win_condition)(game)
 
-    if winner:
-        await sync_to_async(GameService.finish_game)(game, winner)
-        from bot_runtime.handlers.night import _announce_game_winner
-        await _announce_game_winner(game, winner, bot, story_lines=[result_text])
-    else:
-        await _advance_to_next_night(game, bot, reason="hanging_done")
+        if winner:
+            await sync_to_async(GameService.finish_game)(game, winner)
+            from bot_runtime.handlers.night import _announce_game_winner
+            await _announce_game_winner(game, winner, bot, story_lines=[result_text])
+        else:
+            await _advance_to_next_night(game, bot, reason="hanging_done")
+
+    except Exception as h_err:
+        logger.exception(f"Error in resolve_hanging for game {game_id}: {h_err}")
+        try:
+            game = await sync_to_async(Game.objects.select_related('bot').get)(id=game_id)
+            if game.phase in [GamePhase.VOTING, GamePhase.DAY] and game.status not in ['FINISHED', 'CANCELED']:
+                await _advance_to_next_night(game, bot, reason="resolve_hanging_error_fallback")
+        except Exception as fb_err2:
+            logger.error(f"Fallback to next night after resolve_hanging error failed: {fb_err2}")
 
 
 # ---------------------------------------------------------------------------

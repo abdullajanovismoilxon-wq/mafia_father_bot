@@ -17,6 +17,8 @@ from typing import Any, Optional, Dict, List, Set, Tuple
 from aiogram import Router, Bot, F, types
 from aiogram.types import CallbackQuery, Message
 from asgiref.sync import sync_to_async
+from django.db.models import Q
+from django.conf import settings
 from apps.stats.models import PlayerProfile
 from apps.games.models import Game, Player, NightActionType, GamePhase, RoleTeam, Role
 from apps.games.engine.actions import NightActionService, ActionValidationError
@@ -830,9 +832,27 @@ async def advance_night_to_day(game: Game, bot: Bot):
         dawn_wait = await sync_to_async(SettingService.get_bot_timing)(bot_id_str, 'dawn_wait_duration', 15)
         await asyncio.sleep(dawn_wait)
 
+        # Refresh game state after dawn wait
+        game = await sync_to_async(Game.objects.select_related('bot').get)(id=game_id)
+        if game.phase != GamePhase.DAY or game.status in [GamePhase.FINISHED, 'FINISHED', GamePhase.CANCELED, 'CANCELED']:
+            logger.info(f"Game {game_id} is no longer in DAY phase ({game.phase}/{game.status}). Skipping voting transition.")
+            return
 
-        # Advance to VOTING phase
-        await sync_to_async(GameService.advance_phase)(game, GamePhase.VOTING)
+        winner = await sync_to_async(WinConditionService.check_win_condition)(game)
+        if winner:
+            await sync_to_async(GameService.finish_game)(game, winner)
+            await _announce_game_winner(game, winner, bot)
+            return
+
+        # Advance to VOTING phase safely
+        try:
+            await sync_to_async(GameService.advance_phase)(game, GamePhase.VOTING)
+        except Exception as trans_err:
+            logger.warning(f"Advance phase error in game {game_id}: {trans_err}")
+            game.phase = GamePhase.VOTING
+            game.status = GamePhase.VOTING
+            await sync_to_async(game.save)(update_fields=['phase', 'status', 'updated_at'])
+
         game = await sync_to_async(Game.objects.select_related('bot').get)(id=game_id)
 
         voting_duration = await sync_to_async(SettingService.get_bot_timing)(bot_id_str, 'voting_duration', 20)

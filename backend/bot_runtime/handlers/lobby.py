@@ -19,7 +19,7 @@ from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, WebAppInfo
 from aiogram.exceptions import TelegramRetryAfter, TelegramBadRequest, TelegramForbiddenError, TelegramAPIError
 from asgiref.sync import sync_to_async
 from django.utils import timezone
-
+from django.conf import settings
 from django.db.models import Q
 from apps.bots.models import Bot as BotModel
 from apps.games.models import Game, Player, GamePhase, RoleTeam
