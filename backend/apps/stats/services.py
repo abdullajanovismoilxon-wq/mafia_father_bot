@@ -239,8 +239,10 @@ class StatsService:
 
             stats.save()
 
-            # Award game reward coins (10 coins for playing, +20 coins for win)
-            reward_coins = 30 if won else 10
+            # Award game reward coins & diamonds: 50 💶 + 1 💎 for win, 15 💶 for participation
+            reward_coins = 50 if won else 15
+            reward_diamonds = 1 if won else 0
+
             wallet = EconomyService.get_or_create_wallet(
                 user=profile.user,
                 telegram_id=profile.telegram_id
@@ -250,8 +252,16 @@ class StatsService:
                 currency=CurrencyType.COINS,
                 amount=Decimal(reward_coins),
                 tx_type=TransactionType.REWARD,
-                description="Mafia Game Reward"
+                description="Mafia Game Victory Reward" if won else "Mafia Game Participation Reward"
             )
+            if reward_diamonds > 0:
+                EconomyService.credit_wallet(
+                    wallet=wallet,
+                    currency=CurrencyType.DIAMONDS,
+                    amount=Decimal(reward_diamonds),
+                    tx_type=TransactionType.REWARD,
+                    description="Mafia Game Victory Diamond Reward"
+                )
 
         # Check and unlock achievements
         AchievementService.check_and_unlock_achievements(profile)

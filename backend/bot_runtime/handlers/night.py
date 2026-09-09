@@ -893,7 +893,7 @@ async def _announce_game_winner(game: Game, winner: str, bot: Bot, story_lines: 
     lines = ["🏆 <b>O'yin tugadi!</b>\n"]
 
     if winners:
-        lines.append("<b>G'oliblar:</b>")
+        lines.append("<b>G'oliblar (+50 💶, +1 💎):</b>")
         counter = 1
         for p in winners:
             rname = p.role.name if p.role else "CITIZEN"
@@ -904,7 +904,7 @@ async def _announce_game_winner(game: Game, winner: str, bot: Bot, story_lines: 
             counter += 1
 
     if others:
-        lines.append("\n<b>Qolgan o'yinchilar:</b>")
+        lines.append("\n<b>Qolgan o'yinchilar (+15 💶):</b>")
         counter = 1
         for p in others:
             rname = p.role.name if p.role else "CITIZEN"
@@ -913,6 +913,8 @@ async def _announce_game_winner(game: Game, winner: str, bot: Bot, story_lines: 
             mention = f'<a href="tg://user?id={p.telegram_user_id}">{html.escape(p.display_name)}</a>'
             lines.append(f" {counter}. {mention} - {icon} {label}")
             counter += 1
+
+    lines.append("\n🎁 <i>Mukofotlar barcha ishtirokchilar hisobiga o'tkazildi!</i>")
 
     announcement_text = "\n".join(lines)
     await send_dynamic_animation(
@@ -945,9 +947,15 @@ async def _announce_game_winner(game: Game, winner: str, bot: Bot, story_lines: 
             is_winner = (p in winners)
 
             if is_winner:
-                header = "🎉 <b>O'yin yakunlandi! Siz g'alaba qozondingiz!</b> 🥳\n\n"
+                header = (
+                    "🎉 <b>O'yin yakunlandi! Siz g'alaba qozondingiz!</b> 🥳\n"
+                    "🎁 <b>G'alaba mukofoti:</b> <code>+50 💶</code> va <code>+1 💎</code> hisobingizga qo'shildi!\n\n"
+                )
             else:
-                header = "💀 <b>O'yin yakunlandi! Siz mag'lub bo'ldingiz.</b>\n\n"
+                header = (
+                    "💀 <b>O'yin yakunlandi! Siz mag'lub bo'ldingiz.</b>\n"
+                    "🎁 <b>Ishtirok mukofoti:</b> <code>+15 💶</code> hisobingizga qo'shildi!\n\n"
+                )
 
             pm_text = header + prof_text
             kb = build_profile_interactive_keyboard(

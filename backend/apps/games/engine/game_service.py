@@ -536,10 +536,21 @@ class GameService:
         # Record player stats, coin rewards, and achievements
         try:
             from apps.stats.services import StatsService
-            for player in game.players.all():
-                role_code = player.role.code if (player.role and hasattr(player.role, 'code')) else str(player.role or 'CITIZEN')
-                role_team = 'MAFIA' if (player.role and getattr(player.role, 'team', '') == 'MAFIA') else 'CIVILIAN'
-                won = (role_team == winner_team and player.is_alive)
+            for player in game.players.all().select_related('role'):
+                role_code = player.role.code if (player.role and hasattr(player.role, 'code')) else (player.role.name.lower() if player.role else 'citizen')
+                role_team = str(player.role.team) if (player.role and player.role.team) else 'CIVILIAN'
+                team_won = (
+                    role_team == winner_team or
+                    (winner_team in ['CIVILIAN', RoleTeam.CIVILIAN] and role_team in ['CIVILIAN', RoleTeam.CIVILIAN]) or
+                    (winner_team in ['MAFIA', RoleTeam.MAFIA] and role_team in ['MAFIA', RoleTeam.MAFIA]) or
+                    (winner_team in ['ZOMBIE', RoleTeam.ZOMBIE] and role_team in ['ZOMBIE', RoleTeam.ZOMBIE]) or
+                    (winner_team in ['SOLO', RoleTeam.SOLO] and role_team in ['SOLO', RoleTeam.SOLO])
+                )
+                if player.role and player.role.name == 'AXMOQ' and player.is_alive:
+                    team_won = True
+
+                won = (team_won and player.is_alive)
+
                 StatsService.record_game_player_result(
                     telegram_id=player.telegram_user_id,
                     won=won,
@@ -550,7 +561,7 @@ class GameService:
                     first_name=player.display_name or ''
                 )
         except Exception as e:
-            logger.warning(f"Error recording stats for game #{game.id}: {e}")
+            logger.exception(f"Error recording stats and rewards for game #{game.id}: {e}")
 
     @classmethod
     def end_game(cls, game: Game, winner_team: str):

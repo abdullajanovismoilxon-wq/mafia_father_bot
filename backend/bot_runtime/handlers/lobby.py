@@ -11,6 +11,7 @@ import asyncio
 import html
 import random
 from datetime import timedelta
+from typing import Optional, Dict, List, Any, Set, Tuple
 import logging
 from aiogram import Router, types, Bot, F
 from aiogram.filters import Command, CommandStart, CommandObject
@@ -961,6 +962,8 @@ async def handle_lobby_callback(callback: types.CallbackQuery, bot: Bot):
             return
 
         if action == "join":
+            if callback.from_user and game.chat_id:
+                record_group_user(game.chat_id, callback.from_user)
             player, created = await sync_to_async(GameService.join_lobby)(
                 game=game,
                 telegram_user_id=callback.from_user.id,
@@ -1020,38 +1023,78 @@ async def handle_child_feedback_button_click(callback: types.CallbackQuery):
 # Creative Group Member Tagging (@utag / /utag)
 # ---------------------------------------------------------------------------
 ACTIVE_TAG_TASKS: dict = {}
+GROUP_TRACKED_USERS: dict = {}
+
+
+def record_group_user(chat_id: int, user: Optional[types.User]):
+    """Records any real human member seen active in the group."""
+    if not user or user.is_bot or user.id in (777000, 1087968824):
+        return
+    username = user.username or ''
+    if username.lower().endswith('bot'):
+        return
+    chat_dict = GROUP_TRACKED_USERS.setdefault(chat_id, {})
+    display_name = user.full_name or user.first_name or f"Foydalanuvchi {user.id}"
+    chat_dict[user.id] = {
+        'telegram_user_id': user.id,
+        'display_name': display_name,
+        'username': username,
+        'is_bot': False
+    }
+
 
 UTAG_CREATIVE_PHRASES = [
-    "O'yin boshlanishiga soniyalar qoldi. ⌛",
-    "Sukut rekord o'rnatmoqdami? 😂",
-    "Biror kulgili gap aytaymi? 😂",
-    "Aziz Madinani sevadi ❤️",
-    "Ismingizni bilsak bo'ladimi? 😊",
-    "Biror mem esingizga tushdimi? 🤣",
-    "Arvoxladan qorqasmi ? Masalan mendan 😂",
-    "Siz haqingizda ko'proq bilsak bo'ladimi? 🌷",
-    "Xabar kutayotganmidingiz? 📩",
-    "Keling, bugunni esda qolarli qilamiz! 🎉",
-    "Bugun kulmagan odam jarimaga. 😂",
-    "Guruhga ozgina shovqin kerak. 🎉",
-    "Mafiya shahriga xush kelibsiz, o'yinga kiring! 🕵️‍♂️",
-    "Sizsiz guruhda fayz yo'q, bir o'yin o'ynaylik! 🎭",
-    "Qahvangiz sovib qolmasin, o'yin boshlanyapti! ☕",
-    "Don sizni kutmoqda, kechikmang! 🤵",
-    "Bugun kim yutadi deb o'ylaysiz? 🏆",
-    "Guruh ahli yig'ilmoqda, siz qayerdasiz? 👀",
-    "Jimjitlikni buzish vaqti keldi! 💣",
-    "Bir dona qizg'in o'yin o'ynab ko'rmaymizmi? 🎲",
-    "Qani, faol bo'ling, hamma sizni kutyapti! 🔥",
-    "Niqobingizni taqing, shaharga tun tushmoqda! 👺",
-    "Bugun kimdir shahar qahramoni bo'ladi! 🦸",
-    "Salom berib o'yinga qo'shilib ketamiz! 👋",
-    "Komissar allaqachon nishonni qidirmoqda! 🔍",
-    "Keling, kayfiyatni 100% ko'taramiz! 🚀",
-    "Bugun mafiyani birgalikda yengamiz! ⚔️",
-    "Siz ham qatnashasizmi yoki shunchaki kuzatasizmi? 😎",
-    "Shahar aholisiga sizdek jasur o'yinchi kerak! 🛡️",
-    "O'yin qizig'i endi boshlanyapti, qo'shiling! 🎮",
+    # ─── 1. O'ZBEKCHA INSTAGRAM MEMLAR VA VIRAL GAPLAR ────────────────────────
+    "Instagramda reels ko'rib o'tirmasdan bir o'yinga kiring! 🎬😂",
+    "Shunchaki tomoshabin bo'lib turasizmi yoki jangga kirasizmi? 😎",
+    "Meni eshitayotgan bo'lsangiz bitta layk... yo'g'e o'yinga kiring! 🤣",
+    "Bir paytlar bitta odam ham shunaqa jim o'tirgan ekan... 🗿",
+    "Uxlashga hali erta, guruhda jang boshlanyapti! ⚔️🔥",
+    "Admin ko'rmasdan bitta qizg'in o'yin o'ynab olaylik! 🤫",
+    "Lavash sovuq yeyilmaydi, Mafiya kutib turilmaydi! 🌯😋",
+    "Ko'zlaringiz qizarib ketmadimi reel ko'raverib? Keling o'ynaymiz! 👀",
+    "Bugungi kun tartibi: 1. Turish, 2. Mafiyaga kirish, 3. Yutish! 🏆",
+    "Bitta o'yinda o'zingizni ko'rsatib qo'ying-a! 🔥",
+    "Sizsiz guruhda svet o'chib qolgandek jimjitlik bo'lyapti! 💡⚡",
+    "Odam degan ham shuncha passiv bo'ladimi, qani olg'a! 😂",
+    "Tugadi... hamma yig'ildi, faqat bitta siz yetishmayapsiz! ⏳",
+    "Bir dona o'yin, keyin xohlagancha uxlaysiz! 😴",
+    "Shaharda tartibsizlik, siz esa xotirjam choy ichyapsiz! ☕",
+    "Bu yerda sizsiz mafiyani yengib bo'lmayapti, yordam bering! 🕵️‍♂️",
+    "Instagram algoritmi sizni topolmasa ham biz topdik! 📱🎯",
+    "Birovga aytmang, bugun aynan siz g'olib bo'lasiz! 🤫🥇",
+    "Chaqirsak kelmaysiz, o'zingiz boshlamaysiz, qani endi bir ko'raylik! 🤷‍♂️",
+    "Guruhda yangi shov-shuv: siz o'yinga kirarmishsiz! 🚀",
+    "Miyani charxlaymiz, bir dona mafiya o'ynaylik! 🧠💡",
+    "Eski qadrdonlar yig'ilyapti, siz qayerdasiz? 🤝",
+    "Statistikangizni ko'tarish vaqti keldi! 📊✨",
+    "Don sizdan qo'rqyapti, shuning uchun kirmayapsizmi? 🤵👀",
+    "Keling, bugun kim kimligini ko'rsatib qo'yamiz! 🎭",
+    "Aziz Madinani sevadi, siz esa Mafiyani sevasiz! ❤️😂",
+    "Gap egasini topadi, o'yinchi esa o'yinni! 🎯",
+    "Arvohlardan qo'rqasizmi? Masalan mendan! 😂👻",
+    "Guruhga ozgina shovqin va fayz kerak! 🎉🥳",
+    "Kechagina g'olib bo'laman degandingiz, qani amalda ko'rsating! 🥇",
+    "Yana qancha kutaylik? O'yin boshlanyapti! ⏰",
+    "Qani, mafiyalar oviga chiqamiz! 🏹⚔️",
+    "Uyquni chetga suring, hozir o'yin vaqti! ⚡",
+    "Bitta kirib chiqing, o'rganib qolasiz! 😉🎮",
+    "Tinch aholi aynan sizdan umidvor! 🛡️",
+    "Qani, kim mafiya, kim begunoh ekanini aniqlaymiz! 🔎",
+    "Guruhning eng faol o'yinchisi siz bo'lasiz, ishonavering! 🌟",
+    "O'tirishdan foyda yo'q, bitta o'yin kayfiyatni ko'taradi! 🚀",
+    "Sukut saqlash bo'yicha Ginnes rekordini o'rnatmoqchimisiz? 😂",
+    "Telegramdagi eng zo'r o'yinchi shu yerda ekan-ku! 👑",
+    "Telefonni qo'lga oling va o'yinga kiring! 📲",
+    "Shahar xavf ostida, qahramonlik qilish vaqti keldi! 🦸‍♂️",
+    "Sizni kutib sochlarimiz oqarib ketdi-ku! 👴👵",
+    "Keling, ajoyib lahzalarni birga yaratamiz! 🎊",
+    "Bugun omad siz tomonda, tekshirib ko'ring! 🍀",
+    "Kimdir sizni o'yinda ko'rishni juda xohlamoqda! 💌",
+    "Xafa bo'lish yo'q, faqat do'stona jang! 🤝",
+    "O'yinga kirmaganlar jarimaga tortiladi! 🚓👮‍♂️",
+    "Guruh ahli sizni sog'inib qoldi, qayerdasiz? 🤗",
+    "Sizsiz o'yin qizimayapti, tezroq keling! 🔥",
 ]
 
 
@@ -1065,6 +1108,9 @@ UTAG_CREATIVE_PHRASES = [
 async def cmd_stop_utag(message: types.Message, bot: Bot):
     """Cancels ongoing @utag tagging process in the group with @stop or /stop_tag."""
     chat_id = message.chat.id
+    if message.from_user:
+        record_group_user(chat_id, message.from_user)
+
     bot_info = await bot.get_me()
     bot_record = await sync_to_async(
         lambda: BotModel.objects.filter(telegram_username__iexact=bot_info.username).first()
@@ -1091,12 +1137,16 @@ async def handle_utag_mention_or_command(message: types.Message, bot: Bot):
     """
     Handles @utag call in groups:
     Iterates over group members and tags them one-by-one with creative inviting messages.
+    Tags ALL real users: with @username or with direct profile link if without username.
+    Excludes all bots.
     """
     if message.chat.type not in ["group", "supergroup"]:
         return
 
     chat_id = message.chat.id
     user_id = message.from_user.id if message.from_user else 0
+    if message.from_user:
+        record_group_user(chat_id, message.from_user)
 
     bot_info = await bot.get_me()
     bot_record = await sync_to_async(
@@ -1117,34 +1167,45 @@ async def handle_utag_mention_or_command(message: types.Message, bot: Bot):
         if prev_task and not prev_task.done():
             prev_task.cancel()
 
-    bot_info = await bot.get_me()
-
     # 2. Collect distinct group members / active players
     def _collect_group_members():
-        players_qs = Player.objects.filter(game__chat_id=chat_id).values('telegram_user_id', 'display_name', 'username').distinct()
         members_map = {}
+
+        # Historical players in games for this group
+        players_qs = Player.objects.filter(game__chat_id=chat_id).values('telegram_user_id', 'display_name', 'username').distinct()
         for p in players_qs:
             uid = p['telegram_user_id']
-            if uid and uid != bot_info.id and uid != 777000:
+            uname = p['username'] or ''
+            if uid and uid != bot_info.id and uid != 777000 and not uname.lower().endswith('bot'):
                 members_map[uid] = {
                     'telegram_user_id': uid,
-                    'display_name': p['display_name'] or "O'yinchi",
-                    'username': p['username'] or ''
+                    'display_name': p['display_name'] or uname or "O'yinchi",
+                    'username': uname,
+                    'is_bot': False
                 }
+
+        # Tracked in-memory users seen in group
+        if chat_id in GROUP_TRACKED_USERS:
+            for uid, info in GROUP_TRACKED_USERS[chat_id].items():
+                if uid not in members_map and not info.get('is_bot'):
+                    members_map[uid] = info
+
         return members_map
 
     members_dict = await sync_to_async(_collect_group_members)()
 
-    # Also collect admins from Telegram
+    # Also collect administrators from Telegram chat
     try:
         admins = await bot.get_chat_administrators(chat_id=chat_id)
         for a in admins:
-            if not a.user.is_bot and a.user.id != 777000:
-                if a.user.id not in members_dict:
+            if not a.user.is_bot and a.user.id not in (777000, 1087968824, bot_info.id):
+                uname = a.user.username or ''
+                if not uname.lower().endswith('bot'):
                     members_dict[a.user.id] = {
                         'telegram_user_id': a.user.id,
-                        'display_name': a.user.full_name or a.user.first_name,
-                        'username': a.user.username or ''
+                        'display_name': a.user.full_name or a.user.first_name or "Admin",
+                        'username': uname,
+                        'is_bot': False
                     }
     except Exception as e:
         logger.warning(f"Error fetching administrators for @utag: {e}")
@@ -1165,13 +1226,17 @@ async def handle_utag_mention_or_command(message: types.Message, bot: Bot):
             for m in members_list:
                 if chat_id not in ACTIVE_TAG_TASKS:
                     break
+                uid = m.get('telegram_user_id')
+                if not uid or m.get('is_bot') or uid in (bot_info.id, 777000, 1087968824):
+                    continue
+
                 phrase = random.choice(UTAG_CREATIVE_PHRASES)
                 if m.get('username'):
                     tag_str = f"@{m['username']}"
                 else:
                     name_esc = html.escape(m.get('display_name') or "O'yinchi")
-                    tag_str = f'<a href="tg://user?id={m["telegram_user_id"]}">{name_esc}</a>'
-                
+                    tag_str = f'<a href="tg://user?id={uid}">{name_esc}</a>'
+
                 text = f"{tag_str} {phrase}"
                 try:
                     await bot.send_message(chat_id, text, parse_mode="HTML")

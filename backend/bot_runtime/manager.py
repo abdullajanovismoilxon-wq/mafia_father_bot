@@ -67,11 +67,13 @@ class BotRuntimeManager:
                         ]
                         await bot.set_my_commands(pm_commands, scope=BotCommandScopeAllPrivateChats())
 
-                        # 2. Group commands (clean menu with leave, geroyinfo, game commands)
+                        # 2. Group commands (clean menu with leave, geroyinfo, game commands, utag)
                         group_commands = [
                             BotCommand(command="game", description="O'yin yaratish"),
                             BotCommand(command="start_game", description="O'yinni boshlash"),
                             BotCommand(command="leave", description="O'yindan chiqish"),
+                            BotCommand(command="utag", description="Guruh a'zolarini chaqirish"),
+                            BotCommand(command="stop_tag", description="Chaqirishni to'xtatish"),
                             BotCommand(command="geroyinfo", description="Geroy ma'lumotlari"),
                             BotCommand(command="roles", description="Rollar haqida ma'lumot"),
                             BotCommand(command="stop", description="O'yinni to'xtatish"),
@@ -139,7 +141,14 @@ class BotRuntimeManager:
 
             bot = cls._active_bots.pop(str(bot_id), None)
             if bot:
-                await bot.session.close()
+                try:
+                    await bot.delete_webhook(drop_pending_updates=False)
+                except Exception:
+                    pass
+                try:
+                    await bot.session.close()
+                except Exception:
+                    pass
 
             def _mark_offline():
                 BotModel.objects.filter(id=bot_id).update(runtime_status=RuntimeStatus.OFFLINE)
@@ -148,5 +157,5 @@ class BotRuntimeManager:
             logger.info(f"Bot instance {bot_id} stopped.")
             return True
         except Exception as e:
-            logger.exception(f"Failed to stop bot instance {bot_id}: {e}")
+            logger.exception(f"Error stopping bot {bot_id}: {e}")
             return False
