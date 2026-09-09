@@ -368,6 +368,28 @@ async def cmd_create_game_lobby(message: types.Message, bot: Bot):
         bot_record = await sync_to_async(BotModel.objects.first)()
     await sync_group_info(bot, message.chat, bot_record)
 
+    # Check if bot has administrator privileges in the group
+    try:
+        bot_member = await bot.get_chat_member(chat_id=chat_id, user_id=bot_info.id)
+        if bot_member.status not in ['administrator', 'creator']:
+            kb = InlineKeyboardMarkup(inline_keyboard=[
+                [
+                    InlineKeyboardButton(
+                        text="➕ Botga Adminlik berish 👑",
+                        url=f"https://t.me/{bot_info.username}?startgroup=admin"
+                    )
+                ]
+            ])
+            await message.reply(
+                f"⚠️ <b>Diqqat:</b> Guruhda o'yin yaratish, xabarlarni pin qilish va o'yinni boshqarish uchun botga <b>Guruh Administratori</b> huquqini bering! 👑\n\n"
+                f"<i>Adminlik berilgach, qaytadan /game buyrug'ini yuboring.</i>",
+                reply_markup=kb,
+                parse_mode="HTML"
+            )
+            return
+    except Exception as perm_check_err:
+        logger.warning(f"Could not verify bot admin status in {chat_id}: {perm_check_err}")
+
     active_running_game = await sync_to_async(
         lambda: Game.objects.filter(
             chat_id=chat_id,
@@ -1400,5 +1422,57 @@ async def cmd_group_cabinet_info(message: types.Message, bot: Bot):
     ])
 
     await message.reply(text, reply_markup=kb, parse_mode="HTML")
+
+
+@router.my_chat_member()
+async def handle_bot_chat_member_update(event: types.ChatMemberUpdated, bot: Bot):
+    """Triggered whenever bot is added to a group or its administrator status changes."""
+    if event.chat.type not in ["group", "supergroup"]:
+        return
+    try:
+        new_status = event.new_chat_member.status
+        bot_info = await bot.get_me()
+        bot_record = await sync_to_async(
+            lambda: BotModel.objects.filter(
+                Q(telegram_bot_id=bot.id) | Q(telegram_username__iexact=bot_info.username)
+            ).first()
+        )()
+        if bot_record:
+            await sync_group_info(bot, event.chat, bot_record)
+
+        if new_status in ['member', 'restricted']:
+            bot_name = bot_info.first_name or "Mafia Bot"
+            kb = InlineKeyboardMarkup(inline_keyboard=[
+                [
+                    InlineKeyboardButton(
+                        text="➕ Botga Adminlik berish 👑",
+                        url=f"https://t.me/{bot_info.username}?startgroup=admin"
+                    )
+                ]
+            ])
+            await bot.send_message(
+                chat_id=event.chat.id,
+                text=(
+                    f"👋 <b>Assalomu alaykum!</b>\n"
+                    f"Men <b>{html.escape(bot_name)}</b> botiman 🎭\n\n"
+                    f"⚠️ Guruhda o'yinlarni bekamu-ko'st o'tkazishim (o'yin xabarlarini pin qilish, sukut rejimini yoqish va rollarni tarqatish) uchun menga <b>Guruh Administratori</b> huquqlarini bering! 👑\n\n"
+                    f"<i>Admin huquqi berilgach, /game buyrug'ini yuboring.</i>"
+                ),
+                reply_markup=kb,
+                parse_mode="HTML"
+            )
+        elif new_status == 'administrator':
+            await bot.send_message(
+                chat_id=event.chat.id,
+                text=(
+                    f"🎉 <b>Rahmat! Menga administratorlik huquqi berildi.</b>\n\n"
+                    f"Endi bemalol <b>/game</b> buyrug'i orqali qizg'in Mafiya o'yinlarini boshlashingiz mumkin! 🚀\n"
+                    f"<i>Guruh sozlamalari va kabinet: /cabinet</i>"
+                ),
+                parse_mode="HTML"
+            )
+    except Exception as e:
+        logger.debug(f"Error in handle_bot_chat_member_update: {e}")
+
 
 

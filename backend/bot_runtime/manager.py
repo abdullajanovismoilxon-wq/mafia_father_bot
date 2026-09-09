@@ -8,7 +8,7 @@ import asyncio
 from typing import Dict, Optional
 from aiogram import Bot, Dispatcher
 from asgiref.sync import sync_to_async
-from apps.bots.models import Bot as BotModel, RuntimeStatus
+from apps.bots.models import Bot as BotModel, RuntimeStatus, BotStatus
 
 logger = logging.getLogger(__name__)
 
@@ -88,6 +88,7 @@ class BotRuntimeManager:
                         BotModel.objects.filter(id=bot_id).update(
                             telegram_bot_id=bot_info.id,
                             telegram_username=bot_info.username,
+                            status=BotStatus.ACTIVE,
                             runtime_status=RuntimeStatus.RUNNING
                         )
                     await sync_to_async(_update_bot_info)()
@@ -132,7 +133,7 @@ class BotRuntimeManager:
             cls._active_bots[str(bot_id)] = bot
 
             def _mark_running():
-                BotModel.objects.filter(id=bot_id).update(runtime_status=RuntimeStatus.RUNNING)
+                BotModel.objects.filter(id=bot_id).update(status=BotStatus.ACTIVE, runtime_status=RuntimeStatus.RUNNING)
 
             await sync_to_async(_mark_running)()
             return True
@@ -161,7 +162,7 @@ class BotRuntimeManager:
                     pass
 
             def _mark_offline():
-                BotModel.objects.filter(id=bot_id).update(runtime_status=RuntimeStatus.OFFLINE)
+                BotModel.objects.filter(id=bot_id).update(status=BotStatus.PAUSED, runtime_status=RuntimeStatus.OFFLINE)
 
             await sync_to_async(_mark_offline)()
             logger.info(f"Bot instance {bot_id} stopped.")

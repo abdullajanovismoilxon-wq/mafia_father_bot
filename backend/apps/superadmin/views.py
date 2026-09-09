@@ -263,26 +263,29 @@ def bot_toggle_view(request, bot_id):
     bot_obj = get_object_or_404(BotModel, id=bot_id)
     action = request.POST.get('action', 'toggle')
 
-    if action == 'start' or (action == 'toggle' and bot_obj.runtime_status != RuntimeStatus.RUNNING):
+    is_currently_running = (bot_obj.runtime_status == RuntimeStatus.RUNNING and bot_obj.status == BotStatus.ACTIVE)
+
+    if action == 'start' or (action == 'toggle' and not is_currently_running):
         bot_obj.status = BotStatus.ACTIVE
         bot_obj.runtime_status = RuntimeStatus.RUNNING
         bot_obj.save(update_fields=['status', 'runtime_status'])
         try:
             async_to_sync(BotRuntimeManager.start_bot_polling)(str(bot_obj.id))
-            AuditLog.log(action="BOT_ISHLATILDI", actor=request.user.username, target=f"@{bot_obj.telegram_username}", details="Bot yoqildi", ip=request.META.get('REMOTE_ADDR', ''))
-            messages.success(request, f"✅ Bot @{bot_obj.telegram_username} ishga tushirildi!")
-        except Exception as e:
-            messages.warning(request, f"Bot yoqildi: {e}")
+        except Exception:
+            pass
+        AuditLog.log(action="BOT_ISHLATILDI", actor=request.user.username, target=f"@{bot_obj.telegram_username}", details="Bot yoqildi", ip=request.META.get('REMOTE_ADDR', ''))
+        messages.success(request, f"✅ Bot @{bot_obj.telegram_username} ishga tushirildi!")
 
-    elif action == 'stop' or (action == 'toggle' and bot_obj.runtime_status == RuntimeStatus.RUNNING):
+    elif action == 'stop' or (action == 'toggle' and is_currently_running):
+        bot_obj.status = BotStatus.PAUSED
         bot_obj.runtime_status = RuntimeStatus.OFFLINE
-        bot_obj.save(update_fields=['runtime_status'])
+        bot_obj.save(update_fields=['status', 'runtime_status'])
         try:
             async_to_sync(BotRuntimeManager.stop_bot_polling)(str(bot_obj.id))
-            AuditLog.log(action="BOT_TOXTATILDI", actor=request.user.username, target=f"@{bot_obj.telegram_username}", details="Bot to'xtatildi", ip=request.META.get('REMOTE_ADDR', ''))
-            messages.info(request, f"⏸ Bot @{bot_obj.telegram_username} to'xtatildi.")
-        except Exception as e:
-            messages.warning(request, f"Bot to'xtatildi: {e}")
+        except Exception:
+            pass
+        AuditLog.log(action="BOT_TOXTATILDI", actor=request.user.username, target=f"@{bot_obj.telegram_username}", details="Bot to'xtatildi", ip=request.META.get('REMOTE_ADDR', ''))
+        messages.info(request, f"⏸ Bot @{bot_obj.telegram_username} to'xtatildi.")
 
     return redirect('superadmin:bots')
 

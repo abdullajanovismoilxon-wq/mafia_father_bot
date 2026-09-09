@@ -273,46 +273,45 @@ async def send_dynamic_animation(
     reply_markup=None,
     parse_mode: str = "HTML"
 ):
-    """Sends dynamic GIF, image, video, or Telegram file_id from SuperAdmin."""
+    """Sends dynamic GIF, image, video, or Telegram file_id with local disk caching and cross-bot resilience."""
     import os
     import aiohttp
     from aiogram import types
     from django.conf import settings
     from apps.superadmin.services import TextService
-
     from asgiref.sync import sync_to_async
-    # 1. Fetch live value from SuperAdmin BotSystemText database in real time
+
+    # 1. Check local bundled/cached gif file first
+    local_gif_path = os.path.join(settings.BASE_DIR, 'media', 'gifs', f"{media_key}.gif")
+    if not os.path.exists(local_gif_path):
+        alt_key = media_key.replace('gif_', '')
+        alt_path = os.path.join(settings.BASE_DIR, 'media', 'gifs', f"{alt_key}.gif")
+        if os.path.exists(alt_path):
+            local_gif_path = alt_path
+
+    # 2. Fetch live value from SuperAdmin database
     media_val = await sync_to_async(TextService.get_text)(media_key, fallback=fallback_url)
     media_val = media_val.strip() if media_val else ""
     if not media_val and fallback_url:
         media_val = fallback_url.strip()
 
-    if not media_val:
-        try:
-            return await bot.send_message(
-                chat_id=chat_id,
-                text=caption,
-                reply_markup=reply_markup,
-                parse_mode=parse_mode
-            )
-        except Exception:
-            return None
-
-    # Check local uploads
-    local_file = None
-    if '/media/uploads/' in media_val:
+    # If media_val points to an uploaded local file
+    custom_local = None
+    if media_val and '/media/uploads/' in media_val:
         fname = media_val.split('/media/uploads/')[-1].split('?')[0]
         fpath = os.path.join(settings.MEDIA_ROOT, 'uploads', fname)
         if os.path.exists(fpath):
-            local_file = fpath
-    elif os.path.isabs(media_val) and os.path.exists(media_val):
-        local_file = media_val
+            custom_local = fpath
+    elif media_val and os.path.isabs(media_val) and os.path.exists(media_val):
+        custom_local = media_val
 
-    # If it's a local file
-    if local_file:
+    target_local = custom_local or (local_gif_path if os.path.exists(local_gif_path) else None)
+
+    # If we have a verified local file, send it via FSInputFile (instant, 100% reliable)
+    if target_local:
         try:
-            target = types.FSInputFile(local_file)
-            ext = os.path.splitext(local_file)[1].lower()
+            target = types.FSInputFile(target_local)
+            ext = os.path.splitext(target_local)[1].lower()
             if ext in ['.jpg', '.jpeg', '.png', '.webp']:
                 return await bot.send_photo(chat_id=chat_id, photo=target, caption=caption, reply_markup=reply_markup, parse_mode=parse_mode)
             elif ext in ['.mp4', '.mov', '.webm']:
@@ -320,11 +319,26 @@ async def send_dynamic_animation(
             else:
                 return await bot.send_animation(chat_id=chat_id, animation=target, caption=caption, reply_markup=reply_markup, parse_mode=parse_mode)
         except Exception as e:
-            logger.warning(f"Error sending local media file {local_file}: {e}")
+            logger.warning(f"Error sending local media file {target_local}: {e}")
 
-    # If it's a URL or Telegram File ID
-    if media_val.startswith('http://') or media_val.startswith('https://'):
-        # Try sending URL directly first
+    # If it's a URL and we don't have it on disk yet
+    if media_val and (media_val.startswith('http://') or media_val.startswith('https://')):
+        # Try downloading and caching to disk
+        try:
+            headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
+            async with aiohttp.ClientSession(headers=headers) as session:
+                async with session.get(media_val, timeout=aiohttp.ClientTimeout(total=8)) as resp:
+                    if resp.status == 200:
+                        content_bytes = await resp.read()
+                        os.makedirs(os.path.dirname(local_gif_path), exist_ok=True)
+                        with open(local_gif_path, 'wb') as f:
+                            f.write(content_bytes)
+                        target = types.FSInputFile(local_gif_path)
+                        return await bot.send_animation(chat_id=chat_id, animation=target, caption=caption, reply_markup=reply_markup, parse_mode=parse_mode)
+        except Exception as dl_err:
+            logger.warning(f"Download for {media_key} failed: {dl_err}")
+
+        # Try sending URL directly
         try:
             return await bot.send_animation(
                 chat_id=chat_id,
@@ -334,24 +348,9 @@ async def send_dynamic_animation(
                 parse_mode=parse_mode
             )
         except Exception as url_err:
-            logger.info(f"Direct URL send failed for {media_key}, downloading buffer: {url_err}")
-            # If direct URL fails, download buffer and send as BufferedInputFile
-            try:
-                async with aiohttp.ClientSession() as session:
-                    async with session.get(media_val, timeout=aiohttp.ClientTimeout(total=4)) as resp:
-                        if resp.status == 200:
-                            content_bytes = await resp.read()
-                            buffered = types.BufferedInputFile(content_bytes, filename=f"{media_key}.gif")
-                            return await bot.send_animation(
-                                chat_id=chat_id,
-                                animation=buffered,
-                                caption=caption,
-                                reply_markup=reply_markup,
-                                parse_mode=parse_mode
-                            )
-            except Exception as dl_err:
-                logger.warning(f"Buffered download failed for {media_key}: {dl_err}")
-    else:
+            logger.warning(f"Direct URL send failed for {media_key}: {url_err}")
+
+    elif media_val:
         # Telegram File ID
         try:
             return await bot.send_animation(
@@ -364,7 +363,15 @@ async def send_dynamic_animation(
         except Exception as file_id_err:
             logger.warning(f"Send by File ID failed for {media_key}: {file_id_err}")
 
-    # Final fallback
+    # Fallback if local file exists
+    if os.path.exists(local_gif_path):
+        try:
+            target = types.FSInputFile(local_gif_path)
+            return await bot.send_animation(chat_id=chat_id, animation=target, caption=caption, reply_markup=reply_markup, parse_mode=parse_mode)
+        except Exception:
+            pass
+
+    # Final fallback: text message
     try:
         return await bot.send_message(
             chat_id=chat_id,

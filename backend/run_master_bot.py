@@ -89,27 +89,27 @@ async def periodic_game_watchdog(master_bot: Bot):
 async def periodic_bot_sync_task(master_bot: Bot):
     """
     Periodically synchronizes running child bots with the database:
-    1. If a bot is deleted or status changed to PAUSED/SUSPENDED/DELETED/ERROR in admin panel -> stops polling.
-    2. If a bot is created or re-activated in admin panel -> starts polling.
+    1. If a bot is deleted or status changed to PAUSED/SUSPENDED/DELETED/OFFLINE in admin panel -> stops polling.
+    2. If a bot is created or re-activated in admin panel (status=ACTIVE and runtime_status=RUNNING) -> starts polling.
     """
     while True:
         try:
             bot_info = await master_bot.get_me()
             active_db_bots = await sync_to_async(lambda: list(
                 BotModel.objects.exclude(telegram_bot_id=bot_info.id)
-                .filter(status=BotStatus.ACTIVE)
+                .filter(status=BotStatus.ACTIVE, runtime_status=RuntimeStatus.RUNNING)
             ))()
 
             active_db_bot_ids = {str(b.id) for b in active_db_bots}
             running_bot_ids = set(BotRuntimeManager._active_tasks.keys())
 
-            # 1. Stop bots that are no longer active in DB
+            # 1. Stop bots that are no longer active/running in DB
             for running_id in running_bot_ids:
                 if running_id not in active_db_bot_ids:
-                    logger.info(f"🛑 Stopping deactivated/deleted bot {running_id}...")
+                    logger.info(f"🛑 Stopping deactivated/paused bot {running_id}...")
                     await BotRuntimeManager.stop_bot_polling(running_id)
 
-            # 2. Start bots that are active in DB but not running
+            # 2. Start bots that are active and running in DB but not yet polled
             for b in active_db_bots:
                 bid = str(b.id)
                 task = BotRuntimeManager._active_tasks.get(bid)
@@ -120,7 +120,7 @@ async def periodic_bot_sync_task(master_bot: Bot):
         except Exception as e:
             logger.debug(f"Bot sync error: {e}")
 
-        await asyncio.sleep(5)
+        await asyncio.sleep(2)
 
 
 async def main():

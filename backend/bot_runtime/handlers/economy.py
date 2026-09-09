@@ -299,7 +299,7 @@ def _sync_sell_item(telegram_id: int, item_code: str) -> tuple[bool, str]:
 # ---------------------------------------------------------------------------
 
 def format_custom_profile_text(profile: PlayerProfile, stats: PlayerStats, wallet: Wallet, inv_state: dict) -> str:
-    """Formats player profile matching user's exact specification with ∞ for @ismoilo9."""
+    """Formats player profile matching user's exact specification with VIP dollars/diamonds for platform owner."""
     is_owner = (
         profile.telegram_id == 7782387930 or
         profile.telegram_username == 'ismoilo9' or
@@ -309,31 +309,25 @@ def format_custom_profile_text(profile: PlayerProfile, stats: PlayerStats, walle
     if is_owner:
         dollars_str = "∞"
         diamonds_str = "∞"
-        himoya_str = "∞"
-        hujjat_str = "∞"
-        osish_str = "∞"
-        geroy_h_str = "∞"
-        wins_str = "∞"
-        games_str = "∞"
-        active_role_str = "⚡️ Barcha 38 Rol Ochiq (∞)"
     else:
         dollars_str = f"{wallet.coins:,}" if wallet else "0"
         diamonds_str = f"{wallet.diamonds:,}" if wallet else "0"
-        himoya_str = str(inv_state['himoya']['count'])
-        hujjat_str = str(inv_state['hujjat']['count'])
-        osish_str = str(inv_state['osish_himoya']['count'])
-        geroy_h_str = str(inv_state['geroy_himoya']['count'])
-        wins_str = str(stats.games_won if stats else 0)
-        games_str = str(stats.games_played if stats else 0)
-        active_role_str = inv_state.get('active_role') or "Yo'q"
+
+    himoya_str = str(inv_state['himoya']['count'])
+    hujjat_str = str(inv_state['hujjat']['count'])
+    osish_str = str(inv_state['osish_himoya']['count'])
+    geroy_h_str = str(inv_state['geroy_himoya']['count'])
+    wins_str = str(stats.games_won if stats else 0)
+    games_str = str(stats.games_played if stats else 0)
+    active_role_str = inv_state.get('active_role') or "Yo'q"
 
     name = profile.display_name if hasattr(profile, 'display_name') and profile.display_name else (profile.first_name or profile.telegram_username or "O'yinchi")
 
     return (
         f"👤 {name}\n\n"
-        f"💶 Dollar: {dollars_str}\n"
+        f"💵 Dollar: {dollars_str}\n"
         f"💎 Olmos: {diamonds_str}\n\n"
-        f"🛡 Himoya: {himoya_str}\n"
+        f"🛡️ Himoya: {himoya_str}\n"
         f"📁 Hujjat: {hujjat_str}\n"
         f"⚖️ Osishdan himoya: {osish_str}\n"
         f"🔰 Geroydan himoya: {geroy_h_str}\n\n"

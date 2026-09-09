@@ -3,7 +3,7 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from apps.common.permissions import IsOwnerPermission
-from .models import Bot, BotConfiguration, RuntimeStatus
+from .models import Bot, BotConfiguration, RuntimeStatus, BotStatus
 from .serializers import BotSerializer, BotConfigurationSerializer
 
 
@@ -58,16 +58,18 @@ class BotViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated, IsOwnerPermission])
     def start_bot(self, request, pk=None):
-        """Runtime state change simulation endpoint: Start bot."""
+        """Runtime state change endpoint: Start bot."""
         bot = self.get_object()
+        bot.status = BotStatus.ACTIVE
         bot.runtime_status = RuntimeStatus.RUNNING
-        bot.save()
+        bot.save(update_fields=['status', 'runtime_status'])
         return Response({'status': 'Bot started successfully', 'runtime_status': bot.runtime_status})
 
     @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated, IsOwnerPermission])
     def stop_bot(self, request, pk=None):
-        """Runtime state change simulation endpoint: Stop bot."""
+        """Runtime state change endpoint: Stop bot."""
         bot = self.get_object()
+        bot.status = BotStatus.PAUSED
         bot.runtime_status = RuntimeStatus.OFFLINE
-        bot.save()
+        bot.save(update_fields=['status', 'runtime_status'])
         return Response({'status': 'Bot stopped successfully', 'runtime_status': bot.runtime_status})
