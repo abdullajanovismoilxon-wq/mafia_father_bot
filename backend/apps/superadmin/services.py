@@ -2,6 +2,7 @@ import os
 os.environ['DJANGO_ALLOW_ASYNC_UNSAFE'] = 'true'
 import json
 import logging
+import requests
 import urllib.request
 import urllib.parse
 from django.utils import timezone
@@ -701,25 +702,29 @@ class PromoCodeService:
 
 class BroadcastService:
     @classmethod
-    def execute_broadcast(cls, broadcast_id: str):
-        """Dispatches announcement:
-        - ALL_PLAYERS: Sent directly from all active Child Game Bots to players (NOT Master Father Bot).
-        - BOT_OWNERS: Sent from Master Bot Father to bot owners.
+    def execute_broadcast(cls, broadcast_id) -> bool:
         """
+        Processes and sends broadcast message asynchronously.
+        Accepts either broadcast UUID/str or BroadcastMessage model instance.
+        """
+        if isinstance(broadcast_id, BroadcastMessage):
+            broadcast = broadcast_id
+            broadcast_id = str(broadcast.id)
+        else:
+            broadcast = BroadcastMessage.objects.filter(id=broadcast_id).first()
+        if not broadcast:
+            return False
+
+        broadcast.status = 'IN_PROGRESS'
+        broadcast.save(update_fields=['status'])
+
         import os
         import time
         import requests
         from django.conf import settings
         from apps.stats.models import PlayerProfile
         from apps.bots.models import Bot as BotModel, BotCredential
-        from apps.superadmin.models import BroadcastMessage, AuditLog
-
-        broadcast = BroadcastMessage.objects.filter(id=broadcast_id).first()
-        if not broadcast:
-            return
-
-        broadcast.status = 'IN_PROGRESS'
-        broadcast.save(update_fields=['status'])
+        from apps.superadmin.models import AuditLog
 
         reply_markup = None
         if broadcast.button_text and broadcast.button_url:
@@ -733,23 +738,79 @@ class BroadcastService:
         failed = 0
 
         from apps.superadmin.models import UserNotification
+        from apps.bots.models import BotUser, BotGroup
+        from apps.games.models import Player
+        from apps.users.models import User
+        from django.db.models import Q
+
+        def _send_tg(token: str, chat_id: int) -> bool:
+            try:
+                if broadcast.photo_url:
+                    url = f"https://api.telegram.org/bot{token}/sendPhoto"
+                    payload = {'chat_id': chat_id, 'photo': broadcast.photo_url, 'caption': broadcast.content, 'parse_mode': 'HTML'}
+                else:
+                    url = f"https://api.telegram.org/bot{token}/sendMessage"
+                    payload = {'chat_id': chat_id, 'text': broadcast.content, 'parse_mode': 'HTML'}
+                if reply_markup:
+                    payload['reply_markup'] = reply_markup
+                resp = requests.post(url, json=payload, timeout=7)
+                if resp.status_code == 200 and resp.json().get('ok'):
+                    return True
+                # If HTML parsing failed, retry plain text
+                err_desc = str(resp.json().get('description', '')).lower()
+                if 'entity' in err_desc or "can't parse" in err_desc:
+                    if broadcast.photo_url:
+                        payload = {'chat_id': chat_id, 'photo': broadcast.photo_url, 'caption': broadcast.content}
+                    else:
+                        payload = {'chat_id': chat_id, 'text': broadcast.content}
+                    if reply_markup:
+                        payload['reply_markup'] = reply_markup
+                    r2 = requests.post(url, json=payload, timeout=7)
+                    if r2.status_code == 200 and r2.json().get('ok'):
+                        return True
+            except Exception:
+                pass
+            return False
 
         if broadcast.target_audience == 'SPECIFIC_USER':
-            # Target is a Specific User
-            raw_target = str(broadcast.target_user_id).strip().lstrip('@')
-            target_profile = None
-            if raw_target.isdigit():
-                target_profile = PlayerProfile.objects.filter(telegram_id=int(raw_target)).first()
-            if not target_profile:
-                target_profile = PlayerProfile.objects.filter(telegram_username__iexact=raw_target).first()
+            raw_target = str(broadcast.target_user_id).strip()
+            clean_u = raw_target.lstrip('@').strip()
+            tg_id = None
 
-            if target_profile:
-                target_ids = [target_profile.telegram_id]
-            elif raw_target.isdigit():
-                target_ids = [int(raw_target)]
-            else:
-                target_ids = []
+            if clean_u.isdigit():
+                tg_id = int(clean_u)
+            if not tg_id:
+                prof = PlayerProfile.objects.filter(
+                    Q(telegram_username__iexact=clean_u) | Q(telegram_username__iexact=f"@{clean_u}")
+                ).first()
+                if prof:
+                    tg_id = prof.telegram_id
+            if not tg_id:
+                bu = BotUser.objects.filter(
+                    Q(username__iexact=clean_u) | Q(username__iexact=f"@{clean_u}")
+                ).first()
+                if bu:
+                    tg_id = bu.telegram_id
+            if not tg_id:
+                u_obj = User.objects.filter(
+                    Q(username__iexact=clean_u) | Q(username__iexact=f"@{clean_u}")
+                ).first()
+                if u_obj and u_obj.telegram_id:
+                    tg_id = u_obj.telegram_id
+            if not tg_id:
+                pl_obj = Player.objects.filter(
+                    Q(username__iexact=clean_u) | Q(username__iexact=f"@{clean_u}")
+                ).first()
+                if pl_obj and pl_obj.telegram_user_id:
+                    tg_id = pl_obj.telegram_user_id
+            if not tg_id:
+                bg = BotGroup.objects.filter(
+                    Q(owner_username__iexact=clean_u) | Q(owner_username__iexact=f"@{clean_u}")
+                ).first()
+                if bg and bg.owner_telegram_id:
+                    tg_id = bg.owner_telegram_id
 
+            target_ids = [tg_id] if tg_id else []
             broadcast.total_recipients = len(target_ids)
             broadcast.save(update_fields=['total_recipients'])
 
@@ -759,43 +820,66 @@ class BroadcastService:
                 '8741801900:AAHtCUxO2zvG737po1_2mTOEW_hr8lA657g'
             )
 
-            # Collect tokens to try (Master + Child Game bots)
-            tokens_to_try = [master_token]
-            for cred in BotCredential.objects.select_related('bot').all():
+            # Determine tokens to try
+            tokens_to_try = []
+
+            # 1. If a specific bot was chosen by SuperAdmin
+            if broadcast.target_bot:
                 try:
-                    t = cred.get_token()
-                    if t and t not in tokens_to_try:
-                        tokens_to_try.append(t)
+                    cred = getattr(broadcast.target_bot, 'credential', None)
+                    if cred:
+                        t = cred.get_token()
+                        if t:
+                            tokens_to_try.append(t)
                 except Exception:
                     pass
 
-            for tg_id in target_ids:
-                delivered = False
-                for token in tokens_to_try:
+            # 2. If sender_bot_type is MASTER_BOT
+            elif broadcast.sender_bot_type == 'MASTER_BOT':
+                tokens_to_try.append(master_token)
+
+            # 3. If ALL_USER_BOTS or AUTO -> Prioritize user's known bots, then fallback
+            else:
+                # User's known child bots
+                if tg_id:
+                    user_bot_ids = set(BotUser.objects.filter(telegram_id=tg_id, bot__isnull=False).values_list('bot_id', flat=True))
+                    user_bot_ids.update(Player.objects.filter(telegram_user_id=tg_id).values_list('game__bot_id', flat=True))
+                    for b_id in user_bot_ids:
+                        try:
+                            cred = BotCredential.objects.filter(bot_id=b_id).first()
+                            if cred:
+                                t = cred.get_token()
+                                if t and t not in tokens_to_try:
+                                    tokens_to_try.append(t)
+                        except Exception:
+                            pass
+
+                # Append master token & all active child bot tokens as fallback
+                if master_token not in tokens_to_try:
+                    tokens_to_try.append(master_token)
+                for cred in BotCredential.objects.select_related('bot').filter(bot__status='ACTIVE'):
                     try:
-                        if broadcast.photo_url:
-                            url = f"https://api.telegram.org/bot{token}/sendPhoto"
-                            payload = {'chat_id': tg_id, 'photo': broadcast.photo_url, 'caption': broadcast.content, 'parse_mode': 'HTML'}
-                        else:
-                            url = f"https://api.telegram.org/bot{token}/sendMessage"
-                            payload = {'chat_id': tg_id, 'text': broadcast.content, 'parse_mode': 'HTML'}
-                        if reply_markup:
-                            payload['reply_markup'] = reply_markup
-                        resp = requests.post(url, json=payload, timeout=6)
-                        if resp.status_code == 200 and resp.json().get('ok'):
-                            delivered = True
-                            break
+                        t = cred.get_token()
+                        if t and t not in tokens_to_try:
+                            tokens_to_try.append(t)
                     except Exception:
                         pass
+
+            for uid in target_ids:
+                delivered = False
+                for token in tokens_to_try:
+                    if _send_tg(token, uid):
+                        delivered = True
+                        break
 
                 if delivered:
                     success += 1
                 else:
                     failed += 1
 
-                # Create In-App Notification regardless so user sees it in Mini App
+                # In-App Notification
                 UserNotification.objects.create(
-                    telegram_id=tg_id,
+                    telegram_id=uid,
                     title=broadcast.title,
                     message=broadcast.content,
                     notification_type='ADMIN'
@@ -899,3 +983,4 @@ class BroadcastService:
         broadcast.status = 'COMPLETED'
         broadcast.save(update_fields=['sent_success', 'sent_failed', 'status'])
         AuditLog.log(action="BROADCAST_COMPLETED", actor="System", target=broadcast.title, details=f"Muvaffaqiyatli: {success}, Xato: {failed}")
+        return True

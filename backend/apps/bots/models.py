@@ -129,3 +129,27 @@ class BotGroup(BaseEntityModel):
 
     def __str__(self):
         return f"{self.title} ({self.chat_id})"
+
+
+class BotUser(BaseEntityModel):
+    """Tracks users who have started or interacted with specific bots in private chat or groups."""
+    bot = models.ForeignKey(Bot, on_delete=models.CASCADE, related_name='users', null=True, blank=True)
+    telegram_id = models.BigIntegerField(db_index=True)
+    username = models.CharField(max_length=255, blank=True, default='')
+    first_name = models.CharField(max_length=255, blank=True, default='')
+    last_name = models.CharField(max_length=255, blank=True, default='')
+    is_bot_started = models.BooleanField(default=True, help_text="User pressed /start in private chat")
+    last_seen_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-last_seen_at']
+        unique_together = ('bot', 'telegram_id')
+        indexes = [
+            models.Index(fields=['telegram_id', 'is_bot_started']),
+            models.Index(fields=['username']),
+        ]
+
+    def __str__(self):
+        bot_str = self.bot.name if self.bot else "Master Bot"
+        return f"User {self.telegram_id} (@{self.username}) on {bot_str}"
+

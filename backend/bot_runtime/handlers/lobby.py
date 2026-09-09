@@ -1109,7 +1109,7 @@ router.message.outer_middleware(GroupUserTrackingMiddleware())
 
 
 UTAG_CREATIVE_PHRASES = [
-    # ─── 1. O'ZBEKCHA INSTAGRAM MEMLAR VA VIRAL GAPLAR ────────────────────────
+    # ─── 1. O'ZBEKCHA MEMLAR, INSTAGRAM VA VIRAL GAPLAR ────────────────────────
     "Instagramda reels ko'rib o'tirmasdan bir o'yinga kiring! 🎬😂",
     "Shunchaki tomoshabin bo'lib turasizmi yoki jangga kirasizmi? 😎",
     "Meni eshitayotgan bo'lsangiz bitta layk... yo'g'e o'yinga kiring! 🤣",
@@ -1160,6 +1160,77 @@ UTAG_CREATIVE_PHRASES = [
     "O'yinga kirmaganlar jarimaga tortiladi! 🚓👮‍♂️",
     "Guruh ahli sizni sog'inib qoldi, qayerdasiz? 🤗",
     "Sizsiz o'yin qizimayapti, tezroq keling! 🔥",
+    # ─── 2. YANGI KREATIK, HAZILOMUZ VA JANGARI GAPLAR ────────────────────────
+    "Yotvolib kinoteatr qilmang, keling o'yinga kiring! 🍿🎬",
+    "Komissar sizni qidiryapti, guvohlik berishingiz kerak! 🕵️‍♂️📑",
+    "Don sizga salom yo'lladi, o'yinga taklif qilyapti! 🎩🍸",
+    "Shifokor aytdi: Mafiya o'ynash kayfiyatga juda foydali ekan! 🩺💊",
+    "Internet trafigingiz bekorga ketmasin, o'yinga kiring! 📶⚡",
+    "Qani kim Don, kim Komissar? Bugun aniqlaymiz! 🎭⚔️",
+    "Sizni kutib kofe sovib qoldi-ku! ☕🧊",
+    "Siz kirsangiz guruhda bayram bo'lib ketadi! 🎈🥳",
+    "Yashirin qobiliyatlaringizni ishga soladigan vaqt keldi! 🧠💥",
+    "Hamma tayyor, qizil chiziqni bosib o'yinga kiring! 🏁🚗",
+    "Ushbu xabarni o'qiganingiz uchun darhol o'yinga kirishingiz shart! 📜⚖️",
+    "Bugun mafiyalarni bittama-bitta fosh qilamiz! 🔍🔦",
+    "Shahar tinch aholisiga sizdek yetakchi kerak! 🛡️🏰",
+    "Qo'rqmang, mafiyalar faqat tunda chiqadi! 🌃👻",
+    "Sizning mahoratingiz oldida Don ham lol qoladi! 🌟👏",
+    "Pulingiz ko'pmi yoki tajribangiz? O'yinda ko'rsating! 💰🎮",
+    "Tungi ov boshlanmoqda, qurollaringizni shaylang! 🔫🌙",
+    "Bitta g'alaba bilan guruh rekordini yangilang! 🏆🥇",
+    "Maftunkor o'yinchi, sizsiz bu o'yin to'liq bo'lmaydi! ✨🌸",
+    "Ko'p o'ylamang, intuitsiyangizga ishoning va kiring! 🔮🎯",
+    "Sizni butun shahar qutqaruvchi deb bilyapti! 🌆🦸",
+    "Agar kirmasangiz, mafiyalar shaharni egallab oladi! 😱⚠️",
+    "Telegramdagi eng shiddatli jang boshlanmoqda! 💣🔥",
+    "Bitta 'Qo'shilish' tugmasini bosish shunchalik qiyinmi? 😉👆",
+    "Guruhning eng afsonaviy o'yinchisi qani? Ha, bu sizsiz! 👑⚡",
+    "Uxlash foyda bermaydi, Mafiyada g'alaba qozonish kerak! 🛌❌",
+    "Qani do'stlar, bitta qizg'in davra quramiz! 🤝🔥",
+    "Siz kirmasangiz admin xafa bo'lib qoladi! 🥺👉👈",
+    "Bu safar aniq yutasiz, bashoratchilar shunday dedi! 🔮⭐",
+    "Shovqin-suron boshlandi, chetda qolib ketmang! 📣🎉",
+    "Tarixda qoladigan jangni o'tkazib yubormang! 📜⚔️",
+    "Siz uchun maxsus o'rin ajratib qo'yildi! 🪑✨",
+    "Qani bitta ko'rsatib qo'ying qanday o'ynashni! 🚀😎",
+    "Guruhda hamma sizni kutyapti, tezroq! 🏃‍♂️💨",
+    "Sizsiz o'yin xuddi tuzsiz ovqatdek bo'lyapti! 🍲🧂",
+    "Ko'z ochib yumguncha o'yin tugaydi, kiring tez! ⚡⏱️",
+    "Shaharning yangi qahramoni bo'lishga tayyormisiz? 🎖️🌃",
+    "Qo'shiling va guruhning eng kuchlisi kimligini isbotlang! 💪🔝",
+    "Sizning ismingiz allaqachon afsonalarga aylangan! 📖🌟",
+    "Hozir aynan sizning yordamingiz kerak bo'lyapti! 🆘🤝",
+    "Kimdir siz bilan bir jamoada bo'lishni orzu qilyapti! 💭👫",
+    "Zarbalar ketma-ketligi boshlandi, jangga kiring! 🥊⚡",
+    "Tungi sukunatni buzib, g'alaba qozonamiz! 🌌🏆",
+    "Siz o'yinga kirsangiz, raqiblar taslim bo'ladi! 🏳️😂",
+    "Hamma o'yinda, siz nima qilib o'tiribsiz? 🧐📲",
+    "Bugungi reytingda 1-o'ringa chiqish imkoniyati! 📊🥇",
+    "Mafiya olamining eng kutilgan mehmonsiz! 🚪✨",
+    "Qani do'stim, bitta zo'r partiya qilaylik! 🎲🎯",
+    "Guruh ahli sizning donoligingizga muhtoj! 🦉💡",
+    "O'yin start oldi, darhol saflarga qo'shiling! 🚀🛡️",
+    "Siz kelsangiz guruhga fayz kiradi, marhamat! 🌺💐",
+    "Shaharda yangi Don paydo bo'ldi, uni to'xtating! 🎩⚠️",
+    "G'alaba ta'mini birga totib ko'raylik! 🍰🍾",
+    "Telefon ekraniga emas, o'yinga e'tibor bering! 📱👀",
+    "Sizning harakatlaringiz hamma uchun namuna! 🌟🎖️",
+    "Bir marta kiring, afsuslanmaysiz! 💯✨",
+    "Shahar posbonlari safida sizga joy tayyor! 🛡️👮",
+    "Bugungi kechaning eng qizg'in dramasi shu yerda! 🎭🎬",
+    "Tinch aholiga umid bag'ishlang, o'yinga kiring! 🕊️🏙️",
+    "Siz bo'lmasangiz kim bu shaharni qutqaradi? 🤷‍♂️🦸",
+    "Barcha rollar sizni kutmoqda, omadingizni sinang! 🃏🎲",
+    "Yashirin sirlar fosh bo'lish arafasida! 🗝️🔍",
+    "Guruhimizning yulduzi, sahnaga marhamat! 🌟🎤",
+    "Sizsiz qiziq emas, keling birga o'ynaymiz! 🤝🔥",
+    "Bugun sizning kuningiz bo'ladi, ishonamiz! ☀️🎉",
+    "Shiddatli jang boshlanishiga sanoqli soniyalar qoldi! ⏳💣",
+    "Dovruqingiz butun guruhga tarqalsin! 📣🏆",
+    "Do'stlaringiz allaqachon bu yerda, siz qayerdasiz? 👥🏃",
+    "Guruh tarixidagi eng unutilmas o'yinga xush kelibsiz! 🌟🎪",
+    "Olg'a, faqat g'alaba sari! 🚀🏁",
 ]
 
 
@@ -1215,7 +1286,9 @@ async def handle_utag_mention_or_command(message: types.Message, bot: Bot):
 
     bot_info = await bot.get_me()
     bot_record = await sync_to_async(
-        lambda: BotModel.objects.filter(telegram_username__iexact=bot_info.username).first()
+        lambda: BotModel.objects.filter(
+            Q(telegram_bot_id=bot.id) | Q(telegram_username__iexact=bot_info.username)
+        ).first()
     )()
     bot_id_str = str(bot_record.id) if bot_record else ''
 
@@ -1232,16 +1305,16 @@ async def handle_utag_mention_or_command(message: types.Message, bot: Bot):
     if prev_task and not prev_task.done():
         prev_task.cancel()
 
-    # 2. Collect distinct group members / active players
+    # 2. Collect distinct group members / active players from ALL sources
     def _collect_group_members():
         members_map = {}
 
-        # Historical players in games for this group
+        # 1. Historical players in games for this group
         players_qs = Player.objects.filter(game__chat_id=chat_id).values('telegram_user_id', 'display_name', 'username').distinct()
         for p in players_qs:
             uid = p['telegram_user_id']
             uname = p['username'] or ''
-            if uid and uid != bot_info.id and uid != 777000 and not uname.lower().endswith('bot'):
+            if uid and uid != bot_info.id and uid not in (777000, 1087968824) and not uname.lower().endswith('bot'):
                 members_map[uid] = {
                     'telegram_user_id': uid,
                     'display_name': p['display_name'] or uname or "O'yinchi",
@@ -1249,13 +1322,13 @@ async def handle_utag_mention_or_command(message: types.Message, bot: Bot):
                     'is_bot': False
                 }
 
-        # BotGroup owner
-        from apps.bots.models import BotGroup
+        # 2. BotGroup owner
+        from apps.bots.models import BotGroup, BotUser
         bg_qs = BotGroup.objects.filter(chat_id=chat_id).values('owner_telegram_id', 'owner_name', 'owner_username')
         for bg in bg_qs:
             ouid = bg['owner_telegram_id']
             ouname = bg['owner_username'] or ''
-            if ouid and ouid != bot_info.id and ouid != 777000 and not ouname.lower().endswith('bot'):
+            if ouid and ouid != bot_info.id and ouid not in (777000, 1087968824) and not ouname.lower().endswith('bot'):
                 if ouid not in members_map:
                     members_map[ouid] = {
                         'telegram_user_id': ouid,
@@ -1264,11 +1337,58 @@ async def handle_utag_mention_or_command(message: types.Message, bot: Bot):
                         'is_bot': False
                     }
 
-        # Tracked in-memory users seen in group
+        # 3. Tracked in-memory users seen in group
         if chat_id in GROUP_TRACKED_USERS:
             for uid, info in GROUP_TRACKED_USERS[chat_id].items():
-                if uid not in members_map and not info.get('is_bot'):
+                if uid not in members_map and not info.get('is_bot') and uid not in (bot_info.id, 777000, 1087968824):
                     members_map[uid] = info
+
+        # 4. BotUser records for this bot
+        if bot_record:
+            bu_qs = BotUser.objects.filter(bot=bot_record).values('telegram_id', 'first_name', 'last_name', 'username')[:300]
+            for bu in bu_qs:
+                buid = bu['telegram_id']
+                buname = bu['username'] or ''
+                if buid and buid != bot_info.id and buid not in (777000, 1087968824) and not buname.lower().endswith('bot'):
+                    if buid not in members_map:
+                        full_name = f"{bu['first_name'] or ''} {bu['last_name'] or ''}".strip()
+                        members_map[buid] = {
+                            'telegram_user_id': buid,
+                            'display_name': full_name or buname or "O'yinchi",
+                            'username': buname,
+                            'is_bot': False
+                        }
+
+        # 5. Other players on this bot
+        if bot_record:
+            bot_players_qs = Player.objects.filter(game__bot=bot_record).values('telegram_user_id', 'display_name', 'username').distinct()[:200]
+            for bp in bot_players_qs:
+                bpuid = bp['telegram_user_id']
+                bpuname = bp['username'] or ''
+                if bpuid and bpuid != bot_info.id and bpuid not in (777000, 1087968824) and not bpuname.lower().endswith('bot'):
+                    if bpuid not in members_map:
+                        members_map[bpuid] = {
+                            'telegram_user_id': bpuid,
+                            'display_name': bp['display_name'] or bpuname or "O'yinchi",
+                            'username': bpuname,
+                            'is_bot': False
+                        }
+
+        # 6. Active PlayerProfiles if list is small
+        if len(members_map) < 30:
+            from apps.stats.models import PlayerProfile
+            profiles = PlayerProfile.objects.all().order_by('-created_at')[:100]
+            for prof in profiles:
+                puid = prof.telegram_id
+                puname = prof.telegram_username or ''
+                if puid and puid != bot_info.id and puid not in (777000, 1087968824) and not puname.lower().endswith('bot'):
+                    if puid not in members_map:
+                        members_map[puid] = {
+                            'telegram_user_id': puid,
+                            'display_name': prof.full_name or puname or "O'yinchi",
+                            'username': puname,
+                            'is_bot': False
+                        }
 
         return members_map
 

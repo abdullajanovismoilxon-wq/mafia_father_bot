@@ -136,10 +136,45 @@
                                     </select>
                                 </div>
 
-                                <div class="col-md-6" id="specificUserContainer" style="display: none;">
-                                    <label class="form-label text-info small fw-bold"><i class="fa-solid fa-crosshairs me-1"></i> Foydalanuvchi Telegram ID yoki @username</label>
-                                    <input type="text" name="target_user_id" id="targetUserIdInput" class="form-control bg-dark border-info text-white" placeholder="Masalan: 7782387930 yoki @ismoilo9">
-                                    <small class="text-secondary" style="font-size: 11px;">Foydalanuvchining raqamli Telegram ID'si yoki @username'ini kiriting</small>
+                                <div class="col-12" id="specificUserContainer" style="display: none;">
+                                    <div class="p-3 rounded-3" style="background: rgba(59, 130, 246, 0.08); border: 1px solid rgba(59, 130, 246, 0.25);">
+                                        <label class="form-label text-info small fw-bold mb-1"><i class="fa-solid fa-crosshairs me-1"></i> Foydalanuvchi Telegram ID yoki @username</label>
+                                        <div class="input-group mb-2">
+                                            <input type="text" name="target_user_id" id="targetUserIdInput" class="form-control bg-dark border-info text-white" placeholder="Masalan: @ismoilo9 yoki 7782387930" oninput="debounceUserSearch()">
+                                            <button type="button" class="btn btn-info text-dark fw-bold px-3" onclick="searchUserBots()">
+                                                <i class="fa-solid fa-magnifying-glass me-1"></i> Tekshirish
+                                            </button>
+                                        </div>
+                                        
+                                        <!-- Search Result User Card -->
+                                        <div id="userSearchResultCard" class="p-2 rounded-2 mb-2 bg-dark border border-secondary border-opacity-25" style="display: none;">
+                                            <div class="d-flex align-items-center justify-content-between">
+                                                <div class="d-flex align-items-center gap-2">
+                                                    <div class="rounded-circle bg-primary text-white d-flex align-items-center justify-content-center fw-bold" style="width: 32px; height: 32px; font-size: 13px;" id="uCardAvatar">👤</div>
+                                                    <div>
+                                                        <div class="text-white fw-bold small" id="uCardName">Foydalanuvchi Nomi</div>
+                                                        <div class="text-secondary small" id="uCardMeta" style="font-size: 11px;">@username | ID: 12345678</div>
+                                                    </div>
+                                                </div>
+                                                <span class="badge bg-success bg-opacity-25 text-success" id="uCardStatus">✓ Topildi</span>
+                                            </div>
+                                        </div>
+
+                                        <!-- Sender Bot Selector -->
+                                        <div>
+                                            <label class="form-label text-secondary small fw-bold mb-1">
+                                                <i class="fa-brands fa-telegram text-primary me-1"></i> Qaysi bot orqali xabar yuborilsin?
+                                            </label>
+                                            <select name="sender_bot_type" id="senderBotTypeSelect" class="form-select bg-dark border-secondary border-opacity-25 text-white" onchange="onSenderBotTypeChange()">
+                                                <option value="AUTO">🌟 Foydalanuvchi ulangan barcha botlar orqali (Tavsiya etiladi)</option>
+                                                <option value="MASTER_BOT">👑 Master Mafia Father Bot orqali</option>
+                                            </select>
+                                            <input type="hidden" name="target_bot_id" id="targetBotIdInput" value="">
+                                            <small class="text-secondary d-block mt-1" id="senderBotHelpText" style="font-size: 11px;">
+                                                Foydalanuvchi botlardan qaysi biriga <b>/start</b> bosgan bo'lsa, xabar o'sha bot orqali lichkasiga yetkaziladi.
+                                            </small>
+                                        </div>
+                                    </div>
                                 </div>
 
                                 <!-- Ready Templates -->
@@ -418,9 +453,98 @@ function handleAudienceChange() {
         if (sel === 'SPECIFIC_USER') {
             cont.style.display = 'block';
             document.getElementById('targetUserIdInput')?.focus();
+            searchUserBots();
         } else {
             cont.style.display = 'none';
         }
+    }
+}
+
+let userSearchTimer = null;
+function debounceUserSearch() {
+    clearTimeout(userSearchTimer);
+    userSearchTimer = setTimeout(searchUserBots, 400);
+}
+
+async function searchUserBots() {
+    const q = (document.getElementById('targetUserIdInput')?.value || '').trim();
+    const card = document.getElementById('userSearchResultCard');
+    const botSelect = document.getElementById('senderBotTypeSelect');
+    if (!q) {
+        if (card) card.style.display = 'none';
+        return;
+    }
+    try {
+        const res = await fetch(`/superadmin/api/user-bots/?q=${encodeURIComponent(q)}`);
+        const data = await res.json();
+        
+        if (data.ok && data.found && data.user) {
+            if (card) card.style.display = 'block';
+            document.getElementById('uCardName').innerText = data.user.name || "Noma'lum";
+            document.getElementById('uCardMeta').innerText = (data.user.username ? `@${data.user.username} | ` : '') + `ID: ${data.user.id}`;
+            document.getElementById('uCardStatus').className = "badge bg-success bg-opacity-25 text-success";
+            document.getElementById('uCardStatus').innerText = "✓ Topildi";
+
+            let opts = `
+                <option value="AUTO">🌟 Foydalanuvchi ulangan barcha botlar orqali (Tavsiya etiladi)</option>
+                <option value="MASTER_BOT">👑 Master Mafia Father Bot orqali</option>
+            `;
+            if (data.user_bots && data.user_bots.length > 0) {
+                opts += `<optgroup label="✅ Foydalanuvchi start bosgan botlar:">`;
+                data.user_bots.forEach(b => {
+                    opts += `<option value="SPECIFIC_BOT" data-bot-id="${b.id}">🤖 ${b.name} (@${b.username}) [Ulangan]</option>`;
+                });
+                opts += `</optgroup>`;
+            }
+            if (data.all_bots && data.all_bots.length > 0) {
+                opts += `<optgroup label="🌐 Boshqa barcha faol botlar:">`;
+                data.all_bots.forEach(b => {
+                    if (!data.user_bots || !data.user_bots.some(ub => ub.id === b.id)) {
+                        opts += `<option value="SPECIFIC_BOT" data-bot-id="${b.id}">🤖 ${b.name} (@${b.username})</option>`;
+                    }
+                });
+                opts += `</optgroup>`;
+            }
+            if (botSelect) {
+                botSelect.innerHTML = opts;
+                onSenderBotTypeChange();
+            }
+        } else {
+            if (card) card.style.display = 'block';
+            document.getElementById('uCardName').innerText = q;
+            document.getElementById('uCardMeta').innerText = "Foydalanuvchi bazadan topilmadi (to'g'ridan-to'g'ri yuboriladi)";
+            document.getElementById('uCardStatus').className = "badge bg-warning bg-opacity-25 text-warning";
+            document.getElementById('uCardStatus').innerText = "⚠️ Bazada yo'q";
+
+            let opts = `
+                <option value="AUTO">🌟 Barcha faol botlar va Master Bot orqali</option>
+                <option value="MASTER_BOT">👑 Master Mafia Father Bot orqali</option>
+            `;
+            if (data.all_bots && data.all_bots.length > 0) {
+                opts += `<optgroup label="🌐 Aniq bitta botdan tanlash:">`;
+                data.all_bots.forEach(b => {
+                    opts += `<option value="SPECIFIC_BOT" data-bot-id="${b.id}">🤖 ${b.name} (@${b.username})</option>`;
+                });
+                opts += `</optgroup>`;
+            }
+            if (botSelect) {
+                botSelect.innerHTML = opts;
+                onSenderBotTypeChange();
+            }
+        }
+    } catch (e) {
+        console.error("Error searching user bots:", e);
+    }
+}
+
+function onSenderBotTypeChange() {
+    const select = document.getElementById('senderBotTypeSelect');
+    const targetBotInput = document.getElementById('targetBotIdInput');
+    if (!select) return;
+    const selectedOpt = select.options[select.selectedIndex];
+    const botId = selectedOpt ? selectedOpt.getAttribute('data-bot-id') : '';
+    if (targetBotInput) {
+        targetBotInput.value = botId || '';
     }
 }
 
@@ -433,7 +557,10 @@ window.addEventListener('DOMContentLoaded', () => {
             select.value = 'SPECIFIC_USER';
             handleAudienceChange();
             const input = document.getElementById('targetUserIdInput');
-            if (input) input.value = targetUser;
+            if (input) {
+                input.value = targetUser;
+                searchUserBots();
+            }
             const modalEl = document.getElementById('newBroadcastModal');
             if (modalEl && typeof bootstrap !== 'undefined') {
                 const modal = new bootstrap.Modal(modalEl);
@@ -442,6 +569,5 @@ window.addEventListener('DOMContentLoaded', () => {
         }
     }
 });
-
 </script>
 {% endblock %}

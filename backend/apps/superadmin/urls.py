@@ -39,6 +39,7 @@ urlpatterns = [
     path('broadcasts/create/', views.broadcast_create_view, name='broadcast_create'),
     path('broadcasts/<uuid:broadcast_id>/delete/', views.broadcast_delete_view, name='broadcast_delete'),
     path('broadcasts/clear-all/', views.broadcast_clear_all_view, name='broadcast_clear_all'),
+    path('api/user-bots/', views.user_bots_api, name='api_user_bots'),
     path('feedback/', views.feedback_list_view, name='feedback_list'),
     path('feedback/<uuid:feedback_id>/reply/', views.feedback_reply_view, name='feedback_reply'),
     

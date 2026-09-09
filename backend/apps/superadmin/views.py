@@ -4,6 +4,7 @@ import logging
 import threading
 from asgiref.sync import async_to_sync
 from django.shortcuts import render, redirect, get_object_or_404
+from django.http import JsonResponse
 from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.decorators import login_required, user_passes_test
 from django.contrib import messages
@@ -626,16 +627,25 @@ def broadcast_create_view(request):
     photo_url = request.POST.get('photo_url', '').strip()
     button_text = request.POST.get('button_text', '').strip()
     button_url = request.POST.get('button_url', '').strip()
+    sender_bot_type = request.POST.get('sender_bot_type', 'AUTO').strip()
+    target_bot_id = request.POST.get('target_bot_id', '').strip()
 
     if not title or not content:
         messages.error(request, "Sarlavha va xabar matnini kiritish majburiy!")
         return redirect('superadmin:broadcasts')
+
+    target_bot = None
+    if target_bot_id:
+        from apps.bots.models import Bot
+        target_bot = Bot.objects.filter(id=target_bot_id).first()
 
     broadcast = BroadcastMessage.objects.create(
         title=title,
         content=content,
         target_audience=target_audience,
         target_user_id=target_user_id,
+        target_bot=target_bot,
+        sender_bot_type=sender_bot_type,
         photo_url=photo_url,
         button_text=button_text,
         button_url=button_url
@@ -648,6 +658,196 @@ def broadcast_create_view(request):
     AuditLog.log(action="ELON_YUBORILDI", actor=request.user.username, target=target_audience, details=title, ip=request.META.get('REMOTE_ADDR', ''))
     messages.success(request, f"📢 '{title}' sarlavhali e'lon yuborish boshlandi!")
     return redirect('superadmin:broadcasts')
+
+
+@user_passes_test(is_superadmin, login_url='superadmin:login')
+def user_bots_api(request):
+    """
+    Searches for a user by telegram_id or username (with or without @)
+    and returns their profile info along with the list of bots they have interacted with.
+    GET /superadmin/api/user-bots/?q=...
+    """
+    from apps.stats.models import PlayerProfile
+    from apps.bots.models import Bot, BotUser, BotGroup
+    from apps.games.models import Player
+    from apps.users.models import User
+    from django.db.models import Q
+    query = request.GET.get('q', '').strip() or request.GET.get('query', '').strip()
+    
+    # All active platform child bots
+    all_active_bots = [
+        {
+            'id': str(b.id),
+            'name': b.name,
+            'username': b.telegram_username,
+            'is_user_connected': False,
+        }
+        for b in Bot.objects.filter(status='ACTIVE').order_by('name')
+    ]
+
+    if not query:
+        return JsonResponse({'ok': True, 'found': False, 'user': None, 'user_bots': [], 'all_bots': all_active_bots})
+
+    clean_q = query.lstrip('@').strip()
+    tg_id = None
+    user_info = None
+
+    if clean_q.isdigit():
+        tg_id = int(clean_q)
+        profile = PlayerProfile.objects.filter(telegram_id=tg_id).first()
+        if profile:
+            user_info = {
+                'id': profile.telegram_id,
+                'telegram_id': profile.telegram_id,
+                'name': profile.full_name,
+                'username': profile.telegram_username or '',
+                'avatar': profile.avatar_url or '',
+            }
+        else:
+            bu = BotUser.objects.filter(telegram_id=tg_id).first()
+            if bu:
+                user_info = {
+                    'id': bu.telegram_id,
+                    'telegram_id': bu.telegram_id,
+                    'name': f"{bu.first_name} {bu.last_name}".strip() or f"User {bu.telegram_id}",
+                    'username': bu.username or '',
+                    'avatar': '',
+                }
+            else:
+                user_obj = User.objects.filter(telegram_id=tg_id).first()
+                if user_obj:
+                    user_info = {
+                        'id': user_obj.telegram_id,
+                        'telegram_id': user_obj.telegram_id,
+                        'name': user_obj.get_full_name() or user_obj.username,
+                        'username': user_obj.username or '',
+                        'avatar': '',
+                    }
+                else:
+                    user_info = {
+                        'id': tg_id,
+                        'telegram_id': tg_id,
+                        'name': f"Foydalanuvchi {tg_id}",
+                        'username': '',
+                        'avatar': '',
+                    }
+
+    if not user_info:
+        profile = PlayerProfile.objects.filter(
+            Q(telegram_username__iexact=clean_q) | Q(telegram_username__iexact=f"@{clean_q}")
+        ).first()
+        if profile:
+            tg_id = profile.telegram_id
+            user_info = {
+                'id': profile.telegram_id,
+                'telegram_id': profile.telegram_id,
+                'name': profile.full_name,
+                'username': profile.telegram_username or clean_q,
+                'avatar': profile.avatar_url or '',
+            }
+
+    if not user_info:
+        bu = BotUser.objects.filter(
+            Q(username__iexact=clean_q) | Q(username__iexact=f"@{clean_q}")
+        ).first()
+        if bu:
+            tg_id = bu.telegram_id
+            user_info = {
+                'id': bu.telegram_id,
+                'telegram_id': bu.telegram_id,
+                'name': f"{bu.first_name} {bu.last_name}".strip() or clean_q,
+                'username': bu.username or clean_q,
+                'avatar': '',
+            }
+
+    if not user_info:
+        u_obj = User.objects.filter(
+            Q(username__iexact=clean_q) | Q(username__iexact=f"@{clean_q}")
+        ).first()
+        if u_obj and u_obj.telegram_id:
+            tg_id = u_obj.telegram_id
+            user_info = {
+                'id': u_obj.telegram_id,
+                'telegram_id': u_obj.telegram_id,
+                'name': u_obj.get_full_name() or u_obj.username,
+                'username': u_obj.username,
+                'avatar': '',
+            }
+
+    if not user_info:
+        player = Player.objects.filter(
+            Q(username__iexact=clean_q) | Q(username__iexact=f"@{clean_q}")
+        ).first()
+        if player and player.telegram_user_id:
+            tg_id = player.telegram_user_id
+            user_info = {
+                'id': player.telegram_user_id,
+                'telegram_id': player.telegram_user_id,
+                'name': player.display_name or player.username or clean_q,
+                'username': player.username or clean_q,
+                'avatar': '',
+            }
+
+    if not user_info:
+        bg = BotGroup.objects.filter(
+            Q(owner_username__iexact=clean_q) | Q(owner_username__iexact=f"@{clean_q}")
+        ).first()
+        if bg and bg.owner_telegram_id:
+            tg_id = bg.owner_telegram_id
+            user_info = {
+                'id': bg.owner_telegram_id,
+                'telegram_id': bg.owner_telegram_id,
+                'name': bg.owner_name or clean_q,
+                'username': bg.owner_username or clean_q,
+                'avatar': '',
+            }
+
+    user_bots_data = []
+    seen_bot_ids = set()
+
+    if tg_id:
+        # 1. From BotUser
+        for bu in BotUser.objects.filter(telegram_id=tg_id, bot__isnull=False).select_related('bot'):
+            if bu.bot and bu.bot.id not in seen_bot_ids:
+                seen_bot_ids.add(bu.bot.id)
+                user_bots_data.append({
+                    'id': str(bu.bot.id),
+                    'name': bu.bot.name,
+                    'username': bu.bot.telegram_username,
+                    'is_started': bu.is_bot_started,
+                    'last_seen': bu.last_seen_at.strftime('%d.%m.%Y %H:%M') if bu.last_seen_at else '',
+                })
+
+        # 2. From Player game records
+        for p in Player.objects.filter(telegram_user_id=tg_id).select_related('game__bot'):
+            bot_obj = getattr(p.game, 'bot', None)
+            if bot_obj and bot_obj.id not in seen_bot_ids:
+                seen_bot_ids.add(bot_obj.id)
+                user_bots_data.append({
+                    'id': str(bot_obj.id),
+                    'name': bot_obj.name,
+                    'username': bot_obj.telegram_username,
+                    'is_started': True,
+                    'last_seen': '',
+                })
+
+    # All active platform child bots
+    all_active_bots = []
+    for b in Bot.objects.filter(status='ACTIVE').order_by('name'):
+        all_active_bots.append({
+            'id': str(b.id),
+            'name': b.name,
+            'username': b.telegram_username,
+            'is_user_connected': b.id in seen_bot_ids,
+        })
+
+    return JsonResponse({
+        'ok': True,
+        'found': bool(user_info),
+        'user': user_info,
+        'user_bots': user_bots_data,
+        'all_bots': all_active_bots,
+    })
 
 
 @user_passes_test(is_superadmin, login_url='superadmin:login')

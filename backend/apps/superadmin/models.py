@@ -146,6 +146,8 @@ class BroadcastMessage(BaseEntityModel):
     content = models.TextField(help_text="Xabar matni (HTML teglari qo'llab-quvvatlanadi)")
     target_audience = models.CharField(max_length=30, choices=TARGET_CHOICES, default='ALL_PLAYERS')
     target_user_id = models.CharField(max_length=100, blank=True, default='', help_text="Alohida foydalanuvchi Telegram ID yoki @username")
+    target_bot = models.ForeignKey('bots.Bot', on_delete=models.SET_NULL, null=True, blank=True, related_name='broadcasts', help_text="Yuborish uchun tanlangan aniq bot")
+    sender_bot_type = models.CharField(max_length=50, default='AUTO', blank=True, help_text="Yuboruvchi bot turi: AUTO, MASTER_BOT, ALL_USER_BOTS, SPECIFIC_BOT, ALL_ACTIVE_BOTS")
     photo_url = models.URLField(max_length=500, blank=True, default='')
     button_text = models.CharField(max_length=100, blank=True, default='')
     button_url = models.URLField(max_length=500, blank=True, default='')
