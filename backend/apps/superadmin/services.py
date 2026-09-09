@@ -216,18 +216,34 @@ DEFAULT_GAME_SETTINGS = [
     {
         'key': 'victory_reward_coins',
         'group': 'REWARDS',
-        'title': "🎉 G'alaba uchun beriladigan Dollar",
-        'value': '30',
+        'title': "🏆 O'yin g'alabasida beriladigan Dollar mukofoti",
+        'value': '50',
         'unit': '💶 Dollar',
-        'description': "O'yinda g'alaba qozongan har bir o'yinchiga taqdim etiladigan pul."
+        'description': "O'yinda g'alaba qozongan har bir o'yinchiga taqdim etiladigan pul (Standart: 50)."
+    },
+    {
+        'key': 'victory_reward_diamonds',
+        'group': 'REWARDS',
+        'title': "💎 O'yin g'alabasida beriladigan Olmos mukofoti",
+        'value': '0',
+        'unit': '💎 Olmos',
+        'description': "O'yinda g'alaba qozongan o'yinchiga beriladigan olmos (Standart: 0)."
     },
     {
         'key': 'participation_reward_coins',
         'group': 'REWARDS',
-        'title': "🎲 Mag'lubiyat yoki ishtirok uchun Dollar",
-        'value': '0',
+        'title': "🎮 O'yin ishtirokida beriladigan Dollar mukofoti",
+        'value': '15',
         'unit': '💶 Dollar',
-        'description': "Yutqazgan o'yinchiga beriladigan rag'batlantiruvchi pul (default 0)."
+        'description': "Mag'lub bo'lgan yoki ishtirok etgan barcha o'yinchilarga beriladigan pul (Standart: 15)."
+    },
+    {
+        'key': 'participation_reward_diamonds',
+        'group': 'REWARDS',
+        'title': "💎 O'yin ishtirokida beriladigan Olmos mukofoti",
+        'value': '0',
+        'unit': '💎 Olmos',
+        'description': "Ishtirok etgan o'yinchiga beriladigan olmos (Standart: 0)."
     }
 ]
 

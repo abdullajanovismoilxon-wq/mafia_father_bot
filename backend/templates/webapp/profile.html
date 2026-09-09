@@ -2165,12 +2165,21 @@
             <!-- VIEW 2: Authenticated Group Dashboard & Settings -->
             <div id="groupDashboardView" style="display: none;">
                 <!-- Header -->
-                <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px;">
+                <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px;">
                     <div>
                         <h2 id="dashGroupTitle" style="font-size: 17px; font-weight: 800; color: #FFF;">Guruh Nomi</h2>
                         <div id="dashGroupSub" style="font-size: 11px; color: var(--text-muted);">Bot & Chat ID</div>
                     </div>
                     <button onclick="logoutGroupCabinet()" style="background: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.3); color: #F87171; border-radius: 10px; padding: 6px 12px; font-size: 11px; font-weight: 700; cursor: pointer;">Chiqish 🚪</button>
+                </div>
+
+                <!-- 🔑 KABINET LOGIN & PAROL DISPLAY CARD -->
+                <div style="background: rgba(59, 130, 246, 0.08); border: 1px solid rgba(59, 130, 246, 0.25); border-radius: 12px; padding: 10px 14px; margin-bottom: 14px; display: flex; align-items: center; justify-content: space-between;">
+                    <div>
+                        <div style="font-size: 11px; color: var(--text-muted);">🔑 Login: <b id="dashCabinetLogin" style="color: #60A5FA;">-</b></div>
+                        <div style="font-size: 11px; color: var(--text-muted); margin-top: 2px;">🔒 Parol: <b id="dashCabinetPassword" style="color: #34D399;">-</b></div>
+                    </div>
+                    <button onclick="copyCabinetCredentials()" style="background: rgba(59, 130, 246, 0.2); border: 1px solid rgba(59, 130, 246, 0.4); color: #60A5FA; border-radius: 8px; padding: 6px 10px; font-size: 11px; font-weight: 700; cursor: pointer;">Nusxalash 📋</button>
                 </div>
 
                 <!-- 📅 TIMEFRAME FILTERS: Bugun, 1 Oy, 1 Yil -->
@@ -2231,6 +2240,11 @@
                     <!-- Section A: Vaqtlar -->
                     <div style="font-size: 12px; font-weight: 800; color: #A5B4FC; margin-bottom: 8px;">⏳ O'yin Vaqti Sozlamalari:</div>
                     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 14px;">
+                        <div style="grid-column: span 2;">
+                            <label style="font-size: 10px; font-weight: 700; color: #FCD34D;">👥 O'yinchi yig'ish vaqti (daqiqa):</label>
+                            <input type="number" id="setLobbyTimeout" min="1" max="30" class="bet-input" style="font-size: 13px; background: #07090E; border: 1px solid rgba(252, 211, 77, 0.3); border-radius: 10px; padding: 8px 10px; margin-top: 3px; color: #FCD34D;">
+                            <span style="font-size: 9px; color: var(--text-muted);">Guruhda /game dan keyin a'zolar yig'ilish vaqti (1 dan 30 daqiqagacha)</span>
+                        </div>
                         <div>
                             <label style="font-size: 10px; font-weight: 700; color: var(--text-muted);">🌙 Tun (sekund):</label>
                             <input type="number" id="setNightDuration" class="bet-input" style="font-size: 13px; background: #07090E; border: 1px solid var(--border-color); border-radius: 10px; padding: 8px 10px; margin-top: 3px;">
@@ -2750,6 +2764,13 @@
                     allUserGroups = d.groups;
                     renderGroupsSelect(allUserGroups);
                     renderGroupsList(allUserGroups);
+
+                    // Check URL for automatic group opening
+                    const urlParams = new URLSearchParams(window.location.search);
+                    const urlGroupId = urlParams.get('group_id');
+                    if (urlGroupId && !activeGroupCabinet) {
+                        directGroupCabinetLogin(urlGroupId);
+                    }
                 }
             } catch (e) {
                 console.error("Error loading groups:", e);
@@ -2783,13 +2804,15 @@
 
             let html = '';
             groups.forEach(g => {
+                const ownerBadge = g.is_owner ? '<span style="font-size:10px; background:rgba(234,179,8,0.2); color:#FACC15; padding:2px 6px; border-radius:6px; margin-left:4px;">👑 Ega</span>' : '';
+                const btnText = g.is_owner ? 'Tezkor Kirish 🚀' : 'Kirish ➔';
                 html += `
-                    <div class="group-item-card" onclick="selectGroupForLogin('${g.id}', '${g.cabinet_login || ''}')">
+                    <div class="group-item-card" onclick="selectGroupForLogin('${g.id}', '${g.cabinet_login || ''}', ${g.is_owner ? 'true' : 'false'})">
                         <div>
-                            <div style="font-size: 14px; font-weight: 800; color: #FFF; margin-bottom: 2px;">${g.title}</div>
+                            <div style="font-size: 14px; font-weight: 800; color: #FFF; margin-bottom: 2px;">${g.title} ${ownerBadge}</div>
                             <div style="font-size: 11px; color: var(--text-muted);">Bot: ${g.bot_name} | O'yinlar: ${g.total_games}</div>
                         </div>
-                        <div style="font-size: 12px; font-weight: 800; color: #60A5FA; background: rgba(59, 130, 246, 0.15); padding: 4px 10px; border-radius: 8px;">Kirish ➔</div>
+                        <div style="font-size: 12px; font-weight: 800; color: #60A5FA; background: rgba(59, 130, 246, 0.15); padding: 4px 10px; border-radius: 8px;">${btnText}</div>
                     </div>
                 `;
             });
@@ -2809,21 +2832,59 @@
 
         function onGroupSelectChange() {
             const sel = document.getElementById('groupSelectBox');
-            if (!sel) return;
-            // No auto-fill: User must manually type both login and password
+            if (!sel || !sel.value) return;
+            const opt = sel.options[sel.selectedIndex];
+            const login = opt.getAttribute('data-login') || '';
+            const lInp = document.getElementById('groupLoginInput');
+            if (lInp && login) lInp.value = login;
         }
 
-        function selectGroupForLogin(groupId, login) {
+        function selectGroupForLogin(groupId, login, isOwner = false) {
             const sel = document.getElementById('groupSelectBox');
             if (sel) sel.value = groupId;
-            // Focus on login input for manual typing
             const lInp = document.getElementById('groupLoginInput');
-            if (lInp) lInp.focus();
+            if (lInp && login) lInp.value = login;
+
+            if (isOwner) {
+                directGroupCabinetLogin(groupId);
+            } else {
+                const pInp = document.getElementById('groupPasswordInput');
+                if (pInp) pInp.focus();
+            }
+        }
+
+        async function directGroupCabinetLogin(groupId) {
+            triggerHaptic('impact');
+            try {
+                const res = await fetch('/webapp/api/group/login/', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ group_id: groupId, tg_id: currentTgId })
+                });
+                const d = await res.json();
+                if (d.ok && d.group) {
+                    activeGroupCabinet = d.group;
+                    showToast("Kabinetga muvaffaqiyatli kirildi! 🚀", "success");
+                    await loadGroupDashboardData(d.group.id);
+                    document.getElementById('groupListView').style.display = 'none';
+                    document.getElementById('groupDashboardView').style.display = 'block';
+                } else {
+                    showToast(d.error || "Kirishda xatolik yuz berdi!", "error");
+                }
+            } catch (e) {
+                showToast("Server bilan aloqa xatosi", "error");
+            }
         }
 
         async function submitGroupCabinetLogin() {
             const login = (document.getElementById('groupLoginInput').value || '').trim();
             const password = (document.getElementById('groupPasswordInput').value || '').trim();
+            const selVal = document.getElementById('groupSelectBox') ? document.getElementById('groupSelectBox').value : '';
+
+            if (!login && !password && selVal) {
+                await directGroupCabinetLogin(selVal);
+                return;
+            }
 
             if (!login || !password) {
                 showToast("Login va parolni kiriting!", "error");
@@ -2835,7 +2896,7 @@
                 const res = await fetch('/webapp/api/group/login/', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ login: login, password: password })
+                    body: JSON.stringify({ login: login, password: password, group_id: selVal, tg_id: currentTgId })
                 });
                 const d = await res.json();
                 if (d.ok && d.group) {
@@ -2850,6 +2911,17 @@
             } catch (e) {
                 showToast("Server bilan aloqa xatosi", "error");
             }
+        }
+
+        function copyCabinetCredentials() {
+            if (!activeGroupCabinet) return;
+            const log = activeGroupCabinet.cabinet_login || '-';
+            const pass = activeGroupCabinet.cabinet_password || '-';
+            const txt = `Guruh: ${activeGroupCabinet.title}\nLogin: ${log}\nParol: ${pass}`;
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(txt);
+            }
+            showToast("Login va parol nusxalandi! 📋", "success");
         }
 
         let currentCabinetTimeframe = 'today';
@@ -2875,7 +2947,15 @@
             const nickEl = document.getElementById('dashGroupNick');
             if (nickEl) nickEl.innerText = activeGroupCabinet.username || activeGroupCabinet.title || 'guruh';
 
+            if (document.getElementById('dashCabinetLogin')) {
+                document.getElementById('dashCabinetLogin').innerText = activeGroupCabinet.cabinet_login || '-';
+            }
+            if (document.getElementById('dashCabinetPassword')) {
+                document.getElementById('dashCabinetPassword').innerText = activeGroupCabinet.cabinet_password || '-';
+            }
+
             const s = activeGroupCabinet.settings || {};
+            if (document.getElementById('setLobbyTimeout')) document.getElementById('setLobbyTimeout').value = s.lobby_timeout_minutes || 5;
             document.getElementById('setNightDuration').value = s.night_duration || 60;
             document.getElementById('setVotingDuration').value = s.voting_duration || 20;
             document.getElementById('setDawnDuration').value = s.dawn_wait_duration || 15;
@@ -3047,6 +3127,7 @@
         async function saveGroupSettingsAction() {
             if (!activeGroupCabinet) return;
             const settings = {
+                lobby_timeout_minutes: parseInt(document.getElementById('setLobbyTimeout') ? document.getElementById('setLobbyTimeout').value : 5, 10) || 5,
                 night_duration: parseInt(document.getElementById('setNightDuration').value, 10) || 60,
                 voting_duration: parseInt(document.getElementById('setVotingDuration').value, 10) || 20,
                 dawn_wait_duration: parseInt(document.getElementById('setDawnDuration').value, 10) || 15,

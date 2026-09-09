@@ -129,12 +129,13 @@ async def sync_group_info(bot: Bot, chat: types.Chat, bot_record: BotModel):
         except Exception:
             pass
 
+        import secrets
         from apps.bots.models import BotGroup
         from apps.games.models import Game
         
         def _db_save():
             total_games = Game.objects.filter(bot=bot_record, chat_id=chat.id).count()
-            BotGroup.objects.update_or_create(
+            bg, created = BotGroup.objects.get_or_create(
                 bot=bot_record,
                 chat_id=chat.id,
                 defaults={
@@ -145,8 +146,24 @@ async def sync_group_info(bot: Bot, chat: types.Chat, bot_record: BotModel):
                     'owner_username': owner_username,
                     'total_games_played': total_games,
                     'is_active': True,
+                    'cabinet_login': f"guruh_{abs(chat.id)}",
+                    'cabinet_password': f"mafia{secrets.randbelow(900000) + 100000}",
                 }
             )
+            if not created:
+                bg.title = chat.title or bg.title
+                bg.username = chat.username or bg.username
+                if owner_id:
+                    bg.owner_telegram_id = owner_id
+                    bg.owner_name = owner_name or bg.owner_name
+                    bg.owner_username = owner_username or bg.owner_username
+                bg.total_games_played = total_games
+                bg.is_active = True
+                if not bg.cabinet_login:
+                    bg.cabinet_login = f"guruh_{abs(chat.id)}"
+                if not bg.cabinet_password:
+                    bg.cabinet_password = f"mafia{secrets.randbelow(900000) + 100000}"
+                bg.save()
         await sync_to_async(_db_save)()
     except Exception as e:
         logger.debug(f"Error syncing group info: {e}")
@@ -329,7 +346,7 @@ async def cmd_start_private(message: types.Message, command: CommandObject, bot:
     await message.answer(greeting, reply_markup=build_child_start_keyboard(bot_info.username), parse_mode="HTML")
 
 
-@router.message(Command("game", "start_lobby"))
+@router.message(Command("game", "start_lobby", ignore_case=True))
 async def cmd_create_game_lobby(message: types.Message, bot: Bot):
     """Handles /game in group chat."""
     if message.chat.type == "private":
@@ -445,7 +462,7 @@ async def cmd_create_game_lobby(message: types.Message, bot: Bot):
     start_lobby_timer(str(game.id), chat_id, bot, timeout=lobby_timeout_seconds)
 
 
-@router.message(Command("start_game", "go", "boshlash", "start"))
+@router.message(Command("start_game", "go", "boshlash", "start", ignore_case=True))
 async def cmd_start_game(message: types.Message, bot: Bot):
     """Handles /start_game in group chat. Distributes roles for all 38 roles."""
     if message.chat.type == "private":
@@ -495,6 +512,10 @@ async def cmd_start_game(message: types.Message, bot: Bot):
     if game.lobby_message_id:
         try:
             await bot.unpin_chat_message(chat_id=game.chat_id, message_id=game.lobby_message_id)
+        except Exception:
+            pass
+        try:
+            await bot.delete_message(chat_id=game.chat_id, message_id=game.lobby_message_id)
         except Exception:
             pass
 
@@ -753,7 +774,7 @@ async def cmd_start_game(message: types.Message, bot: Bot):
         await message.answer(f"❌ O'yinni boshlashda xatolik yuz berdi.", parse_mode="HTML")
 
 
-@router.message(Command("roles", "rollar", "qoidalar"))
+@router.message(Command("roles", "rollar", "qoidalar", ignore_case=True))
 async def cmd_roles_catalog(message: types.Message, bot: Bot):
     """Handles /roles command opening the Roles Mini App."""
     bot_info = await bot.get_me()
@@ -774,7 +795,7 @@ async def cmd_roles_catalog(message: types.Message, bot: Bot):
     )
 
 
-@router.message(Command("cancel", "stop", "toxtatish", "reset"))
+@router.message(Command("cancel", "stop", "toxtatish", "reset", ignore_case=True))
 async def cmd_stop_game(message: types.Message, bot: Bot):
     """Cancels ongoing or waiting game."""
     if message.chat.type == "private":
@@ -823,7 +844,7 @@ async def cmd_stop_game(message: types.Message, bot: Bot):
     await message.answer("🛑 <b>O'yin to'xtatildi va ro'yxatdan o'tish bekor qilindi.</b>\nYangi o'yin boshlash uchun /game buyrug'ini yuboring.", parse_mode="HTML")
 
 
-@router.message(Command("leave", "chiqish", "tark", "quit"))
+@router.message(Command("leave", "chiqish", "tark", "quit", ignore_case=True))
 async def cmd_leave_game(message: types.Message, bot: Bot):
     """Allows players to leave either a waiting lobby or an active ongoing game."""
     user = message.from_user
@@ -1070,7 +1091,7 @@ UTAG_CREATIVE_PHRASES = [
     "Statistikangizni ko'tarish vaqti keldi! 📊✨",
     "Don sizdan qo'rqyapti, shuning uchun kirmayapsizmi? 🤵👀",
     "Keling, bugun kim kimligini ko'rsatib qo'yamiz! 🎭",
-    "Aziz Madinani sevadi, siz esa Mafiyani sevasiz! ❤️😂",
+    "Ismoil Maftunani sevadi ❤️",
     "Gap egasini topadi, o'yinchi esa o'yinni! 🎯",
     "Arvohlardan qo'rqasizmi? Masalan mendan! 😂👻",
     "Guruhga ozgina shovqin va fayz kerak! 🎉🥳",
@@ -1098,7 +1119,7 @@ UTAG_CREATIVE_PHRASES = [
 ]
 
 
-@router.message(Command("stop_tag", "cancel_tag"))
+@router.message(Command("stop_tag", "cancel_tag", ignore_case=True))
 @router.message(F.text.func(lambda t: bool(t and (
     t.lower().strip() in ['@stop', '@stop_tag', '!stop', '/stop_tag', '/cancel_tag', '!stop_tag', 'stop_tag', '@stop!'] or
     t.lower().startswith('@stop ') or
@@ -1131,7 +1152,7 @@ async def cmd_stop_utag(message: types.Message, bot: Bot):
         await message.answer("ℹ️ Hozirda faol chaqirish (@utag) jarayoni mavjud emas.")
 
 
-@router.message(Command("utag"))
+@router.message(Command("utag", ignore_case=True))
 @router.message(F.text.func(lambda t: bool(t and ('@utag' in t.lower() or t.lower().startswith('/utag') or t.lower().startswith('!utag') or t.lower().strip() == 'utag'))))
 async def handle_utag_mention_or_command(message: types.Message, bot: Bot):
     """
@@ -1250,4 +1271,61 @@ async def handle_utag_mention_or_command(message: types.Message, bot: Bot):
 
     task = asyncio.create_task(_tag_loop())
     ACTIVE_TAG_TASKS[chat_id] = task
+
+
+@router.message(Command("cabinet", "kabinet", "settings", "sozlamalar", ignore_case=True))
+async def cmd_group_cabinet_info(message: types.Message, bot: Bot):
+    """Provides group cabinet login, password, and direct Mini App WebApp link."""
+    if message.chat.type == "private":
+        await message.answer("⚠️ Guruh kabineti ma'lumotlari guruhlar uchun mo'ljallangan. Meni guruhingizga qo'shing va guruhda <code>/cabinet</code> deb yozing.", parse_mode="HTML")
+        return
+
+    chat_id = message.chat.id
+    user_id = message.from_user.id if message.from_user else 0
+    bot_info = await bot.get_me()
+    
+    bot_record = await sync_to_async(
+        lambda: BotModel.objects.filter(
+            Q(telegram_bot_id=bot.id) | Q(telegram_username__iexact=bot_info.username)
+        ).first()
+    )()
+    if not bot_record:
+        bot_record = await sync_to_async(BotModel.objects.first)()
+
+    await sync_group_info(bot, message.chat, bot_record)
+
+    from apps.bots.models import BotGroup
+    group = await sync_to_async(
+        lambda: BotGroup.objects.filter(chat_id=chat_id).first()
+    )()
+
+    if not group:
+        await message.reply("⚠️ Guruh ma'lumotlari topilmadi.")
+        return
+
+    # Check admin permission
+    allowed, err_msg = await check_user_group_permission(bot, chat_id, user_id, required_level='ADMINS')
+    if not allowed:
+        await message.reply("⚠️ Guruh kabineti ma'lumotlarini faqat <b>guruh adminlari yoki guruh egasi</b> ko'rishi mumkin.", parse_mode="HTML")
+        return
+
+    webapp_base = getattr(settings, 'WEBAPP_BASE_URL', '') or 'https://api.bloodymafia.uz'
+    webapp_url = f"{webapp_base}/webapp/profile/?tg_id={user_id}&tab=group&group_id={group.id}"
+
+    text = (
+        f"👥 <b>Guruh Boshqaruv Kabineti</b>\n"
+        f"━━━━━━━━━━━━━━━━━━━\n"
+        f"🏛 <b>Guruh:</b> {html.escape(group.title)}\n"
+        f"🤖 <b>Bot:</b> @{bot_info.username}\n\n"
+        f"🔑 <b>Kabinet Logini:</b> <code>{group.cabinet_login}</code>\n"
+        f"🔒 <b>Kabinet Paroli:</b> <code>{group.cabinet_password}</code>\n\n"
+        f"⚙️ <i>Mini App orqali guruh sozlamalari, o'yinchi yig'ish vaqti, tun va ovoz berish vaqtlari hamda buyruqlar ruxsatini boshqarishingiz mumkin:</i>"
+    )
+
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="📱 Guruh Kabinetiga Kirish 🚀", web_app=WebAppInfo(url=webapp_url))]
+    ])
+
+    await message.reply(text, reply_markup=kb, parse_mode="HTML")
+
 

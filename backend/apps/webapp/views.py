@@ -76,58 +76,41 @@ def _get_user_profile_payload(tg_id: int) -> dict:
         ))
     )
 
-    if is_owner:
-        inv_state = {
-            'himoya': {'count': "∞", 'on': True},
-            'osish_himoya': {'count': "∞", 'on': True},
-            'hujjat': {'count': "∞", 'on': True},
-            'geroy_himoya': {'count': "∞", 'on': True},
-            'sirpanish_himoya': {'count': "∞", 'on': True},
-            'vaksina': {'count': "∞", 'on': True},
-            'dori_himoya': {'count': "∞", 'on': True},
-            'geroy': {'count': "∞", 'on': True},
-        }
-        return {
-            'tg_id': tg_id,
-            'display_name': display_name if display_name != "O'yinchi" else "Ismoil 👑",
-            'money': "VIP (Cheksiz)",
-            'money_raw': 999999999,
-            'diamonds': "VIP (Cheksiz)",
-            'diamonds_raw': 999999999,
-            'total_games': "∞",
-            'total_wins': "∞",
-            'win_rate': "100%",
-            'win_rate_num': 100,
-            'rank_title': "👑 VIP ASOSCHI",
-            'rank_badge': "rank-owner",
-            'avatar_letter': "👑",
-            'clan_name': '👑 VIP Asoschi / Platform Egasi',
-            'inv_state': inv_state,
-            'is_owner': True,
-        }
-
-    money = max(wallet.coins, int(wallet.money)) if wallet else 0
-    diamonds = wallet.diamonds if wallet else 0
     total_games = stats.games_played if stats else 0
     total_wins = stats.games_won if stats else 0
     win_rate_num = round((total_wins / total_games * 100), 1) if total_games > 0 else 0
 
-    min_legend = SettingService.get_int('rank_legend_min_wins', 50)
-    min_pro = SettingService.get_int('rank_pro_min_wins', 20)
-    min_veteran = SettingService.get_int('rank_veteran_min_wins', 5)
-
-    if total_wins >= min_legend:
-        rank_title = "🔥 MAFIYA AFSONASI"
-        rank_badge = "rank-legend"
-    elif total_wins >= min_pro:
-        rank_title = "⚡️ PRO O'YINCHI"
-        rank_badge = "rank-pro"
-    elif total_wins >= min_veteran:
-        rank_title = "🎖 TAJRIBALI JANGCHI"
-        rank_badge = "rank-veteran"
+    if is_owner:
+        money_display = "VIP (Cheksiz)"
+        money_raw = 999999999
+        diamonds_display = "VIP (Cheksiz)"
+        diamonds_raw = 999999999
+        rank_title = "👑 VIP ASOSCHI"
+        rank_badge = "rank-owner"
     else:
-        rank_title = "🌱 YOSH FUQARO"
-        rank_badge = "rank-novice"
+        money = max(wallet.coins, int(wallet.money)) if wallet else 0
+        diamonds = wallet.diamonds if wallet else 0
+        money_display = f"{money:,}".replace(",", " ")
+        money_raw = money
+        diamonds_display = diamonds
+        diamonds_raw = diamonds
+
+        min_legend = SettingService.get_int('rank_legend_min_wins', 50)
+        min_pro = SettingService.get_int('rank_pro_min_wins', 20)
+        min_veteran = SettingService.get_int('rank_veteran_min_wins', 5)
+
+        if total_wins >= min_legend:
+            rank_title = "🔥 MAFIYA AFSONASI"
+            rank_badge = "rank-legend"
+        elif total_wins >= min_pro:
+            rank_title = "⚡️ PRO O'YINCHI"
+            rank_badge = "rank-pro"
+        elif total_wins >= min_veteran:
+            rank_title = "🎖 TAJRIBALI JANGCHI"
+            rank_badge = "rank-veteran"
+        else:
+            rank_title = "🌱 YOSH FUQARO"
+            rank_badge = "rank-novice"
 
     inv_state = {
         'himoya': {'count': 0, 'on': True},
@@ -150,10 +133,11 @@ def _get_user_profile_payload(tg_id: int) -> dict:
 
     return {
         'tg_id': tg_id,
-        'display_name': display_name,
-        'money': f"{money:,}".replace(",", " "),
-        'money_raw': money,
-        'diamonds': diamonds,
+        'display_name': display_name if display_name != "O'yinchi" else ("Ismoil 👑" if is_owner else "O'yinchi"),
+        'money': money_display,
+        'money_raw': money_raw,
+        'diamonds': diamonds_display,
+        'diamonds_raw': diamonds_raw,
         'total_games': total_games,
         'total_wins': total_wins,
         'win_rate': f"{win_rate_num}%",
@@ -161,9 +145,9 @@ def _get_user_profile_payload(tg_id: int) -> dict:
         'rank_title': rank_title,
         'rank_badge': rank_badge,
         'avatar_letter': display_name[0].upper() if display_name else "👤",
-        'clan_name': 'Mavjud emas',
+        'clan_name': '👑 VIP Asoschi' if is_owner else 'Mavjud emas',
         'inv_state': inv_state,
-        'is_owner': False,
+        'is_owner': is_owner,
     }
 
 
@@ -627,6 +611,7 @@ def get_user_groups_api(request):
     except ValueError:
         tg_id = 0
 
+    import secrets
     from apps.bots.models import BotGroup
     from apps.stats.models import PlayerProfile
     from django.db.models import Q
@@ -646,6 +631,17 @@ def get_user_groups_api(request):
 
     groups_data = []
     for g in qs.order_by('-last_active_at')[:50]:
+        need_save = False
+        if not g.cabinet_login:
+            g.cabinet_login = f"guruh_{abs(g.chat_id)}"
+            need_save = True
+        if not g.cabinet_password:
+            g.cabinet_password = f"mafia{secrets.randbelow(900000) + 100000}"
+            need_save = True
+        if need_save:
+            g.save(update_fields=['cabinet_login', 'cabinet_password'])
+
+        is_group_owner = (is_owner or (tg_id and g.owner_telegram_id == tg_id))
         groups_data.append({
             'id': str(g.id),
             'title': g.title,
@@ -654,7 +650,9 @@ def get_user_groups_api(request):
             'owner_name': g.owner_name or 'Guruh Egasi',
             'bot_name': g.bot.name if g.bot else 'Mafia Bot',
             'cabinet_login': g.cabinet_login,
+            'cabinet_password': g.cabinet_password,
             'total_games': g.total_games_played,
+            'is_owner': is_group_owner,
         })
 
     return JsonResponse({'ok': True, 'groups': groups_data})
@@ -663,17 +661,37 @@ def get_user_groups_api(request):
 @csrf_exempt
 @require_POST
 def group_cabinet_login_api(request):
-    """Authenticates a group owner or admin using cabinet_login and cabinet_password."""
+    """Authenticates a group owner or admin using cabinet_login and cabinet_password, or direct 1-click tg_id for owner."""
     try:
         data = json.loads(request.body.decode('utf-8'))
-        login = data.get('login', '').strip()
-        password = data.get('password', '').strip()
-
-        if not login or not password:
-            return JsonResponse({'ok': False, 'error': "Login va parol kiritilmadi."}, status=400)
+        login = str(data.get('login', '')).strip()
+        password = str(data.get('password', '')).strip()
+        group_id = str(data.get('group_id', '')).strip()
+        tg_id_param = data.get('tg_id')
+        try:
+            tg_id = int(tg_id_param) if tg_id_param else 0
+        except ValueError:
+            tg_id = 0
 
         from apps.bots.models import BotGroup
-        group = BotGroup.objects.select_related('bot').filter(cabinet_login__iexact=login, cabinet_password=password).first()
+        from apps.stats.models import PlayerProfile
+
+        group = None
+
+        # 1. 1-Click Direct Owner / Platform Owner Authentication
+        if group_id and tg_id:
+            g_candidate = BotGroup.objects.select_related('bot').filter(id=group_id).first()
+            if g_candidate:
+                profile = PlayerProfile.objects.filter(telegram_id=tg_id).first()
+                is_platform_admin = (tg_id == 7782387930) or (profile and profile.is_platform_owner)
+                if is_platform_admin or (g_candidate.owner_telegram_id == tg_id):
+                    group = g_candidate
+
+        # 2. Login & Password Authentication
+        if not group:
+            if not login or not password:
+                return JsonResponse({'ok': False, 'error': "Login va parol kiritilmadi."}, status=400)
+            group = BotGroup.objects.select_related('bot').filter(cabinet_login__iexact=login, cabinet_password=password).first()
 
         if not group:
             return JsonResponse({'ok': False, 'error': "Login yoki parol noto'g'ri!"}, status=401)
@@ -707,8 +725,10 @@ def group_cabinet_login_api(request):
                 'title': group.title,
                 'username': group.username,
                 'owner_name': group.owner_name or 'Guruh Egasi',
-                'bot_name': group.bot.name,
-                'bot_username': group.bot.telegram_username,
+                'bot_name': group.bot.name if group.bot else 'Mafia Bot',
+                'bot_username': group.bot.telegram_username if group.bot else '',
+                'cabinet_login': group.cabinet_login,
+                'cabinet_password': group.cabinet_password,
                 'settings': defaults
             }
         })
@@ -857,6 +877,7 @@ def group_cabinet_dashboard_api(request):
         'voting_duration': group_settings.get('voting_duration', 20),
         'dawn_wait_duration': group_settings.get('dawn_wait_duration', 15),
         'last_words_duration': group_settings.get('last_words_duration', 50),
+        'lobby_timeout_minutes': group_settings.get('lobby_timeout_minutes', 5),
         'cmd_perm_game': group_settings.get('cmd_perm_game', 'ALL'),
         'cmd_perm_start_game': group_settings.get('cmd_perm_start_game', 'ADMINS'),
         'cmd_perm_stop_game': group_settings.get('cmd_perm_stop_game', 'ADMINS'),

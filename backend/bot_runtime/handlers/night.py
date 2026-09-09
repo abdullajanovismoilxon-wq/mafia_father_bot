@@ -890,10 +890,19 @@ async def _announce_game_winner(game: Game, winner: str, bot: Bot, story_lines: 
         else:
             others.append(p)
 
+    from apps.superadmin.services import SettingService
+    win_coins = await sync_to_async(SettingService.get_int)('victory_reward_coins', await sync_to_async(SettingService.get_int)('reward_win_coins', 50))
+    win_diamonds = await sync_to_async(SettingService.get_int)('victory_reward_diamonds', await sync_to_async(SettingService.get_int)('reward_win_diamonds', 0))
+    part_coins = await sync_to_async(SettingService.get_int)('participation_reward_coins', await sync_to_async(SettingService.get_int)('reward_participation_coins', 15))
+    part_diamonds = await sync_to_async(SettingService.get_int)('participation_reward_diamonds', await sync_to_async(SettingService.get_int)('reward_participation_diamonds', 0))
+
+    win_reward_str = f"+{win_coins} 💶" + (f", +{win_diamonds} 💎" if win_diamonds > 0 else "")
+    part_reward_str = f"+{part_coins} 💶" + (f", +{part_diamonds} 💎" if part_diamonds > 0 else "")
+
     lines = ["🏆 <b>O'yin tugadi!</b>\n"]
 
     if winners:
-        lines.append("<b>G'oliblar (+50 💶, +1 💎):</b>")
+        lines.append(f"<b>G'oliblar ({win_reward_str}):</b>")
         counter = 1
         for p in winners:
             rname = p.role.name if p.role else "CITIZEN"
@@ -904,7 +913,7 @@ async def _announce_game_winner(game: Game, winner: str, bot: Bot, story_lines: 
             counter += 1
 
     if others:
-        lines.append("\n<b>Qolgan o'yinchilar (+15 💶):</b>")
+        lines.append(f"\n<b>Qolgan o'yinchilar ({part_reward_str}):</b>")
         counter = 1
         for p in others:
             rname = p.role.name if p.role else "CITIZEN"
@@ -949,12 +958,12 @@ async def _announce_game_winner(game: Game, winner: str, bot: Bot, story_lines: 
             if is_winner:
                 header = (
                     "🎉 <b>O'yin yakunlandi! Siz g'alaba qozondingiz!</b> 🥳\n"
-                    "🎁 <b>G'alaba mukofoti:</b> <code>+50 💶</code> va <code>+1 💎</code> hisobingizga qo'shildi!\n\n"
+                    f"🎁 <b>G'alaba mukofoti:</b> <code>{win_reward_str}</code> hisobingizga qo'shildi!\n\n"
                 )
             else:
                 header = (
                     "💀 <b>O'yin yakunlandi! Siz mag'lub bo'ldingiz.</b>\n"
-                    "🎁 <b>Ishtirok mukofoti:</b> <code>+15 💶</code> hisobingizga qo'shildi!\n\n"
+                    f"🎁 <b>Ishtirok mukofoti:</b> <code>{part_reward_str}</code> hisobingizga qo'shildi!\n\n"
                 )
 
             pm_text = header + prof_text

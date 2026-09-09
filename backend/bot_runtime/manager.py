@@ -67,13 +67,14 @@ class BotRuntimeManager:
                         ]
                         await bot.set_my_commands(pm_commands, scope=BotCommandScopeAllPrivateChats())
 
-                        # 2. Group commands (clean menu with leave, geroyinfo, game commands, utag)
+                        # 2. Group commands (clean menu with leave, geroyinfo, game commands, utag, cabinet)
                         group_commands = [
                             BotCommand(command="game", description="O'yin yaratish"),
                             BotCommand(command="start_game", description="O'yinni boshlash"),
                             BotCommand(command="leave", description="O'yindan chiqish"),
                             BotCommand(command="utag", description="Guruh a'zolarini chaqirish"),
                             BotCommand(command="stop_tag", description="Chaqirishni to'xtatish"),
+                            BotCommand(command="cabinet", description="Guruh boshqaruv kabineti"),
                             BotCommand(command="geroyinfo", description="Geroy ma'lumotlari"),
                             BotCommand(command="roles", description="Rollar haqida ma'lumot"),
                             BotCommand(command="stop", description="O'yinni to'xtatish"),
@@ -81,6 +82,15 @@ class BotRuntimeManager:
                         await bot.set_my_commands(group_commands, scope=BotCommandScopeAllGroupChats())
                     except Exception as cmd_err:
                         logger.warning(f"Could not set commands for @{bot_info.username}: {cmd_err}")
+
+                    # Sync bot_id and telegram_username to DB
+                    def _update_bot_info():
+                        BotModel.objects.filter(id=bot_id).update(
+                            telegram_bot_id=bot_info.id,
+                            telegram_username=bot_info.username,
+                            runtime_status=RuntimeStatus.RUNNING
+                        )
+                    await sync_to_async(_update_bot_info)()
 
                     # Delete any previous webhook
                     try:

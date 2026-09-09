@@ -239,21 +239,27 @@ class StatsService:
 
             stats.save()
 
-            # Award game reward coins & diamonds: 50 💶 + 1 💎 for win, 15 💶 for participation
-            reward_coins = 50 if won else 15
-            reward_diamonds = 1 if won else 0
+            # Award game reward coins & diamonds dynamically from SuperAdmin SettingService
+            from apps.superadmin.services import SettingService
+            if won:
+                reward_coins = SettingService.get_int('victory_reward_coins', SettingService.get_int('reward_win_coins', 50))
+                reward_diamonds = SettingService.get_int('victory_reward_diamonds', SettingService.get_int('reward_win_diamonds', 0))
+            else:
+                reward_coins = SettingService.get_int('participation_reward_coins', SettingService.get_int('reward_participation_coins', 15))
+                reward_diamonds = SettingService.get_int('participation_reward_diamonds', SettingService.get_int('reward_participation_diamonds', 0))
 
             wallet = EconomyService.get_or_create_wallet(
                 user=profile.user,
                 telegram_id=profile.telegram_id
             )
-            EconomyService.credit_wallet(
-                wallet=wallet,
-                currency=CurrencyType.COINS,
-                amount=Decimal(reward_coins),
-                tx_type=TransactionType.REWARD,
-                description="Mafia Game Victory Reward" if won else "Mafia Game Participation Reward"
-            )
+            if reward_coins > 0:
+                EconomyService.credit_wallet(
+                    wallet=wallet,
+                    currency=CurrencyType.COINS,
+                    amount=Decimal(reward_coins),
+                    tx_type=TransactionType.REWARD,
+                    description="Mafia Game Victory Reward" if won else "Mafia Game Participation Reward"
+                )
             if reward_diamonds > 0:
                 EconomyService.credit_wallet(
                     wallet=wallet,
