@@ -37,7 +37,7 @@ async def cmd_admin_overview(message: types.Message):
         return
 
     active_games = await sync_to_async(
-        lambda: Game.objects.filter(phase__in=[GamePhase.STARTING, GamePhase.NIGHT, GamePhase.DAY, GamePhase.DISCUSSION, GamePhase.VOTING]).count()
+        lambda: Game.objects.filter(phase__in=[GamePhase.STARTING, GamePhase.NIGHT, GamePhase.DAY, GamePhase.DISCUSSION, GamePhase.VOTING, GamePhase.ELIMINATION]).count()
     )()
     total_bots = await sync_to_async(lambda: BotModel.objects.exclude(status='DELETED').count())()
     total_players = await sync_to_async(lambda: PlayerProfile.objects.count())()
@@ -64,7 +64,7 @@ async def cmd_admin_games(message: types.Message):
 
     active_games = await sync_to_async(
         lambda: list(Game.objects.filter(
-            phase__in=[GamePhase.STARTING, GamePhase.NIGHT, GamePhase.DAY, GamePhase.DISCUSSION, GamePhase.VOTING]
+            phase__in=[GamePhase.STARTING, GamePhase.NIGHT, GamePhase.DAY, GamePhase.DISCUSSION, GamePhase.VOTING, GamePhase.ELIMINATION]
         ).select_related('bot').prefetch_related('players')[:10])
     )()
 

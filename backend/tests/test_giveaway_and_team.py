@@ -192,3 +192,52 @@ class TestTeamGameMode(TestCase):
 
         winner = WinConditionService.check_win_condition(game)
         self.assertEqual(winner, 'TEAM_RED')
+
+    def test_team_lobby_and_dawn_formatting(self):
+        from bot_runtime.handlers.lobby import format_lobby_text
+        game = GameService.create_game(
+            bot=self.bot,
+            chat_id=-100987654321,
+            mode="TEAM"
+        )
+        p1, _ = GameService.join_lobby(game, 301, "red_a", "Player Red", team_side="RED")
+        p2, _ = GameService.join_lobby(game, 302, "blue_b", "Player Blue", team_side="BLUE")
+
+        lobby_text = format_lobby_text(game, "Bloody Mafia")
+        self.assertIn("🔴", lobby_text)
+        self.assertIn("🔵", lobby_text)
+        self.assertIn("Player Red", lobby_text)
+        self.assertIn("Player Blue", lobby_text)
+
+        badge_red = _player_team_badge(p1)
+        badge_blue = _player_team_badge(p2)
+        self.assertEqual(badge_red, "🔴 ")
+        self.assertEqual(badge_blue, "🔵 ")
+
+    def test_dead_teammates_win_in_team_mode(self):
+        from apps.stats.models import PlayerStats
+        game = GameService.create_game(
+            bot=self.bot,
+            chat_id=-100987654321,
+            mode="TEAM"
+        )
+        p_red_alive, _ = GameService.join_lobby(game, 401, "r_alive", "Red Alive", team_side="RED")
+        p_red_dead, _ = GameService.join_lobby(game, 402, "r_dead", "Red Dead", team_side="RED")
+        p_blue, _ = GameService.join_lobby(game, 403, "b_dead", "Blue Dead", team_side="BLUE")
+
+        p_red_dead.is_alive = False
+        p_red_dead.save()
+        p_blue.is_alive = False
+        p_blue.save()
+
+        GameService.finish_game(game, "TEAM_RED")
+
+        s_red_alive = PlayerStats.objects.get(player_profile__telegram_id=401)
+        s_red_dead = PlayerStats.objects.get(player_profile__telegram_id=402)
+        s_blue_dead = PlayerStats.objects.get(player_profile__telegram_id=403)
+
+        self.assertEqual(s_red_alive.games_won, 1)
+        self.assertEqual(s_red_dead.games_won, 1)
+        self.assertEqual(s_blue_dead.games_won, 0)
+
+

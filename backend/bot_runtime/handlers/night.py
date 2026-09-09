@@ -36,6 +36,7 @@ from bot_runtime.keyboards.inline import (
     build_joker_boxes_setup_keyboard,
     build_joker_guess_keyboard,
     build_vaksina_prompt_keyboard,
+    _player_team_badge,
     _short,
 )
 
@@ -741,7 +742,7 @@ async def advance_night_to_day(game: Game, bot: Bot):
         _register_ids(game_id, living_players)
 
         living_lines = "\n".join([
-            f'• <a href="tg://user?id={p.telegram_user_id}">{html.escape(p.display_name)}</a>'
+            f'• {_player_team_badge(p)}<a href="tg://user?id={p.telegram_user_id}">{html.escape(p.display_name)}</a>'
             for p in living_players
         ])
 
@@ -934,6 +935,11 @@ async def _announce_game_winner(game: Game, winner: str, bot: Bot, story_lines: 
             p_side = p.metadata.get('team_side') if p.metadata else None
             won_side = 'RED' if winner == 'TEAM_RED' else ('BLUE' if winner == 'TEAM_BLUE' else None)
             team_won = (p_side == won_side) if won_side else False
+            # In TEAM mode, ALL members of the winning team win (even if eliminated/dead)!
+            if team_won:
+                winners.append(p)
+            else:
+                others.append(p)
         else:
             team = p.role.team if p.role else RoleTeam.CIVILIAN
             team_won = (team == winner or
@@ -944,11 +950,11 @@ async def _announce_game_winner(game: Game, winner: str, bot: Bot, story_lines: 
             if p.role and p.role.name == 'AXMOQ' and p.is_alive:
                 team_won = True
 
-        # Only ALIVE players of winning faction win! Dead players do NOT win.
-        if team_won and p.is_alive:
-            winners.append(p)
-        else:
-            others.append(p)
+            # In Classic mode, only ALIVE players of winning faction win! Dead players do NOT win.
+            if team_won and p.is_alive:
+                winners.append(p)
+            else:
+                others.append(p)
 
     from apps.superadmin.services import SettingService
     from bot_runtime.keyboards.inline import _player_team_badge

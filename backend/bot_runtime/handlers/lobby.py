@@ -329,6 +329,18 @@ async def cmd_start_private(message: types.Message, command: CommandObject, bot:
                 await message.answer("⚠️ Bu o'yinga ro'yxatdan o'tish yakunlangan.")
                 return
 
+            if getattr(game, 'mode', 'CLASSIC') == 'TEAM' and not team_side:
+                await message.answer(
+                    "⚠️ <b>Bu o'yin jamoaviy (/team) rejimida!</b>\n\n"
+                    "Iltimos, guruhga qaytib 🔴 <b>Qizil jamoa</b> yoki 🔵 <b>Ko'k jamoa</b> tugmasini bosing.",
+                    reply_markup=build_back_to_group_keyboard(chat_id=game.chat_id),
+                    parse_mode="HTML"
+                )
+                return
+
+            if getattr(game, 'mode', 'CLASSIC') == 'CLASSIC':
+                team_side = None
+
             player, created = await sync_to_async(GameService.join_lobby)(
                 game=game,
                 telegram_user_id=message.from_user.id,
@@ -443,15 +455,22 @@ async def _handle_create_lobby(message: types.Message, bot: Bot, mode: str = "CL
     active_running_game = await sync_to_async(
         lambda: Game.objects.filter(
             chat_id=chat_id,
-            phase__in=[GamePhase.STARTING, GamePhase.NIGHT, GamePhase.DAY, GamePhase.VOTING]
+            phase__in=[
+                GamePhase.STARTING,
+                GamePhase.NIGHT,
+                GamePhase.DAY,
+                GamePhase.DISCUSSION,
+                GamePhase.VOTING,
+                GamePhase.ELIMINATION
+            ]
         ).order_by('-created_at').first()
     )()
 
     if active_running_game:
         now = timezone.now()
         is_stale = (
-            (active_running_game.updated_at < now - timedelta(minutes=10)) or
-            (active_running_game.created_at < now - timedelta(minutes=20))
+            (active_running_game.updated_at < now - timedelta(hours=3)) and
+            (active_running_game.created_at < now - timedelta(hours=3))
         )
         if is_stale:
             active_running_game.phase = GamePhase.CANCELED
@@ -459,7 +478,7 @@ async def _handle_create_lobby(message: types.Message, bot: Bot, mode: str = "CL
             logger.info(f"Auto-cancelled stale running game {active_running_game.id} in chat {chat_id}")
         else:
             cancel_kb = InlineKeyboardMarkup(inline_keyboard=[
-                [InlineKeyboardButton(text="🛑 O'yinni to'xtatish va yangi ochish", callback_data=f"lobby:force_cancel:{active_running_game.id}")]
+                [InlineKeyboardButton(text="🛑 O'yinni to'xtatish", callback_data=f"lobby:force_cancel:{active_running_game.id}")]
             ])
             await message.answer(
                 "⚠️ <b>Ushbu guruhda o'yin allaqachon davom etmoqda!</b>\n\n"
@@ -481,12 +500,28 @@ async def _handle_create_lobby(message: types.Message, bot: Bot, mode: str = "CL
 
     now = timezone.now()
 
-    # Check if there is already a WAITING lobby in this chat - ALWAYS PRESERVE PLAYERS!
+    # Check if there is already a WAITING lobby in this chat
     active_waiting_game = await sync_to_async(
         lambda: Game.objects.filter(chat_id=chat_id, phase=GamePhase.WAITING).order_by('-created_at').first()
     )()
 
     if active_waiting_game:
+        current_mode = getattr(active_waiting_game, 'mode', 'CLASSIC') or 'CLASSIC'
+        players_count = await sync_to_async(lambda: active_waiting_game.players.count())()
+
+        # If there are already joined players and the requested mode is different, do NOT mix lobbies!
+        if players_count > 0 and current_mode != mode:
+            mode_names = {'CLASSIC': "Oddiy o'yin (/game)", 'TEAM': "Jamoaviy o'yin (/team)"}
+            curr_str = mode_names.get(current_mode, current_mode)
+            req_str = mode_names.get(mode, mode)
+            await message.answer(
+                f"⚠️ <b>Guruhda allaqachon {curr_str} uchun ro'yxatdan o'tish ochilgan!</b>\n"
+                f"👥 <b>Qo'shilgan o'yinchilar soni:</b> {players_count} ta\n\n"
+                f"Rejimni {req_str}ga o'zgartirish uchun avval ro'yxatdan o'tishni bekor qiling (/cancel) yoki o'yinni boshlang (/start_game).",
+                parse_mode="HTML"
+            )
+            return
+
         game = active_waiting_game
         game.mode = mode
         game.phase_ends_at = now + timedelta(seconds=lobby_timeout_seconds)
@@ -576,7 +611,7 @@ async def cmd_start_game(message: types.Message, bot: Bot):
         ongoing_game = await sync_to_async(
             lambda: Game.objects.filter(
                 chat_id=chat_id,
-                phase__in=[GamePhase.NIGHT, GamePhase.DAY, GamePhase.VOTING]
+                phase__in=[GamePhase.STARTING, GamePhase.NIGHT, GamePhase.DAY, GamePhase.DISCUSSION, GamePhase.VOTING, GamePhase.ELIMINATION]
             ).order_by('-created_at').first()
         )()
         if ongoing_game:
@@ -751,7 +786,8 @@ async def cmd_start_game(message: types.Message, bot: Bot):
                 for mp, mr in mafia_members:
                     m_icon = role_icon(mr.name)
                     m_label = role_label(mr.name)
-                    team_lines.append(f"<b>{html.escape(mp.display_name)}</b> - {m_icon} <b>{m_label}</b>")
+                    m_badge = _player_team_badge(mp)
+                    team_lines.append(f"<b>{m_badge}{html.escape(mp.display_name)}</b> - {m_icon} <b>{m_label}</b>")
                 team_msg = "<b>Sheriklaringizni eslab qoling!</b>\n\n" + "\n".join(team_lines)
                 try:
                     await bot.send_message(
@@ -931,7 +967,7 @@ async def cmd_stop_game(message: types.Message, bot: Bot):
     active_game = await sync_to_async(
         lambda: Game.objects.filter(
             chat_id=chat_id,
-            phase__in=[GamePhase.WAITING, GamePhase.STARTING, GamePhase.NIGHT, GamePhase.DAY, GamePhase.VOTING]
+            phase__in=[GamePhase.WAITING, GamePhase.STARTING, GamePhase.NIGHT, GamePhase.DAY, GamePhase.DISCUSSION, GamePhase.VOTING, GamePhase.ELIMINATION]
         ).order_by('-created_at').first()
     )()
 
@@ -980,14 +1016,14 @@ async def cmd_leave_game(message: types.Message, bot: Bot):
         game = await sync_to_async(
             lambda: Game.objects.filter(
                 chat_id=chat_id,
-                phase__in=[GamePhase.WAITING, GamePhase.STARTING, GamePhase.NIGHT, GamePhase.DAY, GamePhase.VOTING]
+                phase__in=[GamePhase.WAITING, GamePhase.STARTING, GamePhase.NIGHT, GamePhase.DAY, GamePhase.DISCUSSION, GamePhase.VOTING, GamePhase.ELIMINATION]
             ).order_by('-created_at').first()
         )()
     else:
         player_record = await sync_to_async(
             lambda: Player.objects.filter(
                 telegram_user_id=user.id,
-                game__phase__in=[GamePhase.WAITING, GamePhase.STARTING, GamePhase.NIGHT, GamePhase.DAY, GamePhase.VOTING]
+                game__phase__in=[GamePhase.WAITING, GamePhase.STARTING, GamePhase.NIGHT, GamePhase.DAY, GamePhase.DISCUSSION, GamePhase.VOTING, GamePhase.ELIMINATION]
             ).select_related('game').order_by('-game__created_at').first()
         )()
         game = player_record.game if player_record else None

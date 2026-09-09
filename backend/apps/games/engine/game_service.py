@@ -546,17 +546,22 @@ class GameService:
             for player in game.players.all().select_related('role'):
                 role_code = player.role.code if (player.role and hasattr(player.role, 'code')) else (player.role.name.lower() if player.role else 'citizen')
                 role_team = str(player.role.team) if (player.role and player.role.team) else 'CIVILIAN'
-                team_won = (
-                    role_team == winner_team or
-                    (winner_team in ['CIVILIAN', RoleTeam.CIVILIAN] and role_team in ['CIVILIAN', RoleTeam.CIVILIAN]) or
-                    (winner_team in ['MAFIA', RoleTeam.MAFIA] and role_team in ['MAFIA', RoleTeam.MAFIA]) or
-                    (winner_team in ['ZOMBIE', RoleTeam.ZOMBIE] and role_team in ['ZOMBIE', RoleTeam.ZOMBIE]) or
-                    (winner_team in ['SOLO', RoleTeam.SOLO] and role_team in ['SOLO', RoleTeam.SOLO])
-                )
-                if player.role and player.role.name == 'AXMOQ' and player.is_alive:
-                    team_won = True
+                if getattr(game, 'mode', 'CLASSIC') == 'TEAM':
+                    p_side = player.metadata.get('team_side') if player.metadata else None
+                    won_side = 'RED' if winner_team == 'TEAM_RED' else ('BLUE' if winner_team == 'TEAM_BLUE' else None)
+                    won = (p_side == won_side) if won_side else False
+                else:
+                    team_won = (
+                        role_team == winner_team or
+                        (winner_team in ['CIVILIAN', RoleTeam.CIVILIAN] and role_team in ['CIVILIAN', RoleTeam.CIVILIAN]) or
+                        (winner_team in ['MAFIA', RoleTeam.MAFIA] and role_team in ['MAFIA', RoleTeam.MAFIA]) or
+                        (winner_team in ['ZOMBIE', RoleTeam.ZOMBIE] and role_team in ['ZOMBIE', RoleTeam.ZOMBIE]) or
+                        (winner_team in ['SOLO', RoleTeam.SOLO] and role_team in ['SOLO', RoleTeam.SOLO])
+                    )
+                    if player.role and player.role.name == 'AXMOQ' and player.is_alive:
+                        team_won = True
 
-                won = (team_won and player.is_alive)
+                    won = (team_won and player.is_alive)
 
                 StatsService.record_game_player_result(
                     telegram_id=player.telegram_user_id,
