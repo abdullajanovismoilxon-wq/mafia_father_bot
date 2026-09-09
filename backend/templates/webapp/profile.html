@@ -2788,7 +2788,7 @@
 
             let html = '<option value="">Guruhni tanlang...</option>';
             groups.forEach(g => {
-                html += `<option value="${g.id}" data-login="${g.cabinet_login || ''}">${g.title} (${g.bot_name})</option>`;
+                html += `<option value="${g.id}" data-login="${g.cabinet_login || ''}">${g.title}</option>`;
             });
             sel.innerHTML = html;
         }
@@ -2810,7 +2810,7 @@
                     <div class="group-item-card" onclick="selectGroupForLogin('${g.id}', '${g.cabinet_login || ''}', ${g.is_owner ? 'true' : 'false'})">
                         <div>
                             <div style="font-size: 14px; font-weight: 800; color: #FFF; margin-bottom: 2px;">${g.title} ${ownerBadge}</div>
-                            <div style="font-size: 11px; color: var(--text-muted);">Bot: ${g.bot_name} | O'yinlar: ${g.total_games}</div>
+                            <div style="font-size: 11px; color: var(--text-muted);">Jami o'yinlar: ${g.total_games}</div>
                         </div>
                         <div style="font-size: 12px; font-weight: 800; color: #60A5FA; background: rgba(59, 130, 246, 0.15); padding: 4px 10px; border-radius: 8px;">${btnText}</div>
                     </div>

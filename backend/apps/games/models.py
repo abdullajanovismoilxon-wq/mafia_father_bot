@@ -406,6 +406,7 @@ class Player(BaseEntityModel):
     display_name = models.CharField(max_length=255, blank=True, default='')
     role = models.ForeignKey(Role, on_delete=models.SET_NULL, null=True, blank=True, related_name='players')
     is_alive = models.BooleanField(default=True, db_index=True)
+    health = models.PositiveIntegerField(default=100, help_text="Player health percentage")
     is_ready = models.BooleanField(default=False)
     eliminated_at = models.DateTimeField(null=True, blank=True)
     eliminated_reason = models.CharField(max_length=50, blank=True, default='')
@@ -416,7 +417,16 @@ class Player(BaseEntityModel):
         ordering = ['created_at']
 
     def __str__(self):
-        return f"Player {self.display_name or self.username} ({'Alive' if self.is_alive else 'Dead'}) in Game #{self.game_id}"
+        return f"Player {self.display_name or self.username} ({'Alive' if self.is_alive else 'Dead'}, {self.health}% HP) in Game #{self.game_id}"
+
+    @property
+    def max_health(self) -> int:
+        """Base 100% HP + bonus HP from Hero's max_defense."""
+        from apps.economy.models import PlayerHero
+        hero = PlayerHero.objects.filter(telegram_id=self.telegram_user_id, is_active=True).first()
+        bonus = hero.max_defense if hero else 0
+        return 100 + bonus
+
 
 
 # ---------------------------------------------------------------------------

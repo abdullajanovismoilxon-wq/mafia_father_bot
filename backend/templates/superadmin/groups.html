@@ -27,7 +27,7 @@
             <thead>
                 <tr>
                     <th>Guruh Nomi & ID</th>
-                    <th>Xizmat Ko'rsatuvchi Bot</th>
+                    <th>Faol Bot</th>
                     <th>Guruh Egasi (Creator)</th>
                     <th>🔑 Mini App Login & Parol</th>
                     <th>O'ynalgan O'yinlar</th>
@@ -49,10 +49,14 @@
                         {% endif %}
                     </td>
                     <td>
-                        <div class="fw-bold text-white">{{ item.bot.name }}</div>
-                        <a href="https://t.me/{{ item.bot.telegram_username }}" target="_blank" class="text-info text-decoration-none small">
-                            <i class="fa-brands fa-telegram me-1"></i>@{{ item.bot.telegram_username }}
-                        </a>
+                        {% if item.bot %}
+                            <div class="fw-bold text-white small">{{ item.bot.name }}</div>
+                            <a href="https://t.me/{{ item.bot.telegram_username }}" target="_blank" class="text-info text-decoration-none small">
+                                <i class="fa-brands fa-telegram me-1"></i>@{{ item.bot.telegram_username }}
+                            </a>
+                        {% else %}
+                            <span class="text-secondary small">—</span>
+                        {% endif %}
                     </td>
                     <td>
                         {% if item.owner_name or item.owner_telegram_id %}

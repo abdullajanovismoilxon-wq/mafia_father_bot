@@ -584,8 +584,9 @@ class HeroService:
             name=clean_name,
             level=1,
             score=0,
-            charges=10,
-            is_active=True
+            charges=20,
+            is_active=True,
+            current_defense=0
         )
         return True, f"🎉 <b>{clean_name}</b> nomli Geroy muvaffaqiyatli yaratildi!", hero
 
@@ -598,7 +599,7 @@ class HeroService:
 
         from apps.superadmin.services import SettingService
         recharge_amount = SettingService.get_int('hero_recharge_amount', 1)
-        max_charges = SettingService.get_int('hero_max_charges', 10)
+        max_charges = SettingService.get_int('hero_max_charges', 100)
 
         if hero.charges >= max_charges:
             return False, f"⚠️ Geroyingiz zaryadi allaqachon to'liq ({hero.charges}/{max_charges})!", hero.charges
@@ -686,23 +687,138 @@ class HeroService:
     @classmethod
     def format_hero_card_text(cls, hero: PlayerHero, geroy_himoya_count: int = 0) -> str:
         """Formats rich hero statistics text matching the exact specification."""
+        if hero.level >= 10:
+            next_lvl_str = "MAX (Cheksiz kuch! 🔥)"
+            power_str = "100-100 (100% Halokatli)"
+        else:
+            next_lvl_str = f"{hero.level + 1} => {hero.next_level_score} ball"
+            power_str = f"{hero.power_min}-{hero.power_max} oralig'ida"
+
         return (
             f"🥷 <b>Geroy:</b> {hero.name}\n"
             f"👤 <b>Kim uchun:</b> {hero.owner_name}\n\n"
             f"⭐ <b>Daraja:</b> {hero.level}\n"
-            f"👊 <b>Kuch:</b> {hero.power_min}-{hero.power_max} oralig'ida\n"
+            f"👊 <b>Kuch:</b> {power_str}\n"
             f"🖤 <b>Himoya:</b> {hero.current_defense}\n"
             f"❤️ <b>Max himoya:</b> {hero.max_defense}\n"
             f"🩸 <b>Zaryad miqdori:</b> {hero.charges}\n"
             f"☑️ <b>Jami ballari:</b> {hero.score} ball\n"
             f"🔰 <b>Geroydan himoya:</b> {geroy_himoya_count}\n\n"
-            f"⬆️ <b>Keyingi daraja</b> = {hero.level + 1} => {hero.next_level_score} ball"
+            f"⬆️ <b>Keyingi daraja</b> = {next_lvl_str}"
         )
 
     @classmethod
     def format_no_hero_text(cls, owner_name: str) -> str:
-        """Formats message when player has no hero matching screenshot 2."""
+        """Formats message when player has no hero matching specification."""
         return f"🥷 <i>{owner_name}</i> da Geroy mavjud emas!"
+
+    @classmethod
+    def execute_hero_strike(cls, game, shooter_player, target_player) -> dict:
+        """
+        Executes an in-game Hero strike during daytime/dawn.
+        - Allowed ONLY when shooter_player role is DON or KOMISSAR (or DETECTIVE).
+        - Consumes 1 charge from shooter's PlayerHero.
+        - Calculates strike damage % based on Hero level (Level 1: 50-60%, Level 10: 100% instant kill).
+        - Defense check:
+          * 🔰 Geroydan himoya (item code 'geroy_himoya' in target's inventory): consumes 1 item, blocks the strike completely!
+        - Damage:
+          Target loses damage% from HP. If remaining HP <= 0 or hero.level >= 10:
+            Target dies (is_alive=False).
+            Shooter Hero gains +150 score and checks level up (+10 🖤 Himoya).
+        """
+        import random
+        from django.utils import timezone
+        from apps.economy.models import Inventory
+
+        # 1. Role validation
+        role_code = shooter_player.role.code.lower() if (shooter_player.role and hasattr(shooter_player.role, 'code')) else ''
+        role_name = (shooter_player.role.name or '').upper() if shooter_player.role else ''
+        if role_code not in ['don', 'komissar', 'detective'] and role_name not in ['DON', 'KOMISSAR', 'DETECTIVE']:
+            return {'ok': False, 'error': "🥷 Geroy faqatkina o'yindagi rolingiz <b>Don</b> yoki <b>Komissar</b> bo'lsagina ishlatiladi!"}
+
+        # 2. Hero & charges validation
+        hero = cls.get_hero(shooter_player.telegram_user_id)
+        if not hero or not hero.is_active:
+            return {'ok': False, 'error': "Sizda faol Geroy mavjud emas!"}
+
+        if hero.charges <= 0:
+            return {'ok': False, 'error': "🩸 Geroyingizning zaryadi tugagan (0 ta zaryad)!\nLichkada /myhero orqali zaryadlang."}
+
+        # 3. Living status validation
+        if not shooter_player.is_alive:
+            return {'ok': False, 'error': "Siz allaqachon o'yindan chiqqansiz!"}
+        if not target_player.is_alive:
+            return {'ok': False, 'error': "Nishon o'yinda mavjud emas yoki allaqachon o'lgan!"}
+        if shooter_player.id == target_player.id:
+            return {'ok': False, 'error': "O'zingizga zarba bera olmaysiz!"}
+
+        # 4. Consume 1 charge
+        hero.charges -= 1
+        hero.save(update_fields=['charges'])
+
+        # 5. Calculate damage percentage
+        if hero.level >= 10:
+            dmg_percent = 100
+        else:
+            dmg_percent = random.randint(hero.power_min, hero.power_max)
+
+        # 6. Check target 🔰 Geroydan himoya (item)
+        inv = Inventory.objects.filter(
+            telegram_id=target_player.telegram_user_id,
+            item__code='geroy_himoya',
+            is_active=True,
+            quantity__gt=0
+        ).first()
+        if inv:
+            inv.quantity -= 1
+            if inv.quantity <= 0:
+                inv.is_active = False
+            inv.save(update_fields=['quantity', 'is_active'])
+            return {
+                'ok': True,
+                'blocked': True,
+                'block_type': 'geroy_himoya',
+                'damage': dmg_percent,
+                'killed': False,
+                'leveled_up': False,
+                'hero': hero,
+                'shooter': shooter_player,
+                'target': target_player,
+                'charges_left': hero.charges,
+            }
+
+        # 7. Apply damage to target's health
+        current_hp = target_player.health
+        new_hp = max(0, current_hp - dmg_percent)
+        target_player.health = new_hp
+
+        leveled_up = False
+        killed = (new_hp <= 0) or (hero.level >= 10)
+
+        if killed:
+            target_player.health = 0
+            target_player.is_alive = False
+            target_player.eliminated_reason = 'hero_strike'
+            target_player.eliminated_at = timezone.now()
+            target_player.save(update_fields=['health', 'is_alive', 'eliminated_reason', 'eliminated_at'])
+            leveled_up = hero.add_kill_score(150)
+        else:
+            target_player.save(update_fields=['health'])
+
+        return {
+            'ok': True,
+            'blocked': False,
+            'damage': dmg_percent,
+            'killed': killed,
+            'leveled_up': leveled_up,
+            'new_level': hero.level,
+            'remaining_hp': target_player.health,
+            'hero': hero,
+            'shooter': shooter_player,
+            'target': target_player,
+            'charges_left': hero.charges,
+        }
+
 
 
 class CasinoService:

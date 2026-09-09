@@ -76,11 +76,10 @@ def _get_user_profile_payload(tg_id: int) -> dict:
         ))
     )
 
-    total_games = stats.games_played if stats else 0
-    total_wins = stats.games_won if stats else 0
-    win_rate_num = round((total_wins / total_games * 100), 1) if total_games > 0 else 0
-
     if is_owner:
+        total_games = 0
+        total_wins = 0
+        win_rate_num = 0.0
         money_display = "VIP (Cheksiz)"
         money_raw = 999999999
         diamonds_display = "VIP (Cheksiz)"
@@ -88,6 +87,9 @@ def _get_user_profile_payload(tg_id: int) -> dict:
         rank_title = "👑 VIP ASOSCHI"
         rank_badge = "rank-owner"
     else:
+        total_games = stats.games_played if stats else 0
+        total_wins = stats.games_won if stats else 0
+        win_rate_num = round((total_wins / total_games * 100), 1) if total_games > 0 else 0
         money = max(wallet.coins, int(wallet.money)) if wallet else 0
         diamonds = wallet.diamonds if wallet else 0
         money_display = f"{money:,}".replace(",", " ")
@@ -123,7 +125,7 @@ def _get_user_profile_payload(tg_id: int) -> dict:
         'geroy': {'count': 0, 'on': True},
     }
 
-    if tg_id:
+    if tg_id and not is_owner:
         inv_records = Inventory.objects.filter(telegram_id=tg_id).select_related('item')
         for inv in inv_records:
             code = inv.item.code if inv.item else ''
@@ -149,6 +151,7 @@ def _get_user_profile_payload(tg_id: int) -> dict:
         'inv_state': inv_state,
         'is_owner': is_owner,
     }
+
 
 
 def _get_all_roles_payload() -> list:
@@ -267,8 +270,9 @@ def profile_webapp_view(request):
         'bot_username': 'MafiasFather_bot',
         'active_tab': request.GET.get('tab', 'profile'),
         'prices': _get_shop_prices_payload(),
-        'hero': HeroService.get_hero(tg_id) if tg_id else None,
+        'hero': (None if user_data.get('is_owner') else (HeroService.get_hero(tg_id) if tg_id else None)),
     }
+
     return render(request, 'webapp/profile.html', context)
 
 
@@ -630,7 +634,12 @@ def get_user_groups_api(request):
         qs = qs.filter(Q(title__icontains=query) | Q(username__icontains=query) | Q(cabinet_login__icontains=query))
 
     groups_data = []
+    seen_chat_ids = set()
     for g in qs.order_by('-last_active_at')[:50]:
+        if g.chat_id in seen_chat_ids:
+            continue
+        seen_chat_ids.add(g.chat_id)
+
         need_save = False
         if not g.cabinet_login:
             g.cabinet_login = f"guruh_{abs(g.chat_id)}"
@@ -648,7 +657,7 @@ def get_user_groups_api(request):
             'chat_id': g.chat_id,
             'username': g.username,
             'owner_name': g.owner_name or 'Guruh Egasi',
-            'bot_name': g.bot.name if g.bot else 'Mafia Bot',
+            'bot_name': g.bot.name if g.bot else '',
             'cabinet_login': g.cabinet_login,
             'cabinet_password': g.cabinet_password,
             'total_games': g.total_games_played,
@@ -957,9 +966,23 @@ def hero_info_api(request):
     except ValueError:
         tg_id = 0
 
+    profile = PlayerProfile.objects.filter(telegram_id=tg_id).first()
+    is_owner = (
+        tg_id == 7782387930 or
+        (profile and (
+            profile.telegram_username == 'ismoilo9' or
+            profile.is_platform_owner or
+            (profile.user and profile.user.username == 'Ismoil')
+        ))
+    )
+    if is_owner:
+        return JsonResponse({'ok': True, 'has_hero': False})
+
     hero = HeroService.get_hero(tg_id)
+
     if not hero:
         return JsonResponse({'ok': True, 'has_hero': False})
+
 
     inv = Inventory.objects.filter(telegram_id=tg_id, item__code='geroy_himoya', is_active=True).first()
     def_count = inv.quantity if inv else 0

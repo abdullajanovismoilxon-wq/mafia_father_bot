@@ -104,9 +104,9 @@ class BotConfiguration(BaseEntityModel):
 
 
 class BotGroup(BaseEntityModel):
-    """Active Telegram group where a bot operates, including group owner metadata and Cabinet credentials."""
-    bot = models.ForeignKey(Bot, on_delete=models.CASCADE, related_name='active_groups')
-    chat_id = models.BigIntegerField(db_index=True)
+    """Active Telegram group where bots operate, including group owner metadata, custom settings, and unified Cabinet credentials."""
+    bot = models.ForeignKey(Bot, on_delete=models.SET_NULL, null=True, blank=True, related_name='active_groups')
+    chat_id = models.BigIntegerField(unique=True, db_index=True)
     title = models.CharField(max_length=255, default='Telegram Guruh')
     username = models.CharField(max_length=255, blank=True, default='')
     owner_telegram_id = models.BigIntegerField(null=True, blank=True)
@@ -125,8 +125,7 @@ class BotGroup(BaseEntityModel):
     last_active_at = models.DateTimeField(auto_now=True)
 
     class Meta:
-        unique_together = ('bot', 'chat_id')
         ordering = ['-last_active_at']
 
     def __str__(self):
-        return f"{self.title} ({self.chat_id}) - Bot: {self.bot.name}"
+        return f"{self.title} ({self.chat_id})"

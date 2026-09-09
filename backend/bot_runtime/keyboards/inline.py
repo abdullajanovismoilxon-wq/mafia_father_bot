@@ -672,3 +672,37 @@ def build_konchi_mines_keyboard(game_id: str) -> InlineKeyboardMarkup:
         builder.button(text=f"⛏ {i}-kon", callback_data=f"kn:{gid}:{i}")
     builder.adjust(5, 5)
     return builder.as_markup()
+
+
+def build_hero_dawn_ask_keyboard(game_id: str, shooter_player_id: str) -> InlineKeyboardMarkup:
+    """Builds Dawn prompt for Don/Komissar to decide whether to use their Hero."""
+    builder = InlineKeyboardBuilder()
+    gid = _short(game_id)
+    pid = _short(shooter_player_id)
+    builder.row(
+        InlineKeyboardButton(text="⚔️ Xa", callback_data=f"hero_dawn:yes:{gid}:{pid}"),
+        InlineKeyboardButton(text="❌ Yo'q", callback_data=f"hero_dawn:no:{gid}:{pid}")
+    )
+    return builder.as_markup()
+
+
+def build_hero_dawn_targets_keyboard(game_id: str, shooter_player_id: str, living_players: list) -> InlineKeyboardMarkup:
+    """Builds target selection keyboard for Hero strike at Dawn."""
+    builder = InlineKeyboardBuilder()
+    gid = _short(game_id)
+    spid = _short(shooter_player_id)
+    for p in living_players:
+        if str(p.id) == str(shooter_player_id) or _short(str(p.id)) == spid:
+            continue
+        pid = _short(str(p.id))
+        name = p.display_name or p.username or f"O'yinchi {p.telegram_user_id}"
+        builder.button(
+            text=f"🎯 {name} ({p.health}% ❤️)",
+            callback_data=f"hero_dawn:target:{gid}:{spid}:{pid}"
+        )
+    builder.adjust(1)
+    builder.row(
+        InlineKeyboardButton(text="⬅️ Bekor qilish", callback_data=f"hero_dawn:no:{gid}:{spid}")
+    )
+    return builder.as_markup()
+

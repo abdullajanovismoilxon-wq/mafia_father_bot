@@ -798,10 +798,38 @@ async def advance_night_to_day(game: Game, bot: Bot):
             except Exception as inv_err:
                 logger.warning(f"Investigation result delivery error: {inv_err}")
 
+        # --- Send Dawn Hero Prompts (Don / Komissar with active Hero) ---
+        from apps.economy.models import PlayerHero
+        from bot_runtime.keyboards.inline import build_hero_dawn_ask_keyboard
+
+        for lp in living_players:
+            r_name = lp.role.name if lp.role else ''
+            r_code = lp.role.code.lower() if (lp.role and hasattr(lp.role, 'code')) else ''
+            if r_name in ['DON', 'DETECTIVE', 'KOMISSAR'] or r_code in ['don', 'komissar', 'detective']:
+                hero = await sync_to_async(
+                    lambda u_id=lp.telegram_user_id: PlayerHero.objects.filter(
+                        telegram_id=u_id, is_active=True, charges__gt=0
+                    ).first()
+                )()
+                if hero:
+                    r_lbl = "🤵🏻 Don" if (r_name == 'DON' or r_code == 'don') else "🕵🏻‍♂️ Komissar"
+                    prompt_text = (
+                        f"🥷 <b>Geroydan foydalanasizmi?</b>\n\n"
+                        f"Siz o'yinda <b>{r_lbl}</b> siz!\n"
+                        f"🥷 Geroyingiz: <b>{hero.name}</b> (⭐ Daraja: {hero.level}, 🩸 Zaryad: {hero.charges} ta, 👊 Kuch: {hero.power_min}-{hero.power_max}%)\n\n"
+                        f"Tongda biror o'yinchiga zarba berishni xohlaysizmi?"
+                    )
+                    kb = build_hero_dawn_ask_keyboard(str(game.id), str(lp.id))
+                    try:
+                        await bot.send_message(lp.telegram_user_id, prompt_text, reply_markup=kb, parse_mode="HTML")
+                    except Exception as h_err:
+                        logger.warning(f"Could not send dawn hero prompt to {lp.telegram_user_id}: {h_err}")
+
         # --- Wait configured seconds then start voting ---
         bot_id_str = str(game.bot.id) if game.bot else ''
         dawn_wait = await sync_to_async(SettingService.get_bot_timing)(bot_id_str, 'dawn_wait_duration', 15)
         await asyncio.sleep(dawn_wait)
+
 
         # Advance to VOTING phase
         await sync_to_async(GameService.advance_phase)(game, GamePhase.VOTING)

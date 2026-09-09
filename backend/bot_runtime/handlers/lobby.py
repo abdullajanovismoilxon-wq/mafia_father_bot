@@ -135,25 +135,27 @@ async def sync_group_info(bot: Bot, chat: types.Chat, bot_record: BotModel):
         from apps.games.models import Game
         
         def _db_save():
-            total_games = Game.objects.filter(bot=bot_record, chat_id=chat.id).count()
-            bg, created = BotGroup.objects.get_or_create(
-                bot=bot_record,
-                chat_id=chat.id,
-                defaults={
-                    'title': chat.title or 'Telegram Guruh',
-                    'username': chat.username or '',
-                    'owner_telegram_id': owner_id,
-                    'owner_name': owner_name,
-                    'owner_username': owner_username,
-                    'total_games_played': total_games,
-                    'is_active': True,
-                    'cabinet_login': f"guruh_{abs(chat.id)}",
-                    'cabinet_password': f"mafia{secrets.randbelow(900000) + 100000}",
-                }
-            )
-            if not created:
+            total_games = Game.objects.filter(chat_id=chat.id).count()
+            bg = BotGroup.objects.filter(chat_id=chat.id).first()
+            if not bg:
+                bg = BotGroup.objects.create(
+                    bot=bot_record,
+                    chat_id=chat.id,
+                    title=chat.title or 'Telegram Guruh',
+                    username=chat.username or '',
+                    owner_telegram_id=owner_id,
+                    owner_name=owner_name,
+                    owner_username=owner_username,
+                    total_games_played=total_games,
+                    is_active=True,
+                    cabinet_login=f"guruh_{abs(chat.id)}",
+                    cabinet_password=f"mafia{secrets.randbelow(900000) + 100000}",
+                )
+            else:
                 bg.title = chat.title or bg.title
                 bg.username = chat.username or bg.username
+                if bot_record:
+                    bg.bot = bot_record
                 if owner_id:
                     bg.owner_telegram_id = owner_id
                     bg.owner_name = owner_name or bg.owner_name

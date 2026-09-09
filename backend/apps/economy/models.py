@@ -281,9 +281,10 @@ class PlayerHero(BaseEntityModel):
     Player's personal customized Hero (Geroy).
     - Can only be used in-game when player's role is DON or KOMISSAR (DETECTIVE).
     - Enables daytime shooting using 1 charge per shot.
-    - Power/damage scales with level (Level 1: 50-60%, Level 9: 96-103%).
-    - Max defense scales with level (e.g. Level 1: 15, Level 9: 75).
-    - Recharging costs diamonds: 10 + (level - 1) diamonds gives +10 charges.
+    - Power/damage scales with level (Level 1: 50-60%, Level 10: 100% Instant Kill).
+    - Max defense scales with level (Level 1: 15, +10 per level up) and gives bonus HP.
+    - Universal 🖤 Himoya shields player from all other lethal deaths (+10 per level up).
+    - Recharging costs diamonds.
     - Gaining score from kills allows leveling up.
     - Can be transferred / given to another player.
     """
@@ -292,7 +293,7 @@ class PlayerHero(BaseEntityModel):
     name = models.CharField(max_length=100, default="Mening Geroyim")
     level = models.PositiveIntegerField(default=1)
     score = models.PositiveIntegerField(default=0)
-    charges = models.PositiveIntegerField(default=10)
+    charges = models.PositiveIntegerField(default=20)
     is_active = models.BooleanField(default=True)
     current_defense = models.PositiveIntegerField(default=0)
 
@@ -304,8 +305,9 @@ class PlayerHero(BaseEntityModel):
 
     @property
     def power_min(self) -> int:
-        # Level 1: 50%, Level 9: 96%
-        return min(150, int(50 + (self.level - 1) * 5.75))
+        if self.level >= 10:
+            return 100
+        return min(100, int(50 + (self.level - 1) * 5))
 
     @property
     def min_damage_percent(self) -> int:
@@ -313,8 +315,9 @@ class PlayerHero(BaseEntityModel):
 
     @property
     def power_max(self) -> int:
-        # Level 1: 60%, Level 9: 103%
-        return min(160, int(60 + (self.level - 1) * 5.375))
+        if self.level >= 10:
+            return 100
+        return min(100, int(60 + (self.level - 1) * 5))
 
     @property
     def max_damage_percent(self) -> int:
@@ -322,8 +325,8 @@ class PlayerHero(BaseEntityModel):
 
     @property
     def max_defense(self) -> int:
-        # Level 1: 15, Level 9: 75
-        return int(15 + (self.level - 1) * 7.5)
+        # Level 1: 15, Level 2: 25, ... (+10 per level)
+        return int(15 + (self.level - 1) * 10)
 
     @property
     def recharge_cost_diamonds(self) -> int:
@@ -332,12 +335,17 @@ class PlayerHero(BaseEntityModel):
 
     @property
     def next_level_score(self) -> int:
-        # Level 1 -> 2: 1100, Level 9 -> 10: 9900 ball
+        # Level 1 -> 2: 1980, Level 2 -> 3: 2970, Level 9 -> 10: 9900 ball
         return (self.level + 1) * 990
 
-    def add_kill_score(self, points: int = 150):
+    def add_kill_score(self, points: int = 150) -> bool:
         self.score += points
-        while self.score >= self.next_level_score:
+        leveled_up = False
+        while self.level < 10 and self.score >= self.next_level_score:
             self.level += 1
-        self.save(update_fields=['score', 'level'])
+            self.current_defense += 10  # +10 🖤 Himoya per level up
+            leveled_up = True
+        self.save(update_fields=['score', 'level', 'current_defense'])
+        return leveled_up
+
 

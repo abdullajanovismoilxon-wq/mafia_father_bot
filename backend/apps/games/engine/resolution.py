@@ -6,8 +6,9 @@ from django.db import transaction
 from apps.games.models import (
     Game, Player, NightAction, NightActionType, Vote, RoleTeam, RoleType, Role
 )
-from apps.economy.models import Inventory, Wallet, WalletTransaction, TransactionType, CurrencyType
+from apps.economy.models import Inventory, Wallet, WalletTransaction, TransactionType, CurrencyType, PlayerHero
 from apps.superadmin.models import GameSetting
+
 from apps.superadmin.services import SettingService
 
 
@@ -398,6 +399,14 @@ class GameResolutionService:
                         sehrgar_spared_actions.append((target_p, actor_p))
                         continue
 
+                # Universal 🖤 Himoya (Player's Hero Defense Points)
+                hero = PlayerHero.objects.filter(telegram_id=target_p.telegram_user_id, is_active=True).first()
+                if hero and hero.current_defense > 0:
+                    hero.current_defense -= 1
+                    hero.save(update_fields=['current_defense'])
+                    shield_saved_players.append(target_p)
+                    continue
+
                 # Personal Night Shield (STRICT: MAX 1 USE PER GAME)
                 if not target_p.metadata:
                     target_p.metadata = {}
@@ -414,6 +423,7 @@ class GameResolutionService:
                         target_p.save(update_fields=['metadata'])
                         shield_saved_players.append(target_p)
                         continue
+
 
                 # Robin Gud shooting civilians penalty check
                 if source == 'ROBINGUD' and target_p.role and target_p.role.team == RoleTeam.CIVILIAN:
@@ -683,6 +693,21 @@ class GameResolutionService:
             elim_id = top_targets[0]
             elim_player = alive_map[elim_id]
 
+            # Check universal 🖤 Himoya (PlayerHero current_defense)
+            hero = PlayerHero.objects.filter(telegram_id=elim_player.telegram_user_id, is_active=True).first()
+            if hero and hero.current_defense > 0:
+
+                hero.current_defense -= 1
+                hero.save(update_fields=['current_defense'])
+                return {
+                    'eliminated_player': None,
+                    'eliminated_role_name': None,
+                    'saved_by_shield': True,
+                    'saved_by_hero_defense': True,
+                    'is_tie': False,
+                    'vote_counts': vote_counts,
+                }
+
             # Check 'osish_himoya' item in Inventory
             if not elim_player.metadata:
                 elim_player.metadata = {}
@@ -708,6 +733,7 @@ class GameResolutionService:
                     'is_tie': False,
                     'vote_counts': vote_counts,
                 }
+
 
             suicide_won = bool(elim_player.role and elim_player.role.name == 'SUIDSID')
 

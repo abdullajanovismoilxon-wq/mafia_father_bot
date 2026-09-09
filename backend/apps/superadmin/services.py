@@ -478,8 +478,9 @@ DEFAULT_BOT_TEXTS = [
     {'key': 'btn_shop_hujjat', 'category': 'CHILD_BUTTONS', 'title': "Do'kon: 'Hujjatlar' xarid tugmasi", 'content_uz': "📁 Hujjatlar ({price} 💶)"},
     {'key': 'btn_shop_vaksina', 'category': 'CHILD_BUTTONS', 'title': "Do'kon: 'Zombi Vaksinasi' xarid tugmasi", 'content_uz': "💉 Zombi Vaksinasi ({price} 💶)"},
     {'key': 'btn_shop_dori_himoya', 'category': 'CHILD_BUTTONS', 'title': "Do'kon: 'Doridan himoya' xarid tugmasi", 'content_uz': "💊 Doridan himoya ({price} 💶)"},
-    {'key': 'btn_shop_geroy', 'category': 'CHILD_BUTTONS', 'title': "Do'kon: 'Geroy' tugmasi (Muzlatilgan)", 'content_uz': "🥷 Geroy (❄️ Muzlatilgan)"},
-    {'key': 'btn_shop_geroy_himoya', 'category': 'CHILD_BUTTONS', 'title': "Do'kon: 'Geroydan himoya' tugmasi (Muzlatilgan)", 'content_uz': "🔰 Geroydan himoya (❄️ Muzlatilgan)"},
+    {'key': 'btn_shop_geroy', 'category': 'CHILD_BUTTONS', 'title': "Do'kon: 'Geroy' tugmasi", 'content_uz': "🥷 Shaxsiy Geroy ({price} 💎)"},
+    {'key': 'btn_shop_geroy_himoya', 'category': 'CHILD_BUTTONS', 'title': "Do'kon: 'Geroydan himoya' tugmasi", 'content_uz': "🔰 Geroydan himoya ({price} 💎)"},
+
     {'key': 'btn_shop_active_role', 'category': 'CHILD_BUTTONS', 'title': "Do'kon: 'Aktiv rol' menyu tugmasi", 'content_uz': "🎭 Aktiv rol"},
     {'key': 'btn_shop_vip', 'category': 'CHILD_BUTTONS', 'title': "Do'kon: 'VIP' xarid tugmasi", 'content_uz': "⭐️ VIP ({price} 💎 dan)"},
     {'key': 'btn_shop_back', 'category': 'CHILD_BUTTONS', 'title': "Do'kon: 'Orqaga' tugmasi", 'content_uz': "🔙 Orqaga"},

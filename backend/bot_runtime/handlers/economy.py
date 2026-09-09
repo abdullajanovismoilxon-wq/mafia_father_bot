@@ -299,7 +299,8 @@ def _sync_sell_item(telegram_id: int, item_code: str) -> tuple[bool, str]:
 # ---------------------------------------------------------------------------
 
 def format_custom_profile_text(profile: PlayerProfile, stats: PlayerStats, wallet: Wallet, inv_state: dict) -> str:
-    """Formats player profile matching user's exact specification with VIP dollars/diamonds for platform owner."""
+    """Formats player profile matching user's exact specification with VIP dollars/diamonds for platform owner and Hero info."""
+    from apps.economy.models import PlayerHero
     is_owner = (
         profile.telegram_id == 7782387930 or
         profile.telegram_username == 'ismoilo9' or
@@ -321,6 +322,15 @@ def format_custom_profile_text(profile: PlayerProfile, stats: PlayerStats, walle
     games_str = str(stats.games_played if stats else 0)
     active_role_str = inv_state.get('active_role') or "Yo'q"
 
+    # Check Hero info
+    hero = PlayerHero.objects.filter(telegram_id=profile.telegram_id).first()
+    if hero and hero.is_active:
+        hero_str = f"{hero.name} (⭐ {hero.level}-daraja, 🩸 {hero.charges} zaryad)"
+    elif hero:
+        hero_str = f"{hero.name} (🔴 O'chirilgan)"
+    else:
+        hero_str = "Mavjud emas ❌"
+
     name = profile.display_name if hasattr(profile, 'display_name') and profile.display_name else (profile.first_name or profile.telegram_username or "O'yinchi")
 
     return (
@@ -331,10 +341,12 @@ def format_custom_profile_text(profile: PlayerProfile, stats: PlayerStats, walle
         f"📁 Hujjat: {hujjat_str}\n"
         f"⚖️ Osishdan himoya: {osish_str}\n"
         f"🔰 Geroydan himoya: {geroy_h_str}\n\n"
+        f"🥷 Geroy: {hero_str}\n\n"
         f"🎯 G'alaba: {wins_str}\n"
         f"🎲 Barcha o'yinlar: {games_str}\n\n"
         f"🃏 Faol rollar: {active_role_str}"
     )
+
 
 
 # ---------------------------------------------------------------------------

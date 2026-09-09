@@ -285,3 +285,234 @@ class EntitlementBotLimitTests(TestCase):
         except self.EntitlementLimitExceededError:
             self.fail("Platform owner must bypass MAX_BOTS limit")
 
+
+class HeroSystemTests(TestCase):
+    def setUp(self):
+        self.user = User.objects.create_user(
+            username='test_don_hero',
+            email='don_hero@example.com',
+            telegram_id=111111111,
+            first_name='Don User'
+        )
+        self.victim_user = User.objects.create_user(
+            username='test_victim_hero',
+            email='victim_hero@example.com',
+            telegram_id=222222222,
+            first_name='Victim User'
+        )
+        self.citizen_user = User.objects.create_user(
+            username='test_citizen_hero',
+            email='citizen_hero@example.com',
+            telegram_id=333333333,
+            first_name='Citizen User'
+        )
+
+        from apps.games.models import Role
+        self.bot = Bot.objects.create(
+            owner=self.user,
+            name="TestBotHero",
+            telegram_username="TestMafiaBotHero",
+            status=BotStatus.ACTIVE
+        )
+
+        self.game = Game.objects.create(
+            bot=self.bot,
+            chat_id=-100999888777,
+            phase=GamePhase.DAY,
+            round_number=1
+        )
+
+        self.don_role, _ = Role.objects.get_or_create(
+            name='DON',
+            defaults={'code': 'don_hero', 'team': RoleTeam.MAFIA, 'is_system': True}
+        )
+        self.citizen_role, _ = Role.objects.get_or_create(
+            name='CITIZEN',
+            defaults={'code': 'citizen_hero', 'team': RoleTeam.CIVILIAN, 'is_system': True}
+        )
+
+        self.don_player = Player.objects.create(
+            game=self.game,
+            telegram_user_id=self.user.telegram_id,
+            display_name="Don Player",
+            role=self.don_role,
+            is_alive=True,
+            health=100
+        )
+        self.victim_player = Player.objects.create(
+            game=self.game,
+            telegram_user_id=self.victim_user.telegram_id,
+            display_name="Victim Player",
+            role=self.citizen_role,
+            is_alive=True,
+            health=100
+        )
+        self.citizen_player = Player.objects.create(
+            game=self.game,
+            telegram_user_id=self.citizen_user.telegram_id,
+            display_name="Citizen Player",
+            role=self.citizen_role,
+            is_alive=True,
+            health=100
+        )
+
+    def test_hero_creation_and_properties(self):
+        """Test Hero model properties, initial values, and leveling formula."""
+        from apps.economy.models import PlayerHero
+        hero = PlayerHero.objects.create(
+            telegram_id=self.user.telegram_id,
+            owner_name="Don Player",
+            name="Thamuz",
+            level=1,
+            score=0,
+            charges=20,
+            is_active=True,
+            current_defense=0
+        )
+
+        self.assertEqual(hero.charges, 20)
+        self.assertEqual(hero.power_min, 50)
+        self.assertEqual(hero.power_max, 60)
+        self.assertEqual(hero.max_defense, 15)
+        self.assertEqual(hero.next_level_score, 1980)
+
+        # Add score and test level up (+10 Himoya per level up)
+        leveled_up = hero.add_kill_score(2000)
+        self.assertTrue(leveled_up)
+        self.assertEqual(hero.level, 2)
+        self.assertEqual(hero.current_defense, 10)
+        self.assertEqual(hero.max_defense, 25)
+        self.assertEqual(hero.power_min, 55)
+        self.assertEqual(hero.power_max, 65)
+
+    def test_format_hero_card_text(self):
+        """Test formatting of rich hero stats card."""
+        from apps.economy.models import PlayerHero
+        from apps.economy.services import HeroService
+        hero = PlayerHero.objects.create(
+            telegram_id=self.user.telegram_id,
+            owner_name="И",
+            name="Thamuz",
+            level=1,
+            score=0,
+            charges=20,
+            is_active=True,
+            current_defense=0
+        )
+        card_text = HeroService.format_hero_card_text(hero, geroy_himoya_count=0)
+        self.assertIn("🥷 <b>Geroy:</b> Thamuz", card_text)
+        self.assertIn("👤 <b>Kim uchun:</b> И", card_text)
+        self.assertIn("⭐ <b>Daraja:</b> 1", card_text)
+        self.assertIn("👊 <b>Kuch:</b> 50-60 oralig'ida", card_text)
+        self.assertIn("🖤 <b>Himoya:</b> 0", card_text)
+        self.assertIn("❤️ <b>Max himoya:</b> 15", card_text)
+        self.assertIn("🩸 <b>Zaryad miqdori:</b> 20", card_text)
+        self.assertIn("⬆️ <b>Keyingi daraja</b> = 2 => 1980 ball", card_text)
+
+    def test_hero_role_restriction(self):
+        """Test that only Don or Komissar can execute hero strike."""
+        from apps.economy.models import PlayerHero
+        from apps.economy.services import HeroService
+        hero = PlayerHero.objects.create(
+            telegram_id=self.citizen_user.telegram_id,
+            owner_name="Citizen Player",
+            name="Hero1",
+            level=1,
+            charges=20,
+            is_active=True
+        )
+        res = HeroService.execute_hero_strike(self.game, self.citizen_player, self.victim_player)
+        self.assertFalse(res['ok'])
+        self.assertIn("Don", res['error'])
+
+    def test_hero_strike_execution_and_damage(self):
+        """Test Don executing Hero strike, consuming charge, reducing health, and killing victim."""
+        from apps.economy.models import PlayerHero
+        from apps.economy.services import HeroService
+        hero = PlayerHero.objects.create(
+            telegram_id=self.user.telegram_id,
+            owner_name="Don Player",
+            name="Thamuz",
+            level=1,
+            charges=20,
+            is_active=True
+        )
+
+        res = HeroService.execute_hero_strike(self.game, self.don_player, self.victim_player)
+        self.assertTrue(res['ok'])
+        self.assertEqual(res['charges_left'], 19)
+        self.don_player.refresh_from_db()
+        self.victim_player.refresh_from_db()
+
+        # Victim took 50-60% damage
+        self.assertTrue(self.victim_player.health <= 50)
+
+    def test_hero_strike_blocked_by_geroy_himoya(self):
+        """Test that 🔰 Geroydan himoya item blocks Hero strike."""
+        from apps.economy.models import PlayerHero, MarketplaceCategory, MarketplaceItem, MarketplaceItemType, Inventory
+        from apps.economy.services import HeroService
+        hero = PlayerHero.objects.create(
+            telegram_id=self.user.telegram_id,
+            owner_name="Don Player",
+            name="Thamuz",
+            level=1,
+            charges=20,
+            is_active=True
+        )
+        cat, _ = MarketplaceCategory.objects.get_or_create(code='items_hero', defaults={'name': 'Items Hero'})
+        item, _ = MarketplaceItem.objects.get_or_create(code='geroy_himoya', defaults={'name': 'Geroydan himoya', 'category': cat, 'item_type': MarketplaceItemType.BONUS})
+        Inventory.objects.create(telegram_id=self.victim_user.telegram_id, item=item, quantity=1, is_active=True)
+
+        res = HeroService.execute_hero_strike(self.game, self.don_player, self.victim_player)
+        self.assertTrue(res['ok'])
+        self.assertTrue(res['blocked'])
+        self.assertEqual(res['block_type'], 'geroy_himoya')
+        self.victim_player.refresh_from_db()
+        self.assertEqual(self.victim_player.health, 100)
+        self.assertTrue(self.victim_player.is_alive)
+
+    def test_max_level_hero_instant_kill(self):
+        """Test that Level 10 Hero deals 100% damage and instantly kills."""
+        from apps.economy.models import PlayerHero
+        from apps.economy.services import HeroService
+        hero = PlayerHero.objects.create(
+            telegram_id=self.user.telegram_id,
+            owner_name="Don Player",
+            name="Thamuz",
+            level=10,
+            charges=20,
+            is_active=True
+        )
+        res = HeroService.execute_hero_strike(self.game, self.don_player, self.victim_player)
+        self.assertTrue(res['ok'])
+        self.assertTrue(res['killed'])
+        self.victim_player.refresh_from_db()
+        self.assertFalse(self.victim_player.is_alive)
+        self.assertEqual(self.victim_player.health, 0)
+
+    def test_universal_himoya_protects_from_voting_lynch(self):
+        """Test that 🖤 Himoya (current_defense) saves player from day voting lynching."""
+        from apps.economy.models import PlayerHero
+        from apps.games.models import Vote
+        from apps.games.engine.resolution import GameResolutionService
+        victim_hero = PlayerHero.objects.create(
+            telegram_id=self.victim_user.telegram_id,
+            owner_name="Victim Player",
+            name="VictimHero",
+            level=2,
+            current_defense=10,
+            is_active=True
+        )
+
+        Vote.objects.create(game=self.game, round=1, voter=self.don_player, target=self.victim_player)
+        Vote.objects.create(game=self.game, round=1, voter=self.citizen_player, target=self.victim_player)
+
+        res = GameResolutionService.resolve_voting_phase(self.game)
+        self.assertTrue(res.get('saved_by_hero_defense') or res.get('saved_by_shield'))
+        self.assertIsNone(res['eliminated_player'])
+        victim_hero.refresh_from_db()
+        self.assertEqual(victim_hero.current_defense, 9)
+        self.victim_player.refresh_from_db()
+        self.assertTrue(self.victim_player.is_alive)
+
+

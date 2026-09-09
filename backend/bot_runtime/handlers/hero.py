@@ -265,8 +265,228 @@ async def handle_hero_transfer_submit(message: types.Message, state: FSMContext)
 # ---------------------------------------------------------------------------
 # In-Game Daytime Hero Shooting (/shoot, /otish, /ot)
 # ---------------------------------------------------------------------------
+# ---------------------------------------------------------------------------
+# In-Game Daytime / Dawn Hero Shooting
+# ---------------------------------------------------------------------------
+
+ROLE_ICONS = {
+    "DON": "🤵🏻",
+    "MAFIA": "🤵🏼",
+    "DOCTOR": "👨🏼‍⚕️",
+    "DETECTIVE": "🕵🏻‍♂️",
+    "CITIZEN": "👨🏼",
+    "QOTIL": "🔪",
+    "KEZUVCHI": "💃",
+    "SERJANT": "👮🏼‍♂️",
+    "DAYDI": "🍾",
+    "ADVOKAT": "💼",
+    "SUIDSID": "🤡",
+    "UBIYTSA": "🥷",
+    "AFSUNGAR": "🧙🏼",
+    "TUZOQCHI": "🕸",
+    "ZOMBI": "🧟",
+    "KIMYOGAR": "🧪",
+    "AXMOQ": "🤪",
+    "BUQALAMUN": "🦎",
+    "RAIS": "🏛",
+    "HAMSHIRA": "👩🏼‍⚕️",
+    "JOKER": "🃏",
+}
+
+
+def _role_icon(name: str) -> str:
+    return ROLE_ICONS.get((name or '').upper(), "👤")
+
+
+async def _resolve_game_and_players(game_id_str: str, shooter_id_str: str, target_id_str: str = None):
+    def _db_get():
+        g = Game.objects.filter(id__startswith=game_id_str).first()
+        if not g:
+            return None, None, None
+        sp = Player.objects.filter(game=g, id__startswith=shooter_id_str).select_related('role').first()
+        tp = None
+        if target_id_str:
+            tp = Player.objects.filter(game=g, id__startswith=target_id_str).select_related('role').first()
+        return g, sp, tp
+    return await sync_to_async(_db_get)()
+
+
+# ---------------------------------------------------------------------------
+# Dawn Interactive Hero Callbacks
+# ---------------------------------------------------------------------------
+@router.callback_query(lambda c: c.data and c.data.startswith("hero_dawn:no:"))
+async def handle_hero_dawn_no(callback: types.CallbackQuery):
+    """Player declines to use Hero at Dawn."""
+    try:
+        await callback.message.edit_text("❌ <b>Geroy ishlatilmadi.</b>", parse_mode="HTML")
+    except Exception:
+        pass
+    await callback.answer("Geroy ishlatilmadi.")
+
+
+@router.callback_query(lambda c: c.data and c.data.startswith("hero_dawn:yes:"))
+async def handle_hero_dawn_yes(callback: types.CallbackQuery):
+    """Player chooses to use Hero at Dawn -> displays target selection keyboard."""
+    parts = callback.data.split(":")
+    if len(parts) < 4:
+        await callback.answer("Xatolik!")
+        return
+
+    gid = parts[2]
+    spid = parts[3]
+
+    game, shooter, _ = await _resolve_game_and_players(gid, spid)
+    if not game or not shooter or not shooter.is_alive:
+        await callback.answer("O'yin yakunlangan yoki siz o'yindan chiqqansiz!", show_alert=True)
+        return
+
+    living_players = await sync_to_async(
+        lambda: list(game.players.filter(is_alive=True).exclude(id=shooter.id).order_by('id'))
+    )()
+
+    if not living_players:
+        await callback.answer("Tirik nishonlar mavjud emas!", show_alert=True)
+        return
+
+    from bot_runtime.keyboards.inline import build_hero_dawn_targets_keyboard
+    kb = build_hero_dawn_targets_keyboard(str(game.id), str(shooter.id), living_players)
+    await callback.message.edit_text(
+        "🎯 <b>Nishonni tanlang:</b>\n\nQaysi o'yinchiga zarba bermoqchisiz?",
+        reply_markup=kb,
+        parse_mode="HTML"
+    )
+    await callback.answer()
+
+
+@router.callback_query(lambda c: c.data and c.data.startswith("hero_dawn:target:"))
+async def handle_hero_dawn_target(callback: types.CallbackQuery, bot: types.Bot):
+    """Executes the Hero strike at Dawn against the chosen target."""
+    parts = callback.data.split(":")
+    if len(parts) < 5:
+        await callback.answer("Xatolik!")
+        return
+
+    gid = parts[2]
+    spid = parts[3]
+    tpid = parts[4]
+
+    game, shooter, target = await _resolve_game_and_players(gid, spid, tpid)
+    if not game or not shooter or not target:
+        await callback.answer("O'yin yoki nishon topilmadi!", show_alert=True)
+        return
+
+    if not shooter.is_alive:
+        await callback.answer("Siz allaqachon o'yindan chiqqansiz!", show_alert=True)
+        return
+    if not target.is_alive:
+        await callback.answer("Nishon allaqachon halok bo'lgan!", show_alert=True)
+        return
+
+    res = await sync_to_async(HeroService.execute_hero_strike)(game, shooter, target)
+    if not res.get('ok'):
+        await callback.answer(res.get('error', "Xatolik yuz berdi!"), show_alert=True)
+        return
+
+    hero = res['hero']
+    shooter_name = shooter.display_name or shooter.username or f"O'yinchi {shooter.telegram_user_id}"
+    target_name = target.display_name or target.username or f"O'yinchi {target.telegram_user_id}"
+    r_name = target.role.name if target.role else 'CITIZEN'
+    r_icon = _role_icon(r_name)
+
+    if res.get('blocked'):
+        # Blocked by 🔰 Geroydan himoya
+        try:
+            await callback.message.edit_text(
+                f"🔰 <b>{target_name}</b> ning <b>Geroydan Himoyasi</b> zarbani qaytardi!\n"
+                f"🩸 Qolgan zaryadingiz: {res['charges_left']} ta.",
+                parse_mode="HTML"
+            )
+        except Exception:
+            pass
+
+        group_msg = (
+            f"🥷 <b>{shooter_name}</b> o'z Geroyi (<b>{hero.name}</b>) bilan <b>{target_name}</b> ga zarba berdi!\n\n"
+            f"🔰 <b>{target_name}</b> ning <b>Geroydan Himoyasi</b> zarbani to'liq qaytardi va uning hayotini saqlab qoldi!\n"
+            f"🩸 Geroydan 1 ta zaryad sarflandi (Qoldi: {res['charges_left']})."
+        )
+        try:
+            await bot.send_message(game.chat_id, group_msg, parse_mode="HTML")
+        except Exception:
+            pass
+        await callback.answer("Zarba berildi!")
+        return
+
+    # Not blocked
+    if res.get('killed'):
+        try:
+            await callback.message.edit_text(
+                f"☠️ <b>{target_name}</b> {res['damage']}% zarba bilan halok qilindi!\n"
+                f"⭐ Geroyingizga <b>+150 ball</b> qo'shildi! (Jami: {hero.score} ball, Daraja: {hero.level})\n"
+                f"🩸 Qolgan zaryad: {res['charges_left']} ta.",
+                parse_mode="HTML"
+            )
+        except Exception:
+            pass
+
+        if res.get('leveled_up'):
+            try:
+                await bot.send_message(
+                    shooter.telegram_user_id,
+                    f"🎉 <b>Tabriklaymiz!</b>\n"
+                    f"Geroyingiz <b>{hero.level}</b>-darajaga ko'tarildi va +10 🖤 Himoyaga ega bo'ldi! (Jami himoya: {hero.current_defense})",
+                    parse_mode="HTML"
+                )
+            except Exception:
+                pass
+
+        group_msg = (
+            f"💥 <b>{shooter_name}</b> o'z Geroyi (<b>{hero.name}</b>) bilan <b>{target_name}</b> ga nishon olib o't ochdi!\n\n"
+            f"☠️ <b>{target_name}</b> {res['damage']}% halokatli zarba oqibatida yer tishladi va halok bo'ldi! (U: {r_icon} {r_name} edi)\n\n"
+            f"⭐ Geroyga <b>+150 ball</b> qo'shildi! (Jami: {hero.score} ball, Daraja: {hero.level})\n"
+            f"🩸 Qolgan zaryad: {res['charges_left']} ta."
+        )
+        try:
+            await bot.send_message(game.chat_id, group_msg, parse_mode="HTML")
+        except Exception:
+            pass
+
+        # Check win condition
+        from apps.games.engine.win_conditions import WinConditionService
+        from apps.games.engine.game_service import GameService
+        winner = await sync_to_async(WinConditionService.check_win_condition)(game)
+        if winner:
+            await sync_to_async(GameService.end_game)(game, winner)
+            from bot_runtime.handlers.night import _announce_game_winner
+            await _announce_game_winner(game, winner, bot, story_lines=[f"💥 Geroy zarbasi natijasida o'yin yakunlandi!"])
+    else:
+        try:
+            await callback.message.edit_text(
+                f"💥 <b>{target_name}</b> ga {res['damage']}% shikast yetkazildi!\n"
+                f"🩸 Qolgan joni: <b>{res['remaining_hp']}% ❤️</b>\n"
+                f"🩸 Qolgan zaryad: {res['charges_left']} ta.",
+                parse_mode="HTML"
+            )
+        except Exception:
+            pass
+
+        group_msg = (
+            f"💥 <b>{shooter_name}</b> o'z Geroyi (<b>{hero.name}</b>) bilan <b>{target_name}</b> ga zarba berdi!\n"
+            f"🩸 <b>{target_name}</b> {res['damage']}% jarohat oldi! (Qolgan joni: <b>{res['remaining_hp']}% ❤️</b>)\n"
+            f"🩸 Geroydan 1 ta zaryad sarflandi (Qolgan zaryad: {res['charges_left']} ta)."
+        )
+        try:
+            await bot.send_message(game.chat_id, group_msg, parse_mode="HTML")
+        except Exception:
+            pass
+
+    await callback.answer("Zarba berildi!")
+
+
+# ---------------------------------------------------------------------------
+# /shoot, /otish, /ot Group Command
+# ---------------------------------------------------------------------------
 @router.message(Command("shoot", "otish", "ot"))
-async def handle_daytime_hero_shoot(message: types.Message):
+async def handle_daytime_hero_shoot(message: types.Message, bot: types.Bot):
     """
     Daytime Hero shooting by Don or Komissar.
     Usage: /shoot (reply to victim) or /shoot @username / /shoot {player_number}
@@ -297,8 +517,9 @@ async def handle_daytime_hero_shoot(message: types.Message):
         await message.reply("Siz bu o'yinda qatnashmayapsiz yoki allaqachon o'yindan chiqqansiz!")
         return
 
-    role_code = (shooter_player.role.code.lower() if shooter_player.role else '')
-    if role_code not in ['don', 'komissar', 'detective']:
+    role_code = (shooter_player.role.code.lower() if (shooter_player.role and hasattr(shooter_player.role, 'code')) else '')
+    role_name = (shooter_player.role.name or '').upper() if shooter_player.role else ''
+    if role_code not in ['don', 'komissar', 'detective'] and role_name not in ['DON', 'KOMISSAR', 'DETECTIVE']:
         await message.reply("🥷 Geroy faqatkina o'yindagi rolingiz <b>Don</b> yoki <b>Komissar</b> bo'lsagina o't ocha oladi!", parse_mode="HTML")
         return
 
@@ -346,67 +567,66 @@ async def handle_daytime_hero_shoot(message: types.Message):
         )
         return
 
-    # 5. Check victim living in game
     def _get_victim_player(g_obj, tg_id):
-        return Player.objects.filter(game=g_obj, telegram_user_id=tg_id, is_alive=True).first()
+        return Player.objects.filter(game=g_obj, telegram_user_id=tg_id, is_alive=True).select_related('role').first()
 
     victim_player = await sync_to_async(_get_victim_player)(game, target_tg_id)
     if not victim_player:
         await message.reply("Nishon o'yinda mavjud emas yoki allaqachon o'lgan!")
         return
 
-    # 6. Execute Shot
-    hero.charges -= 1
-    await sync_to_async(hero.save)(update_fields=['charges'])
+    # Execute Strike
+    res = await sync_to_async(HeroService.execute_hero_strike)(game, shooter_player, victim_player)
+    if not res.get('ok'):
+        await message.reply(res.get('error', "Xatolik yuz berdi!"), parse_mode="HTML")
+        return
 
     victim_name = victim_player.display_name or victim_player.username or f"O'yinchi {target_tg_id}"
-    dmg_percent = random.randint(hero.power_min, hero.power_max)
+    r_name = victim_player.role.name if victim_player.role else 'CITIZEN'
+    r_icon = _role_icon(r_name)
 
-    # Check geroy_himoya defense item on victim
-    def _consume_geroy_himoya(tg_id: int) -> bool:
-        inv = Inventory.objects.filter(telegram_id=tg_id, item__code='geroy_himoya', is_active=True, quantity__gt=0).first()
-        if inv:
-            inv.quantity -= 1
-            if inv.quantity == 0:
-                inv.is_active = False
-            inv.save(update_fields=['quantity', 'is_active'])
-            return True
-        return False
-
-    has_shield = await sync_to_async(_consume_geroy_himoya)(target_tg_id)
-
-    if has_shield:
+    if res.get('blocked'):
         res_text = (
             f"🥷 <b>{shooter_name}</b> o'z Geroyi (<b>{hero.name}</b>) bilan <b>{victim_name}</b> ga o'q uzdi!\n\n"
             f"🔰 <b>{victim_name}</b> ning <b>Geroydan Himoyasi</b> zarbani to'liq qaytardi va uning hayotini saqlab qoldi!\n"
-            f"🩸 Geroydan 1 ta zaryad sarflandi (Qoldi: {hero.charges})."
+            f"🩸 Geroydan 1 ta zaryad sarflandi (Qoldi: {res['charges_left']})."
         )
         await message.reply(res_text, parse_mode="HTML")
         return
 
-    # Lethal strike if damage >= 50%
-    victim_killed = dmg_percent >= 50
-
-    if victim_killed:
-        def _kill_victim(p):
-            p.is_alive = False
-            p.save(update_fields=['is_alive'])
-        await sync_to_async(_kill_victim)(victim_player)
-
-        # Add kill score to hero (+150 ball)
-        await sync_to_async(hero.add_kill_score)(150)
-
+    if res.get('killed'):
         res_text = (
             f"💥 <b>{shooter_name}</b> o'z Geroyi (<b>{hero.name}</b>) bilan <b>{victim_name}</b> ga nishon olib o't ochdi!\n\n"
-            f"☠️ <b>{victim_name}</b> {dmg_percent}% halokatli zarba oqibatida yer tishladi va halok bo'ldi!\n\n"
+            f"☠️ <b>{victim_name}</b> {res['damage']}% halokatli zarba oqibatida yer tishladi va halok bo'ldi! (U: {r_icon} {r_name} edi)\n\n"
             f"⭐ Geroyga <b>+150 ball</b> qo'shildi! (Jami: {hero.score} ball, Daraja: {hero.level})\n"
-            f"🩸 Qolgan zaryad: {hero.charges} ta."
+            f"🩸 Qolgan zaryad: {res['charges_left']} ta."
         )
+        await message.reply(res_text, parse_mode="HTML")
+
+        if res.get('leveled_up'):
+            try:
+                await bot.send_message(
+                    shooter_tg_id,
+                    f"🎉 <b>Tabriklaymiz!</b>\n"
+                    f"Geroyingiz <b>{hero.level}</b>-darajaga ko'tarildi va +10 🖤 Himoyaga ega bo'ldi!",
+                    parse_mode="HTML"
+                )
+            except Exception:
+                pass
+
+        # Check win condition
+        from apps.games.engine.win_conditions import WinConditionService
+        from apps.games.engine.game_service import GameService
+        winner = await sync_to_async(WinConditionService.check_win_condition)(game)
+        if winner:
+            await sync_to_async(GameService.end_game)(game, winner)
+            from bot_runtime.handlers.night import _announce_game_winner
+            await _announce_game_winner(game, winner, bot, story_lines=[f"💥 Geroy zarbasi natijasida o'yin yakunlandi!"])
     else:
         res_text = (
             f"💥 <b>{shooter_name}</b> o'z Geroyi (<b>{hero.name}</b>) bilan <b>{victim_name}</b> ga o'q uzdi!\n"
-            f"🩸 <b>{victim_name}</b> {dmg_percent}% jarohat oldi!\n"
-            f"🩸 Qolgan zaryad: {hero.charges} ta."
+            f"🩸 <b>{victim_name}</b> {res['damage']}% jarohat oldi! (Qolgan joni: <b>{res['remaining_hp']}% ❤️</b>)\n"
+            f"🩸 Qolgan zaryad: {res['charges_left']} ta."
         )
+        await message.reply(res_text, parse_mode="HTML")
 
-    await message.reply(res_text, parse_mode="HTML")
