@@ -1,6 +1,6 @@
 import random
 import logging
-from aiogram import Router, types, F
+from aiogram import Router, types, F, Bot
 from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
@@ -359,7 +359,7 @@ async def handle_hero_dawn_yes(callback: types.CallbackQuery):
 
 
 @router.callback_query(lambda c: c.data and c.data.startswith("hero_dawn:target:"))
-async def handle_hero_dawn_target(callback: types.CallbackQuery, bot: types.Bot):
+async def handle_hero_dawn_target(callback: types.CallbackQuery, bot: Bot):
     """Executes the Hero strike at Dawn against the chosen target."""
     parts = callback.data.split(":")
     if len(parts) < 5:
@@ -485,10 +485,9 @@ async def handle_hero_dawn_target(callback: types.CallbackQuery, bot: types.Bot)
 # ---------------------------------------------------------------------------
 # /shoot, /otish, /ot Group Command
 # ---------------------------------------------------------------------------
-@router.message(Command("shoot", "otish", "ot"))
-async def handle_daytime_hero_shoot(message: types.Message, bot: types.Bot):
-    """
-    Daytime Hero shooting by Don or Komissar.
+@router.message(Command("shoot", "zarba", "kill", ignore_case=True))
+async def handle_daytime_hero_shoot(message: types.Message, bot: Bot):
+    """Allows players with living heroes to strike another player during Daytime/Dawn.
     Usage: /shoot (reply to victim) or /shoot @username / /shoot {player_number}
     """
     if message.chat.type in ["private"]:
