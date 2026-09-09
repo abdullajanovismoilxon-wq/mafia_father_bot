@@ -349,3 +349,45 @@ class PlayerHero(BaseEntityModel):
         return leveled_up
 
 
+class GiveawayDrop(BaseEntityModel):
+    """
+    Drop / Giveaway created in a Telegram group chat using /changegive, /changemoney or /change.
+    """
+    sender_telegram_id = models.BigIntegerField(db_index=True)
+    sender_name = models.CharField(max_length=255, default='')
+    chat_id = models.BigIntegerField(db_index=True)
+    message_id = models.BigIntegerField(null=True, blank=True)
+    currency = models.CharField(max_length=20, choices=CurrencyType.choices, default=CurrencyType.DIAMONDS)
+    total_amount = models.PositiveIntegerField(default=1)
+    claimed_amount = models.PositiveIntegerField(default=0)
+    commission_amount = models.DecimalField(max_digits=14, decimal_places=2, default=Decimal('0.00'))
+    is_active = models.BooleanField(default=True, db_index=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    @property
+    def remaining_amount(self) -> int:
+        return max(0, self.total_amount - self.claimed_amount)
+
+    def __str__(self):
+        return f"GiveawayDrop({self.id} | {self.sender_name} | {self.claimed_amount}/{self.total_amount} {self.currency})"
+
+
+class GiveawayClaim(BaseEntityModel):
+    """
+    Record of a single user claiming 1 unit from a GiveawayDrop.
+    """
+    drop = models.ForeignKey(GiveawayDrop, on_delete=models.CASCADE, related_name='claims', db_index=True)
+    telegram_user_id = models.BigIntegerField(db_index=True)
+    user_name = models.CharField(max_length=255, default='', blank=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        unique_together = [('drop', 'telegram_user_id')]
+
+    def __str__(self):
+        return f"GiveawayClaim(Drop {self.drop_id} by TG:{self.telegram_user_id})"
+
+
+

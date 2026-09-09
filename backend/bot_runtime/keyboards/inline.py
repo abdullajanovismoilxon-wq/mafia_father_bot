@@ -159,6 +159,33 @@ def build_role_detail_back_keyboard() -> InlineKeyboardMarkup:
 # Group Lobby & Navigation
 # ---------------------------------------------------------------------------
 
+def _player_team_badge(player) -> str:
+    """Returns 🔴 or 🔵 if player has a team_side assigned."""
+    if hasattr(player, 'metadata') and isinstance(player.metadata, dict):
+        side = player.metadata.get('team_side', '')
+        if side == 'RED':
+            return '🔴 '
+        elif side == 'BLUE':
+            return '🔵 '
+    return ''
+
+
+def build_team_lobby_keyboard(bot_username: str, game_id: str, red_count: int = 0, blue_count: int = 0) -> InlineKeyboardMarkup:
+    """Builds group /team lobby keyboard with Red and Blue team deep links."""
+    builder = InlineKeyboardBuilder()
+    builder.row(
+        InlineKeyboardButton(
+            text=f"🔴 Qizil jamoa ({red_count})",
+            url=f"https://t.me/{bot_username}?start=jointeam_{game_id}_RED"
+        ),
+        InlineKeyboardButton(
+            text=f"🔵 Ko'k jamoa ({blue_count})",
+            url=f"https://t.me/{bot_username}?start=jointeam_{game_id}_BLUE"
+        )
+    )
+    return builder.as_markup()
+
+
 def build_group_lobby_keyboard(arg1: str, arg2: str) -> InlineKeyboardMarkup:
     """
     Builds group /game lobby keyboard with join deep link.
@@ -267,10 +294,11 @@ def build_night_target_keyboard(
             targets = list(living_players)
 
     for idx, player in enumerate(targets, 1):
-        display = (player.display_name or player.username or "O'yinchi")[:25]
+        display = (player.display_name or player.username or "O'yinchi")[:22]
+        team_badge = _player_team_badge(player)
         pid = _short(str(player.id))
         builder.button(
-            text=f"{idx}. {display}",
+            text=f"{team_badge}{idx}. {display}",
             callback_data=f"n:{gid}:{act}:{pid}"
         )
     builder.adjust(1)
@@ -295,10 +323,11 @@ def build_voting_keyboard(
         targets = list(living_players)
 
     for idx, player in enumerate(targets, 1):
-        display = (player.display_name or player.username or "O'yinchi")[:25]
+        display = (player.display_name or player.username or "O'yinchi")[:22]
+        team_badge = _player_team_badge(player)
         pid = _short(str(player.id))
         builder.button(
-            text=f"{idx}. {display}",
+            text=f"{team_badge}{idx}. {display}",
             callback_data=f"v:{gid}:{pid}"
         )
     builder.adjust(1)
@@ -695,9 +724,10 @@ def build_hero_dawn_targets_keyboard(game_id: str, shooter_player_id: str, livin
         if str(p.id) == str(shooter_player_id) or _short(str(p.id)) == spid:
             continue
         pid = _short(str(p.id))
+        team_badge = _player_team_badge(p)
         name = p.display_name or p.username or f"O'yinchi {p.telegram_user_id}"
         builder.button(
-            text=f"🎯 {name} ({p.health}% ❤️)",
+            text=f"🎯 {team_badge}{name} ({p.health}% ❤️)",
             callback_data=f"hero_dawn:target:{gid}:{spid}:{pid}"
         )
     builder.adjust(1)

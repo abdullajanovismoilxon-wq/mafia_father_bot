@@ -367,6 +367,7 @@ class Game(BaseEntityModel):
     chat_id = models.BigIntegerField(db_index=True, help_text="Telegram Group Chat ID")
     status = models.CharField(max_length=20, choices=GamePhase.choices, default=GamePhase.WAITING, db_index=True)
     phase = models.CharField(max_length=20, choices=GamePhase.choices, default=GamePhase.WAITING, db_index=True)
+    mode = models.CharField(max_length=20, default='CLASSIC', choices=[('CLASSIC', 'Classic'), ('TEAM', 'Team')], db_index=True)
     round_number = models.PositiveIntegerField(default=1)
     phase_ends_at = models.DateTimeField(null=True, blank=True)
     winner_team = models.CharField(max_length=20, choices=RoleTeam.choices, null=True, blank=True)

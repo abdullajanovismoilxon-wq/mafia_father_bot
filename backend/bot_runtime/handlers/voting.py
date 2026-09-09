@@ -28,6 +28,7 @@ from bot_runtime.keyboards.inline import (
     build_hanging_keyboard,
     build_bot_pm_keyboard,
     build_komissar_action_keyboard,
+    _player_team_badge,
     _short,
 )
 
@@ -536,7 +537,7 @@ async def _advance_to_next_night(game: Game, bot: Bot, reason: str = ""):
         )()
 
         living_roster = "\n".join([
-            f' {idx}. <a href="tg://user?id={p.telegram_user_id}">{html.escape(p.display_name)}</a>'
+            f' {idx}. {_player_team_badge(p)}<a href="tg://user?id={p.telegram_user_id}">{html.escape(p.display_name)}</a>'
             for idx, p in enumerate(living_players, 1)
         ])
 

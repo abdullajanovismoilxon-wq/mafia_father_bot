@@ -30,6 +30,8 @@ from apps.superadmin.services import TextService, SettingService
 from bot_runtime.keyboards.inline import (
     build_child_start_keyboard,
     build_group_lobby_keyboard,
+    build_team_lobby_keyboard,
+    _player_team_badge,
     build_back_to_group_keyboard,
     build_night_target_keyboard,
     build_komissar_action_keyboard,
@@ -253,6 +255,28 @@ def format_lobby_text(game: Game, bot_name: str = "Bloody Mafia") -> str:
     players = list(Player.objects.filter(game_id=game.id).order_by('created_at'))
     player_count = len(players)
 
+    if getattr(game, 'mode', 'CLASSIC') == 'TEAM':
+        red_players = [p for p in players if p.metadata and p.metadata.get('team_side') == 'RED']
+        blue_players = [p for p in players if p.metadata and p.metadata.get('team_side') == 'BLUE']
+
+        red_list = "\n".join([
+            f'  {i+1}. 🔴 <a href="tg://user?id={p.telegram_user_id}">{html.escape(p.display_name)}</a>'
+            for i, p in enumerate(red_players)
+        ]) if red_players else "  <i>Hozircha hech kim qo'shilmadi</i>"
+
+        blue_list = "\n".join([
+            f'  {i+1}. 🔵 <a href="tg://user?id={p.telegram_user_id}">{html.escape(p.display_name)}</a>'
+            for i, p in enumerate(blue_players)
+        ]) if blue_players else "  <i>Hozircha hech kim qo'shilmadi</i>"
+
+        return (
+            f"<b>{html.escape(bot_name)}</b>               <code>BM Team Battle</code>\n"
+            f"⚔️ <b>Jamoaviy o'yinga ro'yxatdan o'tish davom etmoqda!</b>\n\n"
+            f"🔴 <b>Qizil jamoa ({len(red_players)}):</b>\n{red_list}\n\n"
+            f"🔵 <b>Ko'k jamoa ({len(blue_players)}):</b>\n{blue_list}\n\n"
+            f"<b>Jami: {player_count} ta o'yinchi</b>"
+        )
+
     tpl = TextService.get_text(
         'lobby_join_text',
         fallback="<b>{bot_name}</b>               <code>BM Admin</code>\n<b>Ro'yxatdan o'tish davom etmoqda!</b>\n<b>Ro'yxatdan o'tganlar:</b>\n\n{player_names}\n\n<b>Jami: {total} ta</b>"
@@ -268,17 +292,35 @@ def format_lobby_text(game: Game, bot_name: str = "Bloody Mafia") -> str:
         return tpl.format(bot_name=html.escape(bot_name), player_names="<i>Hozircha hech kim qo'shilmadi</i>", total=0)
 
 
+def _get_lobby_keyboard(game: Game, bot_username: str) -> InlineKeyboardMarkup:
+    """Returns appropriate keyboard for Classic vs Team lobby."""
+    from apps.games.models import Player
+    if getattr(game, 'mode', 'CLASSIC') == 'TEAM':
+        players = list(Player.objects.filter(game_id=game.id))
+        red_count = sum(1 for p in players if p.metadata and p.metadata.get('team_side') == 'RED')
+        blue_count = sum(1 for p in players if p.metadata and p.metadata.get('team_side') == 'BLUE')
+        return build_team_lobby_keyboard(bot_username, str(game.id), red_count, blue_count)
+    return build_group_lobby_keyboard(bot_username, str(game.id))
+
+
 @router.message(CommandStart())
 async def cmd_start_private(message: types.Message, command: CommandObject, bot: Bot):
-    """Handles /start in PM and deep link game joining."""
+    """Handles /start in PM and deep link game joining (including /team red/blue)."""
     if message.chat.type != "private":
         return
 
     bot_info = await bot.get_me()
     args = command.args
 
-    if args and args.startswith("join_"):
-        game_id = args.replace("join_", "").strip()
+    if args and (args.startswith("join_") or args.startswith("jointeam_")):
+        team_side = None
+        if args.startswith("jointeam_"):
+            parts = args.replace("jointeam_", "").split("_")
+            game_id = parts[0]
+            team_side = parts[1] if len(parts) > 1 else 'RED'
+        else:
+            game_id = args.replace("join_", "").strip()
+
         try:
             game = await sync_to_async(
                 lambda: Game.objects.select_related('bot').get(id=game_id)
@@ -291,44 +333,57 @@ async def cmd_start_private(message: types.Message, command: CommandObject, bot:
                 game=game,
                 telegram_user_id=message.from_user.id,
                 username=message.from_user.username or '',
-                display_name=message.from_user.full_name or message.from_user.first_name
+                display_name=message.from_user.full_name or message.from_user.first_name,
+                team_side=team_side
             )
+
+            team_badge = "🔴 Qizil" if team_side == 'RED' else ("🔵 Ko'k" if team_side == 'BLUE' else "")
+            team_info = f" ({team_badge} jamoa)" if team_badge else ""
 
             if created:
                 await message.answer(
-                    "Siz o'yinga muvaffaqiyatli qo'shildingiz!",
+                    f"Siz o'yinga{team_info} muvaffaqiyatli qo'shildingiz!",
                     reply_markup=build_back_to_group_keyboard(chat_id=game.chat_id),
                     parse_mode="HTML"
                 )
-                try:
-                    bot_name = game.bot.name if game.bot else "Bloody Mafia"
-                    new_text = await sync_to_async(format_lobby_text)(game, bot_name)
-                    kb = build_group_lobby_keyboard(bot_info.username, str(game.id))
-                    if game.lobby_message_id:
-                        try:
-                            await bot.edit_message_caption(
-                                chat_id=game.chat_id,
-                                message_id=game.lobby_message_id,
-                                caption=new_text,
-                                reply_markup=kb,
-                                parse_mode="HTML"
-                            )
-                        except Exception:
-                            await bot.edit_message_text(
-                                text=new_text,
-                                chat_id=game.chat_id,
-                                message_id=game.lobby_message_id,
-                                reply_markup=kb,
-                                parse_mode="HTML"
-                            )
-                except Exception as e:
-                    logger.warning(f"Could not update lobby message: {e}")
             else:
-                await message.answer(
-                    "Siz allaqachon ro'yxatdan o'tgansiz!",
-                    reply_markup=build_back_to_group_keyboard(chat_id=game.chat_id),
-                    parse_mode="HTML"
-                )
+                if team_side:
+                    await message.answer(
+                        f"Sizning jamoangiz {team_badge} jamoaga o'zgartirildi!",
+                        reply_markup=build_back_to_group_keyboard(chat_id=game.chat_id),
+                        parse_mode="HTML"
+                    )
+                else:
+                    await message.answer(
+                        "Siz allaqachon ro'yxatdan o'tgansiz!",
+                        reply_markup=build_back_to_group_keyboard(chat_id=game.chat_id),
+                        parse_mode="HTML"
+                    )
+
+            try:
+                bot_name = game.bot.name if game.bot else "Bloody Mafia"
+                new_text = await sync_to_async(format_lobby_text)(game, bot_name)
+                kb = await sync_to_async(_get_lobby_keyboard)(game, bot_info.username)
+                if game.lobby_message_id:
+                    try:
+                        await bot.edit_message_caption(
+                            chat_id=game.chat_id,
+                            message_id=game.lobby_message_id,
+                            caption=new_text,
+                            reply_markup=kb,
+                            parse_mode="HTML"
+                        )
+                    except Exception:
+                        await bot.edit_message_text(
+                            text=new_text,
+                            chat_id=game.chat_id,
+                            message_id=game.lobby_message_id,
+                            reply_markup=kb,
+                            parse_mode="HTML"
+                        )
+            except Exception as e:
+                logger.warning(f"Could not update lobby message: {e}")
+
         except Exception as e:
             logger.warning(f"Error in deep link join: {e}")
             await message.answer("❌ O'yin topilmadi yoki xatolik yuz berdi.")
@@ -343,11 +398,10 @@ async def cmd_start_private(message: types.Message, command: CommandObject, bot:
     await message.answer(greeting, reply_markup=build_child_start_keyboard(bot_info.username), parse_mode="HTML")
 
 
-@router.message(Command("game", "start_lobby", ignore_case=True))
-async def cmd_create_game_lobby(message: types.Message, bot: Bot):
-    """Handles /game in group chat."""
+async def _handle_create_lobby(message: types.Message, bot: Bot, mode: str = "CLASSIC"):
+    """Core handler to open a Classic (/game) or Team (/team) lobby."""
     if message.chat.type == "private":
-        await message.answer("⚠️ Ushbu buyruq faqat guruhlarda ishlaydi! Meni biror guruhga qo'shing va u yerda <code>/game</code> deb yozing.", parse_mode="HTML")
+        await message.answer("⚠️ Ushbu buyruq faqat guruhlarda ishlaydi! Meni biror guruhga qo'shing va u yerda buyruqni yuboring.", parse_mode="HTML")
         return
 
     bot_info = await bot.get_me()
@@ -378,7 +432,7 @@ async def cmd_create_game_lobby(message: types.Message, bot: Bot):
             ])
             await message.reply(
                 f"⚠️ <b>Diqqat:</b> Guruhda o'yin yaratish, xabarlarni pin qilish va o'yinni boshqarish uchun botga <b>Guruh Administratori</b> huquqini bering! 👑\n\n"
-                f"<i>Adminlik berilgach, qaytadan /game buyrug'ini yuboring.</i>",
+                f"<i>Adminlik berilgach, qaytadan buyruqni yuboring.</i>",
                 reply_markup=kb,
                 parse_mode="HTML"
             )
@@ -434,9 +488,9 @@ async def cmd_create_game_lobby(message: types.Message, bot: Bot):
 
     if active_waiting_game:
         game = active_waiting_game
-        # RESET COUNTDOWN: Every /game call gives a full fresh 5-minute timeout from now!
+        game.mode = mode
         game.phase_ends_at = now + timedelta(seconds=lobby_timeout_seconds)
-        await sync_to_async(game.save)(update_fields=['phase_ends_at'])
+        await sync_to_async(game.save)(update_fields=['mode', 'phase_ends_at'])
         if game.lobby_message_id:
             try:
                 await bot.delete_message(chat_id=chat_id, message_id=game.lobby_message_id)
@@ -446,14 +500,14 @@ async def cmd_create_game_lobby(message: types.Message, bot: Bot):
         game = await sync_to_async(GameService.create_game)(
             bot=bot_record,
             chat_id=chat_id,
-            mode="CLASSIC"
+            mode=mode
         )
         game.phase_ends_at = now + timedelta(seconds=lobby_timeout_seconds)
         await sync_to_async(game.save)(update_fields=['phase_ends_at'])
 
     bot_name = bot_record.name if bot_record else "Bloody Mafia"
     lobby_text = await sync_to_async(format_lobby_text)(game, bot_name)
-    kb = build_group_lobby_keyboard(bot_info.username, str(game.id))
+    kb = await sync_to_async(_get_lobby_keyboard)(game, bot_info.username)
 
     from bot_runtime.handlers.night import send_dynamic_animation
     sent_msg = await send_dynamic_animation(
@@ -479,6 +533,18 @@ async def cmd_create_game_lobby(message: types.Message, bot: Bot):
             logger.warning(f"Could not pin lobby message in chat {chat_id}: {pin_err}")
 
     start_lobby_timer(str(game.id), chat_id, bot, timeout=lobby_timeout_seconds)
+
+
+@router.message(Command("game", "start_lobby", ignore_case=True))
+async def cmd_create_game_lobby(message: types.Message, bot: Bot):
+    """Handles /game in group chat."""
+    await _handle_create_lobby(message, bot, mode="CLASSIC")
+
+
+@router.message(Command("team", "jamoa", "team_game", ignore_case=True))
+async def cmd_create_team_lobby(message: types.Message, bot: Bot):
+    """Handles /team or /jamoa in group chat (Red 🔴 vs Blue 🔵)."""
+    await _handle_create_lobby(message, bot, mode="TEAM")
 
 
 @router.message(Command("start_game", "go", "boshlash", "start", ignore_case=True))
@@ -527,6 +593,17 @@ async def cmd_start_game(message: types.Message, bot: Bot):
             await message.answer("⚠️ Faol o'yin topilmadi. Yangi o'yin ochish uchun <code>/game</code> buyrug'ini yuboring.", parse_mode="HTML")
         return
 
+    if getattr(game, 'mode', 'CLASSIC') == 'TEAM':
+        players = await sync_to_async(lambda: list(game.players.all()))()
+        red_count = sum(1 for p in players if p.metadata and p.metadata.get('team_side') == 'RED')
+        blue_count = sum(1 for p in players if p.metadata and p.metadata.get('team_side') == 'BLUE')
+        if red_count == 0 or blue_count == 0:
+            await message.answer(
+                "⚠️ <b>Jamoaviy o'yinni boshlash uchun har ikkala jamoada (🔴 Qizil va 🔵 Ko'k) kamida 1 tadan o'yinchi bo'lishi kerak!</b>",
+                parse_mode="HTML"
+            )
+            return
+
     cancel_lobby_timer(str(game.id))
     if game.lobby_message_id:
         try:
@@ -551,7 +628,7 @@ async def cmd_start_game(message: types.Message, bot: Bot):
         _register_ids(str(game.id), living_players)
 
         living_roster = "\n".join([
-            f'{i+1}. <a href="tg://user?id={p.telegram_user_id}">{html.escape(p.display_name)}</a>'
+            f'{i+1}. {_player_team_badge(p)}<a href="tg://user?id={p.telegram_user_id}">{html.escape(p.display_name)}</a>'
             for i, p in enumerate(living_players)
         ])
 
@@ -647,9 +724,15 @@ async def cmd_start_game(message: types.Message, bot: Bot):
             label = role_label(rname)
             desc = ROLE_DESCRIPTIONS.get(rname, "Siz o'yin ishtirokchisisiz. Kunduzgi muhokama va ovoz berishda faol qatnashing.")
 
+            team_side = player.metadata.get('team_side') if player.metadata else None
+            team_header = ""
+            if getattr(game, 'mode', 'CLASSIC') == 'TEAM' and team_side:
+                team_name = "🔴 Qizil" if team_side == 'RED' else "🔵 Ko'k"
+                team_header = f"<b>Siz - {team_name} jamoadasiz!</b>\n"
+
             # 1. Send Role Card Message (Image 1 top card)
             role_card_text = (
-                f"<b>Siz - {icon} {label}siz!</b>\n\n"
+                f"{team_header}<b>Siz - {icon} {label}siz!</b>\n\n"
                 f"{desc}"
             )
             try:
@@ -928,7 +1011,7 @@ async def cmd_leave_game(message: types.Message, bot: Bot):
     if phase_mode == 'LOBBY':
         bot_name = game.bot.name if game.bot else "Bloody Mafia"
         new_text = await sync_to_async(format_lobby_text)(game, bot_name)
-        kb = build_group_lobby_keyboard(bot_info.username, str(game.id))
+        kb = await sync_to_async(_get_lobby_keyboard)(game, bot_info.username)
 
         if game.lobby_message_id and message.chat.type in ["group", "supergroup"]:
             try:
@@ -1031,7 +1114,7 @@ async def handle_lobby_callback(callback: types.CallbackQuery, bot: Bot):
                 await callback.answer("✅ Siz o'yinga qo'shildingiz!")
                 bot_name = game.bot.name if game.bot else "Bloody Mafia"
                 new_text = await sync_to_async(format_lobby_text)(game, bot_name)
-                kb = build_group_lobby_keyboard(bot_info.username, str(game.id))
+                kb = await sync_to_async(_get_lobby_keyboard)(game, bot_info.username)
                 try:
                     await callback.message.edit_text(text=new_text, reply_markup=kb, parse_mode="HTML")
                 except Exception:
@@ -1047,7 +1130,7 @@ async def handle_lobby_callback(callback: types.CallbackQuery, bot: Bot):
                 await callback.answer("🚪 Siz o'yindan chiqdingiz.")
                 bot_name = game.bot.name if game.bot else "Bloody Mafia"
                 new_text = await sync_to_async(format_lobby_text)(game, bot_name)
-                kb = build_group_lobby_keyboard(bot_info.username, str(game.id))
+                kb = await sync_to_async(_get_lobby_keyboard)(game, bot_info.username)
                 try:
                     await callback.message.edit_text(text=new_text, reply_markup=kb, parse_mode="HTML")
                 except Exception:

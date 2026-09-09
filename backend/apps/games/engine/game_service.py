@@ -124,6 +124,7 @@ class GameService:
                 'chat_id': chat_id,
                 'phase': GamePhase.WAITING,
                 'status': GamePhase.WAITING,
+                'mode': kwargs.get('mode', 'CLASSIC'),
             }
 
             if configuration_id:
@@ -161,13 +162,14 @@ class GameService:
             return True
 
     @classmethod
-    def join_lobby(cls, game: Game, telegram_user_id: int, username: str = '', display_name: str = '') -> tuple:
+    def join_lobby(cls, game: Game, telegram_user_id: int, username: str = '', display_name: str = '', team_side: Optional[str] = None) -> tuple:
         """Adds a player to a WAITING game lobby and returns (player, created)."""
         with transaction.atomic():
             game = Game.objects.select_for_update().get(id=game.id)
             if game.phase != GamePhase.WAITING:
                 raise ValueError("Cannot join a game that has already started.")
 
+            initial_metadata = {'team_side': team_side} if team_side else {}
             player, created = Player.objects.get_or_create(
                 game=game,
                 telegram_user_id=telegram_user_id,
@@ -175,12 +177,17 @@ class GameService:
                     'username': username or '',
                     'display_name': display_name or username or f"User_{telegram_user_id}",
                     'is_alive': True,
+                    'metadata': initial_metadata,
                 }
             )
             if not created:
                 player.username = username or player.username
                 player.display_name = display_name or player.display_name
-                player.save(update_fields=['username', 'display_name'])
+                if team_side:
+                    if not player.metadata:
+                        player.metadata = {}
+                    player.metadata['team_side'] = team_side
+                player.save(update_fields=['username', 'display_name', 'metadata'])
 
             GameEventService.log_event(
                 game=game,

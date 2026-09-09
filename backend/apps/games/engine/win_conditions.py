@@ -21,6 +21,16 @@ class WinConditionService:
         if not alive_players:
             return None
 
+        # TEAM Mode Win Condition: Last surviving team (RED vs BLUE) wins!
+        if getattr(game, 'mode', 'CLASSIC') == 'TEAM':
+            red_alive = sum(1 for p in alive_players if p.metadata and p.metadata.get('team_side') == 'RED')
+            blue_alive = sum(1 for p in alive_players if p.metadata and p.metadata.get('team_side') == 'BLUE')
+            if red_alive > 0 and blue_alive == 0:
+                return 'TEAM_RED'
+            elif blue_alive > 0 and red_alive == 0:
+                return 'TEAM_BLUE'
+            return None
+
         total_alive = len(alive_players)
 
         # 1. Check Zombie Victory: All living players are Zombies

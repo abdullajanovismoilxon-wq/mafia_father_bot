@@ -9,7 +9,7 @@ Clean separation of concerns:
 """
 import logging
 from aiogram import Dispatcher
-from bot_runtime.handlers import lobby, night, voting, tournament, economy, admin, father_master, hero
+from bot_runtime.handlers import lobby, night, voting, tournament, economy, admin, father_master, hero, giveaway
 
 logger = logging.getLogger(__name__)
 
@@ -26,6 +26,7 @@ def create_bot_dispatcher() -> Dispatcher:
     dp = Dispatcher()
     dp.include_router(lobby.router)
     dp.include_router(hero.router)
+    dp.include_router(giveaway.router)
     dp.include_router(economy.router)
     dp.include_router(night.router)
     dp.include_router(voting.router)

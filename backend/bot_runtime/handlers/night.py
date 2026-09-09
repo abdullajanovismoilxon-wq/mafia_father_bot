@@ -930,14 +930,19 @@ async def _announce_game_winner(game: Game, winner: str, bot: Bot, story_lines: 
     winners = []
     others = []
     for p in all_players:
-        team = p.role.team if p.role else RoleTeam.CIVILIAN
-        team_won = (team == winner or
-                    (winner in [RoleTeam.CIVILIAN, 'CIVILIAN'] and team == RoleTeam.CIVILIAN) or
-                    (winner in [RoleTeam.MAFIA, 'MAFIA'] and team == RoleTeam.MAFIA) or
-                    (winner in [RoleTeam.ZOMBIE, 'ZOMBIE'] and team == RoleTeam.ZOMBIE) or
-                    (winner in [RoleTeam.SOLO, 'SOLO'] and team == RoleTeam.SOLO))
-        if p.role and p.role.name == 'AXMOQ' and p.is_alive:
-            team_won = True
+        if getattr(game, 'mode', 'CLASSIC') == 'TEAM':
+            p_side = p.metadata.get('team_side') if p.metadata else None
+            won_side = 'RED' if winner == 'TEAM_RED' else ('BLUE' if winner == 'TEAM_BLUE' else None)
+            team_won = (p_side == won_side) if won_side else False
+        else:
+            team = p.role.team if p.role else RoleTeam.CIVILIAN
+            team_won = (team == winner or
+                        (winner in [RoleTeam.CIVILIAN, 'CIVILIAN'] and team == RoleTeam.CIVILIAN) or
+                        (winner in [RoleTeam.MAFIA, 'MAFIA'] and team == RoleTeam.MAFIA) or
+                        (winner in [RoleTeam.ZOMBIE, 'ZOMBIE'] and team == RoleTeam.ZOMBIE) or
+                        (winner in [RoleTeam.SOLO, 'SOLO'] and team == RoleTeam.SOLO))
+            if p.role and p.role.name == 'AXMOQ' and p.is_alive:
+                team_won = True
 
         # Only ALIVE players of winning faction win! Dead players do NOT win.
         if team_won and p.is_alive:
@@ -946,6 +951,7 @@ async def _announce_game_winner(game: Game, winner: str, bot: Bot, story_lines: 
             others.append(p)
 
     from apps.superadmin.services import SettingService
+    from bot_runtime.keyboards.inline import _player_team_badge
     win_coins = await sync_to_async(SettingService.get_int)('victory_reward_coins', await sync_to_async(SettingService.get_int)('reward_win_coins', 50))
     win_diamonds = await sync_to_async(SettingService.get_int)('victory_reward_diamonds', await sync_to_async(SettingService.get_int)('reward_win_diamonds', 0))
     part_coins = await sync_to_async(SettingService.get_int)('participation_reward_coins', await sync_to_async(SettingService.get_int)('reward_participation_coins', 15))
@@ -954,7 +960,15 @@ async def _announce_game_winner(game: Game, winner: str, bot: Bot, story_lines: 
     win_reward_str = f"+{win_coins} 💶" + (f", +{win_diamonds} 💎" if win_diamonds > 0 else "")
     part_reward_str = f"+{part_coins} 💶" + (f", +{part_diamonds} 💎" if part_diamonds > 0 else "")
 
-    lines = ["🏆 <b>O'yin tugadi!</b>\n"]
+    if getattr(game, 'mode', 'CLASSIC') == 'TEAM':
+        if winner == 'TEAM_RED':
+            lines = ["🏆 🔴 <b>QIZIL JAMOA G'ALABA QOZONDI!</b>\n"]
+        elif winner == 'TEAM_BLUE':
+            lines = ["🏆 🔵 <b>KO'K JAMOA G'ALABA QOZONDI!</b>\n"]
+        else:
+            lines = ["🏆 <b>O'yin tugadi!</b>\n"]
+    else:
+        lines = ["🏆 <b>O'yin tugadi!</b>\n"]
 
     if winners:
         lines.append(f"<b>G'oliblar ({win_reward_str}):</b>")
@@ -963,7 +977,8 @@ async def _announce_game_winner(game: Game, winner: str, bot: Bot, story_lines: 
             rname = p.role.name if p.role else "CITIZEN"
             icon = role_icon(rname)
             label = role_label(rname)
-            mention = f'<a href="tg://user?id={p.telegram_user_id}">{html.escape(p.display_name)}</a>'
+            team_badge = _player_team_badge(p)
+            mention = f'{team_badge}<a href="tg://user?id={p.telegram_user_id}">{html.escape(p.display_name)}</a>'
             lines.append(f" {counter}. {mention} - {icon} {label}")
             counter += 1
 
@@ -974,7 +989,8 @@ async def _announce_game_winner(game: Game, winner: str, bot: Bot, story_lines: 
             rname = p.role.name if p.role else "CITIZEN"
             icon = role_icon(rname)
             label = role_label(rname)
-            mention = f'<a href="tg://user?id={p.telegram_user_id}">{html.escape(p.display_name)}</a>'
+            team_badge = _player_team_badge(p)
+            mention = f'{team_badge}<a href="tg://user?id={p.telegram_user_id}">{html.escape(p.display_name)}</a>'
             lines.append(f" {counter}. {mention} - {icon} {label}")
             counter += 1
 
