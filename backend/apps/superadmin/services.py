@@ -510,15 +510,31 @@ DEFAULT_BOT_TEXTS = [
     {'key': 'btn_role_sell_shifokor', 'category': 'CHILD_BUTTONS', 'title': "Aktiv Rol: 'Shifokor rolini sotish' tugmasi", 'content_uz': "👨🏼‍⚕️ Shifokor ({price} 💶)"},
     {'key': 'btn_role_sell_citizen', 'category': 'CHILD_BUTTONS', 'title': "Aktiv Rol: 'Tinch aholi rolini sotish' tugmasi", 'content_uz': "👨🏼 Tinch aholi ({price} 💶)"},
 
+    # HERO & GEROY ZARBALARI
+    {'key': 'hero_group_strike_hit', 'category': 'HERO', 'title': "Geroy zarbasi guruhga (Omon qolganda)", 'content_uz': "💥 Kimdir o'z Geroyidan foydalanib <b>{target_name}</b>ga {damage}% shikast yetkazdi!\n🩸 <b>{target_name}</b> ning qolgan joni: <b>{remaining_hp}% ❤️</b>"},
+    {'key': 'hero_group_strike_kill_part1', 'category': 'HERO', 'title': "Geroy zarbasi guruhga (O'ldirganda 1-xabar)", 'content_uz': "💥 Kimdir o'z Geroyidan foydalanib <b>{target_name}</b>ga {damage}% shikast yetkazdi!"},
+    {'key': 'hero_group_strike_kill_part2', 'category': 'HERO', 'title': "Geroy zarbasi guruhga (O'ldirganda 2-xabar)", 'content_uz': "☠️ <b>{target_name}</b> Geroy tomonidan o'ldirildi! (U: {role_icon} <b>{role_name}</b> edi)"},
+    {'key': 'hero_group_strike_blocked', 'category': 'HERO', 'title': "Geroy zarbasi guruhga (Himoya qaytarganda)", 'content_uz': "💥 Kimdir o'z Geroyidan foydalanib <b>{target_name}</b>ga zarba berdi!\n\n🔰 <b>{target_name}</b> ning <b>Geroydan Himoyasi</b> zarbani to'liq qaytardi va uning hayotini saqlab qoldi!"},
+
+    # NIGHT & MAFIA CHAT / VOTE RELAYS
+    {'key': 'night_mafia_vote_relay', 'category': 'NIGHT', 'title': "Mafiya sheriklariga nishon tanlanganda xabar", 'content_uz': "🤵🏼 <b>[MAFIYA OV]</b> <b>{actor_name}</b> ({actor_role}) quyidagi o'yinchini nishonga oldi:\n🎯 <b>{target_name}</b>"},
+    {'key': 'night_mafia_chat_relay', 'category': 'NIGHT', 'title': "Mafiya tunda o'zaro yozishganda format", 'content_uz': "💬 <b>[MAFIYA CHAT]</b> {role_icon} <b>{sender_name} ({role_label}):</b>\n{text}"},
+    {'key': 'night_police_chat_relay', 'category': 'NIGHT', 'title': "Politsiya tunda o'zaro yozishganda format", 'content_uz': "💬 <b>[POLITSIYA CHAT]</b> {role_icon} <b>{sender_name} ({role_label}):</b>\n{text}"},
+
+    # LOBBY GREETINGS & NOTIFICATIONS
+    {'key': 'lobby_pm_start_greeting', 'category': 'LOBBY', 'title': "Bot PM /start salomlashish xabari", 'content_uz': "Salom, <b>{first_name}</b>! 🎭\n\nMen <b>Mafia Bot</b>man. Men guruhlarda do'stlaringiz bilan birga afsonaviy Mafiya o'yinini o'ynash uchun xizmat qilaman!\n\nGuruhda yangi o'yin ochish uchun <code>/game</code> buyrug'ini yuboring.\n\n💬 <i>Savol va takliflaringiz bo'lsa @ismoilo9 ga murojaat qiling.</i>"},
+    {'key': 'lobby_game_started_text', 'category': 'LOBBY', 'title': "O'yin boshlanganda guruh xabari", 'content_uz': "🎮 <b>O'yin boshlandi!</b>\n\nRollar taqsimlanmoqda... Botga o'tib rolingizni ko'ring!"},
+
     # HARAKAT VA O'YIN ICHIDAGI BUTTONS
     {'key': 'btn_action_hang', 'category': 'ACTION_BUTTONS', 'title': "Ovoz berish: '👍 Xa (O'ldirish)' tugmasi", 'content_uz': "👍 Xa (O'ldirish)"},
     {'key': 'btn_action_save', 'category': 'ACTION_BUTTONS', 'title': "Ovoz berish: '👎 Yo'q (Afv etish)' tugmasi", 'content_uz': "👎 Yo'q (Afv etish)"},
+    {'key': 'btn_hanging_kill', 'category': 'ACTION_BUTTONS', 'title': "Dorga osish: '👍 {count}' tugmasi", 'content_uz': "👍 {count}"},
+    {'key': 'btn_hanging_save', 'category': 'ACTION_BUTTONS', 'title': "Dorga osish: '👎 {count}' tugmasi", 'content_uz': "👎 {count}"},
     {'key': 'btn_action_investigate', 'category': 'ACTION_BUTTONS', 'title': "Komissar: '🔍 Tekshirish' tugmasi", 'content_uz': "🔍 Tekshirish"},
     {'key': 'btn_action_shoot', 'category': 'ACTION_BUTTONS', 'title': "Komissar: '🔫 Otish' tugmasi", 'content_uz': "🔫 Otish"},
     {'key': 'btn_bot_pm', 'category': 'ACTION_BUTTONS', 'title': "Xabarlar: 'Botga o'tish ↗' tugmasi", 'content_uz': "Botga o'tish ↗"},
     {'key': 'btn_back_group', 'category': 'ACTION_BUTTONS', 'title': "Xabarlar: 'Guruhga o'tish ↗' tugmasi", 'content_uz': "Guruhga o'tish ↗"},
     {'key': 'btn_force_cancel', 'category': 'ACTION_BUTTONS', 'title': "O'yin: '🛑 O'yinni to'xtatish va yangi ochish' tugmasi", 'content_uz': "🛑 O'yinni to'xtatish va yangi ochish"},
-
 ]
 
 

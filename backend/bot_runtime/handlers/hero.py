@@ -404,11 +404,11 @@ async def handle_hero_dawn_target(callback: types.CallbackQuery, bot: Bot):
         except Exception:
             pass
 
-        group_msg = (
-            f"🥷 <b>{shooter_name}</b> o'z Geroyi (<b>{hero.name}</b>) bilan <b>{target_name}</b> ga zarba berdi!\n\n"
-            f"🔰 <b>{target_name}</b> ning <b>Geroydan Himoyasi</b> zarbani to'liq qaytardi va uning hayotini saqlab qoldi!\n"
-            f"🩸 Geroydan 1 ta zaryad sarflandi (Qoldi: {res['charges_left']})."
+        tpl = await sync_to_async(TextService.get_text)(
+            'hero_group_strike_blocked',
+            fallback="💥 Kimdir o'z Geroyidan foydalanib <b>{target_name}</b>ga zarba berdi!\n\n🔰 <b>{target_name}</b> ning <b>Geroydan Himoyasi</b> zarbani to'liq qaytardi va uning hayotini saqlab qoldi!"
         )
+        group_msg = tpl.format(target_name=target_name)
         try:
             await bot.send_message(game.chat_id, group_msg, parse_mode="HTML")
         except Exception:
@@ -439,14 +439,22 @@ async def handle_hero_dawn_target(callback: types.CallbackQuery, bot: Bot):
             except Exception:
                 pass
 
-        group_msg = (
-            f"💥 <b>{shooter_name}</b> o'z Geroyi (<b>{hero.name}</b>) bilan <b>{target_name}</b> ga nishon olib o't ochdi!\n\n"
-            f"☠️ <b>{target_name}</b> {res['damage']}% halokatli zarba oqibatida yer tishladi va halok bo'ldi! (U: {r_icon} {r_name} edi)\n\n"
-            f"⭐ Geroyga <b>+150 ball</b> qo'shildi! (Jami: {hero.score} ball, Daraja: {hero.level})\n"
-            f"🩸 Qolgan zaryad: {res['charges_left']} ta."
+        tpl1 = await sync_to_async(TextService.get_text)(
+            'hero_group_strike_kill_part1',
+            fallback="💥 Kimdir o'z Geroyidan foydalanib <b>{target_name}</b>ga {damage}% shikast yetkazdi!"
         )
+        msg1 = tpl1.format(target_name=target_name, damage=res['damage'])
+
+        tpl2 = await sync_to_async(TextService.get_text)(
+            'hero_group_strike_kill_part2',
+            fallback="☠️ <b>{target_name}</b> Geroy tomonidan o'ldirildi! (U: {role_icon} <b>{role_name}</b> edi)"
+        )
+        msg2 = tpl2.format(target_name=target_name, role_icon=r_icon, role_name=r_name)
+
         try:
-            await bot.send_message(game.chat_id, group_msg, parse_mode="HTML")
+            await bot.send_message(game.chat_id, msg1, parse_mode="HTML")
+            await asyncio.sleep(0.4)
+            await bot.send_message(game.chat_id, msg2, parse_mode="HTML")
         except Exception:
             pass
 
@@ -469,11 +477,11 @@ async def handle_hero_dawn_target(callback: types.CallbackQuery, bot: Bot):
         except Exception:
             pass
 
-        group_msg = (
-            f"💥 <b>{shooter_name}</b> o'z Geroyi (<b>{hero.name}</b>) bilan <b>{target_name}</b> ga zarba berdi!\n"
-            f"🩸 <b>{target_name}</b> {res['damage']}% jarohat oldi! (Qolgan joni: <b>{res['remaining_hp']}% ❤️</b>)\n"
-            f"🩸 Geroydan 1 ta zaryad sarflandi (Qolgan zaryad: {res['charges_left']} ta)."
+        tpl = await sync_to_async(TextService.get_text)(
+            'hero_group_strike_hit',
+            fallback="💥 Kimdir o'z Geroyidan foydalanib <b>{target_name}</b>ga {damage}% shikast yetkazdi!\n🩸 <b>{target_name}</b> ning qolgan joni: <b>{remaining_hp}% ❤️</b>"
         )
+        group_msg = tpl.format(target_name=target_name, damage=res['damage'], remaining_hp=res['remaining_hp'])
         try:
             await bot.send_message(game.chat_id, group_msg, parse_mode="HTML")
         except Exception:
@@ -585,22 +593,29 @@ async def handle_daytime_hero_shoot(message: types.Message, bot: Bot):
     r_icon = _role_icon(r_name)
 
     if res.get('blocked'):
-        res_text = (
-            f"🥷 <b>{shooter_name}</b> o'z Geroyi (<b>{hero.name}</b>) bilan <b>{victim_name}</b> ga o'q uzdi!\n\n"
-            f"🔰 <b>{victim_name}</b> ning <b>Geroydan Himoyasi</b> zarbani to'liq qaytardi va uning hayotini saqlab qoldi!\n"
-            f"🩸 Geroydan 1 ta zaryad sarflandi (Qoldi: {res['charges_left']})."
+        tpl = await sync_to_async(TextService.get_text)(
+            'hero_group_strike_blocked',
+            fallback="💥 Kimdir o'z Geroyidan foydalanib <b>{target_name}</b>ga zarba berdi!\n\n🔰 <b>{target_name}</b> ning <b>Geroydan Himoyasi</b> zarbani to'liq qaytardi va uning hayotini saqlab qoldi!"
         )
-        await message.reply(res_text, parse_mode="HTML")
+        await message.reply(tpl.format(target_name=victim_name), parse_mode="HTML")
         return
 
     if res.get('killed'):
-        res_text = (
-            f"💥 <b>{shooter_name}</b> o'z Geroyi (<b>{hero.name}</b>) bilan <b>{victim_name}</b> ga nishon olib o't ochdi!\n\n"
-            f"☠️ <b>{victim_name}</b> {res['damage']}% halokatli zarba oqibatida yer tishladi va halok bo'ldi! (U: {r_icon} {r_name} edi)\n\n"
-            f"⭐ Geroyga <b>+150 ball</b> qo'shildi! (Jami: {hero.score} ball, Daraja: {hero.level})\n"
-            f"🩸 Qolgan zaryad: {res['charges_left']} ta."
+        tpl1 = await sync_to_async(TextService.get_text)(
+            'hero_group_strike_kill_part1',
+            fallback="💥 Kimdir o'z Geroyidan foydalanib <b>{target_name}</b>ga {damage}% shikast yetkazdi!"
         )
-        await message.reply(res_text, parse_mode="HTML")
+        msg1 = tpl1.format(target_name=victim_name, damage=res['damage'])
+
+        tpl2 = await sync_to_async(TextService.get_text)(
+            'hero_group_strike_kill_part2',
+            fallback="☠️ <b>{target_name}</b> Geroy tomonidan o'ldirildi! (U: {role_icon} <b>{role_name}</b> edi)"
+        )
+        msg2 = tpl2.format(target_name=victim_name, role_icon=r_icon, role_name=r_name)
+
+        await message.reply(msg1, parse_mode="HTML")
+        await asyncio.sleep(0.4)
+        await bot.send_message(chat_id, msg2, parse_mode="HTML")
 
         if res.get('leveled_up'):
             try:
@@ -622,10 +637,9 @@ async def handle_daytime_hero_shoot(message: types.Message, bot: Bot):
             from bot_runtime.handlers.night import _announce_game_winner
             await _announce_game_winner(game, winner, bot, story_lines=[f"💥 Geroy zarbasi natijasida o'yin yakunlandi!"])
     else:
-        res_text = (
-            f"💥 <b>{shooter_name}</b> o'z Geroyi (<b>{hero.name}</b>) bilan <b>{victim_name}</b> ga o'q uzdi!\n"
-            f"🩸 <b>{victim_name}</b> {res['damage']}% jarohat oldi! (Qolgan joni: <b>{res['remaining_hp']}% ❤️</b>)\n"
-            f"🩸 Qolgan zaryad: {res['charges_left']} ta."
+        tpl = await sync_to_async(TextService.get_text)(
+            'hero_group_strike_hit',
+            fallback="💥 Kimdir o'z Geroyidan foydalanib <b>{target_name}</b>ga {damage}% shikast yetkazdi!\n🩸 <b>{target_name}</b> ning qolgan joni: <b>{remaining_hp}% ❤️</b>"
         )
-        await message.reply(res_text, parse_mode="HTML")
+        await message.reply(tpl.format(target_name=victim_name, damage=res['damage'], remaining_hp=res['remaining_hp']), parse_mode="HTML")
 

@@ -12,6 +12,7 @@ class BotSystemText(BaseEntityModel):
         ('ACTION_BUTTONS', "Harakat Tugmalari (Tun/Kun/Ovoz)"),
         ('LOBBY', "Lobby & O'yin Yaratish"),
         ('NIGHT', "Tun Bosqichi & Rollar"),
+        ('HERO', "Geroy & Zarbalar"),
         ('DAWN', "Tong & O'lim E'loni"),
         ('VOTING', "Kun & Ovoz Berish"),
         ('PROFILE', "Profil & Balans"),

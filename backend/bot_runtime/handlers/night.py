@@ -1235,6 +1235,36 @@ async def handle_night_action_callback(callback: CallbackQuery, bot: Bot):
             except Exception as g_err:
                 logger.warning(f"Could not send group action info: {g_err}")
 
+        # Notify living Mafia teammates in PM when a Mafia member chooses a target
+        is_mafia_actor = (actor.role and (actor.role.team == RoleTeam.MAFIA or actor.role.name in ["DON", "MAFIA", "ADVOKAT", "UBIYTSA", "JURNALIST", "AYGOQCHI", "LABORANT"]))
+        if is_mafia_actor:
+            mafia_teammates = await sync_to_async(
+                lambda: list(
+                    Player.objects.filter(
+                        game=game, is_alive=True
+                    ).filter(
+                        Q(role__team=RoleTeam.MAFIA) | Q(role__name__in=["DON", "MAFIA", "ADVOKAT", "UBIYTSA", "JURNALIST", "AYGOQCHI", "LABORANT"])
+                    ).exclude(telegram_user_id=callback.from_user.id)
+                )
+            )()
+            if mafia_teammates:
+                r_icon = role_icon(actor.role.name)
+                r_lbl = role_label(actor.role.name)
+                tpl = await sync_to_async(TextService.get_text)(
+                    'night_mafia_vote_relay',
+                    fallback="🤵🏼 <b>[MAFIYA OV]</b> <b>{actor_name}</b> ({actor_role}) quyidagi o'yinchini nishonga oldi:\n🎯 <b>{target_name}</b>"
+                )
+                mafia_vote_msg = tpl.format(
+                    actor_name=html.escape(actor.display_name or 'Mafiya'),
+                    actor_role=f"{r_icon} {r_lbl}",
+                    target_name=html.escape(target_name)
+                )
+                for tm in mafia_teammates:
+                    try:
+                        await bot.send_message(tm.telegram_user_id, mafia_vote_msg, parse_mode="HTML")
+                    except Exception:
+                        pass
+
         # Notify Serjant if Komissar acted
         if actor.role and actor.role.name in ['DETECTIVE', 'KOMISSAR', 'SHERIFF']:
             serjant = await sync_to_async(
@@ -1380,49 +1410,62 @@ async def handle_vaccine_use(callback: CallbackQuery):
     player = await sync_to_async(
         lambda: Player.objects.filter(game=game, telegram_user_id=callback.from_user.id).first()
     )()
+async def handle_vaksina_use_callback(callback: CallbackQuery, bot: Bot):
+    parts = callback.data.split(":")
+    short_gid = parts[1]
+    full_gid = await _resolve_game_id(short_gid)
 
-    from apps.economy.models import Inventory
-    inv = await sync_to_async(
-        lambda: Inventory.objects.filter(
-            telegram_id=callback.from_user.id, item__code='vaksina', is_active=True, quantity__gt=0
-        ).first()
+    game = await sync_to_async(Game.objects.get)(id=full_gid)
+    player = await sync_to_async(
+        lambda: Player.objects.filter(game=game, telegram_user_id=callback.from_user.id).first()
     )()
 
-    if inv:
-        inv.quantity -= 1
-        if inv.quantity <= 0:
-            inv.is_active = False
-        await sync_to_async(inv.save)(update_fields=['quantity', 'is_active'])
+    if not player:
+        await callback.answer("O'yinchi topilmadi.")
+        return
 
-        orig_code = player.metadata.get('original_role_code', 'citizen') if player.metadata else 'citizen'
-        orig_role = await sync_to_async(lambda: Role.objects.filter(code=orig_code).first())()
-        if orig_role:
-            player.role = orig_role
-        if player.metadata:
-            player.metadata['is_zombie'] = False
-        await sync_to_async(player.save)(update_fields=['role', 'metadata'])
+    from apps.economy.models import Wallet, CurrencyType
+    wallet = await sync_to_async(
+        lambda: Wallet.objects.filter(user=player.profile.user if hasattr(player, 'profile') and player.profile else None).first()
+    )()
 
-        await callback.message.edit_text("💉 <b>Vaksina qabul qilindi! Siz asil rolingizga qaytdingiz.</b>", parse_mode="HTML")
-        await callback.answer("💉 Tuzaldingiz!")
-    else:
-        await callback.answer("Inventaringizda vaksina qolmagan!", show_alert=True)
+    price = 150
+    if not wallet or wallet.get_balance(CurrencyType.COIN) < price:
+        await callback.answer("❌ Vaksina sotib olish uchun mablag' yetarli emas (150 💶).", show_alert=True)
+        return
+
+    from apps.economy.services import EconomyService
+    from apps.economy.models import TransactionType
+    await sync_to_async(EconomyService.transfer_funds)(
+        from_wallet=wallet, to_wallet=None, currency=CurrencyType.COIN, amount=price,
+        tx_type=TransactionType.PURCHASE, description="Zombi vaksinasi xaridi"
+    )
+
+    try:
+        await callback.message.edit_text("💉 <b>Vaksina qabul qilindi!</b>\nSiz asil rolingizga qaytdingiz.", parse_mode="HTML")
+    except Exception:
+        pass
+    await callback.answer("💉 Vaksina ishlatildi!")
 
 
 @router.callback_query(lambda c: c.data and c.data.startswith("vak_skip:"))
-async def handle_vaccine_skip(callback: CallbackQuery):
-    await callback.message.edit_text("🧟 Siz Zombi bo'lib qolishni tanladingiz.", parse_mode="HTML")
+async def handle_vaksina_skip_callback(callback: CallbackQuery, bot: Bot):
+    try:
+        await callback.message.edit_text("🧟 Siz Zombi sifatida o'ynashni davom ettirasiz.", parse_mode="HTML")
+    except Exception:
+        pass
     await callback.answer()
 
 
 # ---------------------------------------------------------------------------
-# Private Message Relay (Mafia & Police PM Chats)
+# Private Chat Message Relay (Last words & Mafia / Police PM chat)
 # ---------------------------------------------------------------------------
 
 @router.message(F.chat.type == "private", F.text, ~F.text.startswith("/"))
 async def handle_private_message_relay(message: Message, bot: Bot):
     """
     1. Handles dying player's Last Words (So'ngi so'z) within 50s.
-    2. Relays Mafia PM to living Mafia teammates (Don, Mafia, Advokat, Ubiytsa, Kimyogar).
+    2. Relays Mafia PM to living Mafia teammates (Don, Mafia, Advokat, Ubiytsa, Jurnalist, Aygoqchi, Laborant).
     3. Relays Police PM between living Komissar and Serjant.
     """
     user_id = message.from_user.id
@@ -1467,33 +1510,45 @@ async def handle_private_message_relay(message: Message, bot: Bot):
 
         game = player.game
         sender_name = player.display_name or message.from_user.first_name or "O'yinchi"
+        r_name = player.role.name
+        r_icon = role_icon(r_name)
+        r_lbl = role_label(r_name)
 
-        # Mafia Team Relay
-        if player.role.team == RoleTeam.MAFIA:
+        # Mafia Team Relay (Don, Mafia, Advokat, Ubiytsa, Jurnalist, Aygoqchi, Laborant)
+        is_mafia = (player.role.team == RoleTeam.MAFIA or r_name in ["DON", "MAFIA", "ADVOKAT", "UBIYTSA", "JURNALIST", "AYGOQCHI", "LABORANT"])
+        if is_mafia:
             mafia_teammates = await sync_to_async(
                 lambda: list(
                     Player.objects.filter(
-                        game=game, is_alive=True, role__team=RoleTeam.MAFIA
+                        game=game, is_alive=True
+                    ).filter(
+                        Q(role__team=RoleTeam.MAFIA) | Q(role__name__in=["DON", "MAFIA", "ADVOKAT", "UBIYTSA", "JURNALIST", "AYGOQCHI", "LABORANT"])
                     ).exclude(telegram_user_id=user_id)
                 )
             )()
 
             if mafia_teammates:
-                relay_text = (
-                    f"💬 <b>[MAFIYA CHAT] {html.escape(sender_name)} ({player.role.name}):</b>\n"
-                    f"{html.escape(message.text)}"
+                tpl = await sync_to_async(TextService.get_text)(
+                    'night_mafia_chat_relay',
+                    fallback="💬 <b>[MAFIYA CHAT]</b> {role_icon} <b>{sender_name} ({role_label}):</b>\n{text}"
+                )
+                relay_text = tpl.format(
+                    role_icon=r_icon,
+                    sender_name=html.escape(sender_name),
+                    role_label=html.escape(r_lbl),
+                    text=html.escape(message.text)
                 )
                 for tm in mafia_teammates:
                     try:
                         await bot.send_message(tm.telegram_user_id, relay_text, parse_mode="HTML")
                     except Exception:
                         pass
-                await message.answer(f"✅ {len(mafia_teammates)} ta mafiya a'zosiga yetkazildi.")
+                await message.answer(f"✅ {len(mafia_teammates)} ta mafiya sherigingizga yetkazildi.")
             else:
-                await message.answer("📭 Hozirda boshqa tirik mafiya a'zosi yo'q.")
+                await message.answer("📭 Hozirda sizdan boshqa tirik mafiya a'zosi yo'q.")
 
         # Police Team Relay (Komissar <-> Serjant)
-        elif player.role.name in ['DETECTIVE', 'KOMISSAR', 'SHERIFF', 'SERJANT']:
+        elif r_name in ['DETECTIVE', 'KOMISSAR', 'SHERIFF', 'SERJANT']:
             police_partners = await sync_to_async(
                 lambda: list(
                     Player.objects.filter(
@@ -1503,9 +1558,15 @@ async def handle_private_message_relay(message: Message, bot: Bot):
             )()
 
             if police_partners:
-                relay_text = (
-                    f"💬 <b>[POLITSIYA CHAT] {html.escape(sender_name)} ({player.role.name}):</b>\n"
-                    f"{html.escape(message.text)}"
+                tpl = await sync_to_async(TextService.get_text)(
+                    'night_police_chat_relay',
+                    fallback="💬 <b>[POLITSIYA CHAT]</b> {role_icon} <b>{sender_name} ({role_label}):</b>\n{text}"
+                )
+                relay_text = tpl.format(
+                    role_icon=r_icon,
+                    sender_name=html.escape(sender_name),
+                    role_label=html.escape(r_lbl),
+                    text=html.escape(message.text)
                 )
                 for pp in police_partners:
                     try:

@@ -249,28 +249,23 @@ def cancel_lobby_timer(game_id: str):
 def format_lobby_text(game: Game, bot_name: str = "Bloody Mafia") -> str:
     """Formats group lobby message querying real players from DB."""
     from apps.games.models import Player
+    from apps.superadmin.services import TextService
     players = list(Player.objects.filter(game_id=game.id).order_by('created_at'))
     player_count = len(players)
+
+    tpl = TextService.get_text(
+        'lobby_join_text',
+        fallback="<b>{bot_name}</b>               <code>BM Admin</code>\n<b>Ro'yxatdan o'tish davom etmoqda!</b>\n<b>Ro'yxatdan o'tganlar:</b>\n\n{player_names}\n\n<b>Jami: {total} ta</b>"
+    )
 
     if players:
         player_list_text = "\n".join([
             f'{i+1}. <a href="tg://user?id={p.telegram_user_id}">{html.escape(p.display_name)}</a>'
             for i, p in enumerate(players)
         ])
-        return (
-            f"<b>{html.escape(bot_name)}</b>               <code>BM Admin</code>\n"
-            f"<b>Ro'yxatdan o'tish davom etmoqda!</b>\n"
-            f"<b>Ro'yxatdan o'tganlar:</b>\n\n"
-            f"{player_list_text}\n\n"
-            f"<b>Jami: {player_count} ta</b>"
-        )
+        return tpl.format(bot_name=html.escape(bot_name), player_names=player_list_text, total=player_count)
     else:
-        return (
-            f"<b>{html.escape(bot_name)}</b>               <code>BM Admin</code>\n"
-            f"<b>Ro'yxatdan o'tish davom etmoqda!</b>\n"
-            f"<b>Ro'yxatdan o'tganlar:</b>\n\n"
-            f"<b>Jami: 0 ta</b>"
-        )
+        return tpl.format(bot_name=html.escape(bot_name), player_names="<i>Hozircha hech kim qo'shilmadi</i>", total=0)
 
 
 @router.message(CommandStart())
@@ -340,12 +335,11 @@ async def cmd_start_private(message: types.Message, command: CommandObject, bot:
         return
 
     # Normal PM /start menu
-    greeting = (
-        f"Salom, <b>{html.escape(message.from_user.first_name)}</b>! 🎭\n\n"
-        "Men <b>Mafia Bot</b>man. Men guruhlarda do'stlaringiz bilan birga afsonaviy Mafiya o'yinini o'ynash uchun xizmat qilaman!\n\n"
-        "Guruhda yangi o'yin ochish uchun <code>/game</code> buyrug'ini yuboring.\n\n"
-        "💬 <i>Savol va takliflaringiz bo'lsa @ismoilo9 ga murojaat qiling.</i>"
+    tpl = await sync_to_async(TextService.get_text)(
+        'lobby_pm_start_greeting',
+        fallback="Salom, <b>{first_name}</b>! 🎭\n\nMen <b>Mafia Bot</b>man. Men guruhlarda do'stlaringiz bilan birga afsonaviy Mafiya o'yinini o'ynash uchun xizmat qilaman!\n\nGuruhda yangi o'yin ochish uchun <code>/game</code> buyrug'ini yuboring.\n\n💬 <i>Savol va takliflaringiz bo'lsa @ismoilo9 ga murojaat qiling.</i>"
     )
+    greeting = tpl.format(first_name=html.escape(message.from_user.first_name))
     await message.answer(greeting, reply_markup=build_child_start_keyboard(bot_info.username), parse_mode="HTML")
 
 
@@ -565,9 +559,12 @@ async def cmd_start_game(message: types.Message, bot: Bot):
 
         # Group Message 1
         try:
+            start_msg = await sync_to_async(TextService.get_text)(
+                'lobby_game_started_text',
+                fallback="🎮 <b>O'yin boshlandi!</b>\n\nRollar taqsimlanmoqda... Botga o'tib rolingizni ko'ring!"
+            )
             await message.answer(
-                "🎮 <b>O'yin boshlandi!</b>\n\n"
-                "Rollar taqsimlanmoqda... Botga o'tib rolingizni ko'ring!",
+                start_msg,
                 reply_markup=build_bot_pm_keyboard(bot_info.username),
                 parse_mode="HTML"
             )
@@ -575,12 +572,19 @@ async def cmd_start_game(message: types.Message, bot: Bot):
             pass
 
         # Group Message 2 (Night GIF)
-        night_text = (
-            f"🌙 <b>Qorong'u va daxshatlarga to'la tun boshlandi.</b>\n"
-            f"Qo'rqmaslar ko'chaga chiqishga jur'at qilishdi.\n\n"
-            f"👥 <b>O'yinchilar:</b>\n{living_roster}\n\n"
-            f"Tun davomida ⏳ <b>60 sekund</b> vaqt bor."
+        night_tpl = await sync_to_async(TextService.get_text)(
+            'night_start_announcement',
+            fallback="🌙 <b>Qorong'u va daxshatlarga to'la tun boshlandi.</b>\nKo'chaga yana zulmat tushdi. <b>60 sekund</b> davomida harakatlaringizni bajaring!\n\n👥 <b>O'yinchilar: ({count} ta)</b>\n{players_list}"
         )
+        try:
+            night_text = night_tpl.format(round_num=1, count=len(living_players), players_list=living_roster)
+        except Exception:
+            night_text = (
+                f"🌙 <b>Qorong'u va daxshatlarga to'la tun boshlandi.</b>\n"
+                f"Qo'rqmaslar ko'chaga chiqishga jur'at qilishdi.\n\n"
+                f"👥 <b>O'yinchilar:</b>\n{living_roster}\n\n"
+                f"Tun davomida ⏳ <b>60 sekund</b> vaqt bor."
+            )
         from bot_runtime.handlers.night import send_dynamic_animation
         await send_dynamic_animation(
             bot=bot,
