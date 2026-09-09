@@ -15,18 +15,27 @@ router = Router(name="giveaway_router")
 
 def build_giveaway_keyboard(drop_id: str, currency: str, remaining: int, total: int) -> InlineKeyboardMarkup:
     """Builds inline keyboard for claiming drop."""
+    from apps.superadmin.services import TextService
     builder = InlineKeyboardBuilder()
     curr_icon = "💎" if currency == CurrencyType.DIAMONDS else "💶"
     curr_label = "Olmosni" if currency == CurrencyType.DIAMONDS else "Dollarni"
 
     if remaining <= 0:
+        lbl_finished = TextService.get_text(
+            'btn_giveaway_finished',
+            fallback="✅ Barchasi olindi! (0/{total})"
+        ).replace('{total}', str(total))
         builder.button(
-            text=f"✅ Barchasi olindi! (0/{total})",
+            text=lbl_finished,
             callback_data="gw:empty"
         )
     else:
+        lbl_claim = TextService.get_text(
+            'btn_giveaway_claim',
+            fallback="{curr_icon} {curr_label} olish ({remaining}/{total})"
+        ).replace('{curr_icon}', curr_icon).replace('{curr_label}', curr_label).replace('{remaining}', str(remaining)).replace('{total}', str(total))
         builder.button(
-            text=f"{curr_icon} {curr_label} olish ({remaining}/{total})",
+            text=lbl_claim,
             callback_data=f"gw:cl:{str(drop_id)}"
         )
     builder.adjust(1)
@@ -35,6 +44,7 @@ def build_giveaway_keyboard(drop_id: str, currency: str, remaining: int, total: 
 
 def format_giveaway_message(sender_id: int, sender_name: str, currency: str, total: int, remaining: int) -> str:
     """Formats group announcement for giveaway drop."""
+    from apps.superadmin.services import TextService
     curr_icon = "💎" if currency == CurrencyType.DIAMONDS else "💶"
     curr_label = "Olmos" if currency == CurrencyType.DIAMONDS else "Dollar"
     sender_mention = f'<a href="tg://user?id={sender_id}">{html.escape(sender_name)}</a>'
@@ -45,10 +55,17 @@ def format_giveaway_message(sender_id: int, sender_name: str, currency: str, tot
         f"🏁 <b>Barcha {total} ta {curr_label.lower()} to'liq olindi!</b>"
     )
 
-    return (
-        f"🎁 {sender_mention} guruhga <b>{total} {curr_icon} {curr_label}</b> ulashdi!\n\n"
-        f"ℹ️ <i>Har bir o'yinchi 1 donadan olishi mumkin!</i>\n\n"
-        f"{status_line}"
+    tpl = TextService.get_text(
+        'giveaway_drop_msg',
+        fallback="🎁 {sender_mention} guruhga <b>{total} {curr_icon} {curr_label}</b> ulashdi!\n\nℹ️ <i>Har bir o'yinchi 1 donadan olishi mumkin!</i>\n\n{status_line}"
+    )
+
+    return tpl.format(
+        sender_mention=sender_mention,
+        total=total,
+        curr_icon=curr_icon,
+        curr_label=curr_label,
+        status_line=status_line
     )
 
 

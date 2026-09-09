@@ -207,6 +207,14 @@ DEFAULT_GAME_SETTINGS = [
         'description': "Zombi tishlaganda asil roliga qaytish uchun vaksina."
     },
     {
+        'key': 'price_sirpanish_himoya',
+        'group': 'PRICES',
+        'title': "⛸ Sirpanishdan himoya narxi",
+        'value': '150',
+        'unit': '💶 Dollar',
+        'description': "Kezuvchi sirpantirib yiqitishidan 1 marta asraydi."
+    },
+    {
         'key': 'afk_inaction_nights',
         'group': 'TIMINGS',
         'title': "⏱ AFK Harakatsizlik jazosi limiti",
@@ -426,9 +434,10 @@ DEFAULT_BOT_TEXTS = [
     {'key': 'night_start_announcement', 'category': 'NIGHT', 'title': "Tun boshlanishi e'loni", 'content_uz': "🌙 <b>Qorong'u va daxshatlarga to'la {round_num}-tun boshlandi.</b>\nKo'chaga yana zulmat tushdi. <b>60 sekund</b> davomida harakatlaringizni bajaring!\n\n👥 <b>Tirik o'yinchilar: ({count} ta)</b>\n{players_list}"},
 
     # LOBBY (Lobby & Guruh)
-    {'key': 'lobby_join_text', 'category': 'LOBBY', 'title': "Guruhdagi o'yinga yig'ilish matni", 'content_uz': "<b>{bot_name}</b>               <code>BM Admin</code>\n<b>Ro'yxatdan o'tish davom etmoqda!</b>\n<b>Ro'yxatdan o'tganlar:</b>\n\n{player_names}\n\n<b>Jami: {total} ta</b>"},
+    {'key': 'lobby_join_text', 'category': 'LOBBY', 'title': "Guruhdagi o'yinga yig'ilish matni (/game)", 'content_uz': "<b>{bot_name}</b>               <code>BM Admin</code>\n<b>Ro'yxatdan o'tish davom etmoqda!</b>\n<b>Ro'yxatdan o'tganlar:</b>\n\n{player_names}\n\n<b>Jami: {total} ta</b>"},
+    {'key': 'lobby_team_text', 'category': 'LOBBY', 'title': "Jamoaviy o'yinga yig'ilish matni (/team)", 'content_uz': "<b>{bot_name}</b>               <code>BM Admin</code>\n⚔️ <b>Jamoaviy o'yin ro'yxatdan o'tish davom etmoqda!</b>\n\n🔴 <b>Qizil jamoa ({red_count} ta):</b>\n{red_list}\n\n🔵 <b>Ko'k jamoa ({blue_count} ta):</b>\n{blue_list}\n\n<b>Jami: {total} ta</b>\n<i>Qo'shilish uchun jamoa tugmasini bosing!</i>"},
 
-    # TRANSFERS
+    # TRANSFERS & GIVEAWAYS (/change, /changemoney)
     {'key': 'transfer_money_format', 'category': 'TRANSFERS', 'title': "Dollar o'tkazmasi formati", 'content_uz': "{sender_name} ➔ {recipient_name}: 💶 {amount}"},
     {'key': 'transfer_diamond_format', 'category': 'TRANSFERS', 'title': "Olmos o'tkazmasi formati", 'content_uz': "{sender_name} ➔ {recipient_name}: 💎 {amount}"},
     {'key': 'transfer_money_usage', 'category': 'TRANSFERS', 'title': "Dollar o'tkazish qo'llanmasi (reply)", 'content_uz': "ℹ️ O'tkazmoqchi bo'lgan o'yinchining xabariga reply qilib <code>/money &lt;summa&gt;</code> yozing."},
@@ -436,6 +445,7 @@ DEFAULT_BOT_TEXTS = [
     {'key': 'transfer_insufficient_funds', 'category': 'TRANSFERS', 'title': "Mablag' yetarli emas xabari", 'content_uz': "❌ Hisobingizda mablag' yetarli emas."},
     {'key': 'transfer_self_error', 'category': 'TRANSFERS', 'title': "O'ziga o'tkazish taqiqi xabari", 'content_uz': "❌ O'z-o'zingizga o'tkaza olmaysiz."},
     {'key': 'transfer_invalid_amount', 'category': 'TRANSFERS', 'title': "Noto'g'ri summa xabari", 'content_uz': "❌ Noto'g'ri summa kiritildi."},
+    {'key': 'giveaway_drop_msg', 'category': 'TRANSFERS', 'title': "Guruhga ulashuv xabari (/change, /changemoney)", 'content_uz': "🎁 {sender_mention} guruhga <b>{total} {curr_icon} {curr_label}</b> ulashdi!\n\nℹ️ <i>Har bir o'yinchi 1 donadan olishi mumkin!</i>\n\n{status_line}"},
 
     # GIF ANIMATSIYALARI
     {'key': 'gif_dawn', 'category': 'GIFS', 'title': "Tong animatsiyasi (GIF / URL / Telegram file_id)", 'content_uz': "https://i.gifer.com/1pb4.gif"},
@@ -446,7 +456,6 @@ DEFAULT_BOT_TEXTS = [
     # GENERAL & ROLES
     {'key': 'roles_guide_text', 'category': 'GENERAL', 'title': "Rollar to'liq qo'llanmasi (/roles)", 'content_uz': ""},
 
-    
     # PARA & JUFTLIK
     {'key': 'para_proposal_text', 'category': 'GENERAL', 'title': "Para taklifi xabari", 'content_uz': "💍 {sender_name} sizga para bo'lish taklifini yubordi!\n\n{recipient_name}, para bo'lasizmi?"},
     {'key': 'para_success_text', 'category': 'GENERAL', 'title': "Para bo'lganda tabrik xabari", 'content_uz': "💑 <b>Tabriklaymiz!</b>\n{sender_name} va {recipient_name} endi rasman para bo'lishdi! 💍❤️"},
@@ -465,13 +474,20 @@ DEFAULT_BOT_TEXTS = [
 
     # CHILD GAME BOT BUTTONS
     {'key': 'btn_join_game', 'category': 'CHILD_BUTTONS', 'title': "O'yin Boti: 'Qo'shilish' tugmasi", 'content_uz': "➕ Qo'shilish"},
+    {'key': 'btn_team_red', 'category': 'CHILD_BUTTONS', 'title': "Jamoaviy Lobby: 'Qizil jamoa' tugmasi", 'content_uz': "🔴 Qizil jamoa ({count})"},
+    {'key': 'btn_team_blue', 'category': 'CHILD_BUTTONS', 'title': "Jamoaviy Lobby: 'Ko'k jamoa' tugmasi", 'content_uz': "🔵 Ko'k jamoa ({count})"},
     {'key': 'btn_start_game', 'category': 'CHILD_BUTTONS', 'title': "O'yin Boti: 'O'yinni boshlash' tugmasi", 'content_uz': "▶️ O'yinni boshlash"},
     {'key': 'btn_leave_game', 'category': 'CHILD_BUTTONS', 'title': "O'yin Boti: 'Chiqish' tugmasi", 'content_uz': "🚪 Chiqish"},
+    {'key': 'btn_child_add_group', 'category': 'CHILD_BUTTONS', 'title': "Child Bot PM: 'Guruhga qo'shish' tugmasi", 'content_uz': "➕ O'yinni guruhingizga qo'shing ↗"},
+    {'key': 'btn_child_lang', 'category': 'CHILD_BUTTONS', 'title': "Child Bot PM: 'Til' tugmasi", 'content_uz': "🌐 Til"},
+    {'key': 'btn_child_news', 'category': 'CHILD_BUTTONS', 'title': "Child Bot PM: 'Yangiliklar' tugmasi", 'content_uz': "📢 Yangiliklar ↗"},
+    {'key': 'btn_child_rules', 'category': 'CHILD_BUTTONS', 'title': "Child Bot PM: 'Qoidalar' tugmasi", 'content_uz': "🃏 Qoidalar"},
     {'key': 'btn_profile_market', 'category': 'CHILD_BUTTONS', 'title': "O'yin Boti: 'Do'kon' tugmasi", 'content_uz': "🛒 Do'kon"},
     {'key': 'btn_profile_buy_money', 'category': 'CHILD_BUTTONS', 'title': "O'yin Boti: 'Dollar xarid qilish' tugmasi", 'content_uz': "💶 Xarid qilish"},
     {'key': 'btn_profile_buy_diamonds', 'category': 'CHILD_BUTTONS', 'title': "O'yin Boti: 'Olmos xarid qilish' tugmasi", 'content_uz': "💎 Olmos xarid qilish"},
     {'key': 'btn_profile_rules', 'category': 'CHILD_BUTTONS', 'title': "O'yin Boti: 'O'yin qoidalari' tugmasi", 'content_uz': "📜 O'yin qoidalari"},
     {'key': 'btn_profile_leaderboard', 'category': 'CHILD_BUTTONS', 'title': "O'yin Boti: 'Top o'yinchilar' tugmasi", 'content_uz': "🏆 Top o'yinchilar"},
+    {'key': 'btn_profile_webapp', 'category': 'CHILD_BUTTONS', 'title': "Profil: 'Mini Appda ochish' tugmasi", 'content_uz': "📱 Mini Appda ochish ↗"},
 
     # DO'KON (SHOP) BUTTONS
     {'key': 'btn_shop_himoya', 'category': 'CHILD_BUTTONS', 'title': "Do'kon: 'Himoya' xarid tugmasi", 'content_uz': "🛡 Himoya ({price} 💶)"},
@@ -479,6 +495,7 @@ DEFAULT_BOT_TEXTS = [
     {'key': 'btn_shop_hujjat', 'category': 'CHILD_BUTTONS', 'title': "Do'kon: 'Hujjatlar' xarid tugmasi", 'content_uz': "📁 Hujjatlar ({price} 💶)"},
     {'key': 'btn_shop_vaksina', 'category': 'CHILD_BUTTONS', 'title': "Do'kon: 'Zombi Vaksinasi' xarid tugmasi", 'content_uz': "💉 Zombi Vaksinasi ({price} 💶)"},
     {'key': 'btn_shop_dori_himoya', 'category': 'CHILD_BUTTONS', 'title': "Do'kon: 'Doridan himoya' xarid tugmasi", 'content_uz': "💊 Doridan himoya ({price} 💶)"},
+    {'key': 'btn_shop_sirpanish_himoya', 'category': 'CHILD_BUTTONS', 'title': "Do'kon: 'Sirpanishdan himoya' xarid tugmasi", 'content_uz': "⛸ Sirpanishdan himoya ({price} 💶)"},
     {'key': 'btn_shop_geroy', 'category': 'CHILD_BUTTONS', 'title': "Do'kon: 'Geroy' tugmasi", 'content_uz': "🥷 Shaxsiy Geroy ({price} 💎)"},
     {'key': 'btn_shop_geroy_himoya', 'category': 'CHILD_BUTTONS', 'title': "Do'kon: 'Geroydan himoya' tugmasi", 'content_uz': "🔰 Geroydan himoya ({price} 💎)"},
 
@@ -498,6 +515,14 @@ DEFAULT_BOT_TEXTS = [
     {'key': 'btn_profile_shop', 'category': 'CHILD_BUTTONS', 'title': "Profil: 'Do'kon' ochish tugmasi", 'content_uz': "🎒 Do'kon"},
     {'key': 'btn_profile_buy_dia', 'category': 'CHILD_BUTTONS', 'title': "Profil: 'Olmos Xarid qilish' tugmasi", 'content_uz': "💎 Xarid qilish"},
     {'key': 'btn_profile_hero', 'category': 'CHILD_BUTTONS', 'title': "Profil: 'Mening Geroyim' tugmasi", 'content_uz': "🥷 Mening Geroyim"},
+
+    # HERO MANAGE BUTTONS (Mening Geroyim)
+    {'key': 'btn_hero_create', 'category': 'CHILD_BUTTONS', 'title': "Mening Geroyim: 'Geroy Yaratish' tugmasi", 'content_uz': "🥷 Geroy Yaratish ({price} 💎)"},
+    {'key': 'btn_hero_recharge', 'category': 'CHILD_BUTTONS', 'title': "Mening Geroyim: 'Zaryadlash' tugmasi", 'content_uz': "🩸 Zaryadlash ({charge_lbl}) — {price} 💎"},
+    {'key': 'btn_hero_rename', 'category': 'CHILD_BUTTONS', 'title': "Mening Geroyim: 'Nomlash' tugmasi", 'content_uz': "✏️ Nomlash ({price} 💎)"},
+    {'key': 'btn_hero_transfer', 'category': 'CHILD_BUTTONS', 'title': "Mening Geroyim: 'Boshqa o'yinchiga o'tkazish' tugmasi", 'content_uz': "🎁 Boshqa o'yinchiga o'tkazish"},
+    {'key': 'btn_hero_status_on', 'category': 'CHILD_BUTTONS', 'title': "Mening Geroyim: 'Holat Faol' tugmasi", 'content_uz': "Holat: 🟢 Faol"},
+    {'key': 'btn_hero_status_off', 'category': 'CHILD_BUTTONS', 'title': "Mening Geroyim: 'Holat O'chirilgan' tugmasi", 'content_uz': "Holat: 🔴 O'chirilgan"},
 
     # AKTIV ROLLAR DO'KONI VA SOTISH BUTTONS
     {'key': 'btn_role_buy_don', 'category': 'CHILD_BUTTONS', 'title': "Aktiv Rol: 'Don sotib olish' tugmasi", 'content_uz': "Don - 💎 {price}"},
@@ -535,6 +560,14 @@ DEFAULT_BOT_TEXTS = [
     {'key': 'btn_bot_pm', 'category': 'ACTION_BUTTONS', 'title': "Xabarlar: 'Botga o'tish ↗' tugmasi", 'content_uz': "Botga o'tish ↗"},
     {'key': 'btn_back_group', 'category': 'ACTION_BUTTONS', 'title': "Xabarlar: 'Guruhga o'tish ↗' tugmasi", 'content_uz': "Guruhga o'tish ↗"},
     {'key': 'btn_force_cancel', 'category': 'ACTION_BUTTONS', 'title': "O'yin: '🛑 O'yinni to'xtatish va yangi ochish' tugmasi", 'content_uz': "🛑 O'yinni to'xtatish va yangi ochish"},
+    {'key': 'btn_giveaway_claim', 'category': 'ACTION_BUTTONS', 'title': "Ulashuv: 'Olish' tugmasi", 'content_uz': "{curr_icon} {curr_label} olish ({remaining}/{total})"},
+    {'key': 'btn_giveaway_finished', 'category': 'ACTION_BUTTONS', 'title': "Ulashuv: 'Barchasi olindi' tugmasi", 'content_uz': "✅ Barchasi olindi! (0/{total})"},
+    {'key': 'btn_hero_dawn_yes', 'category': 'ACTION_BUTTONS', 'title': "Tonggi Geroy Zarbasi: 'Xa' tugmasi", 'content_uz': "⚔️ Xa"},
+    {'key': 'btn_hero_dawn_no', 'category': 'ACTION_BUTTONS', 'title': "Tonggi Geroy Zarbasi: 'Yo'q' tugmasi", 'content_uz': "❌ Yo'q"},
+    {'key': 'btn_hero_cancel', 'category': 'ACTION_BUTTONS', 'title': "Tonggi Geroy Zarbasi: 'Bekor qilish' tugmasi", 'content_uz': "⬅️ Bekor qilish"},
+    {'key': 'btn_joker_send', 'category': 'ACTION_BUTTONS', 'title': "Joker: 'Sovg'ani yuborish' tugmasi", 'content_uz': "🚀 Sovg'ani yuborish (Nishonni tanlash)"},
+    {'key': 'btn_vaksina_use', 'category': 'ACTION_BUTTONS', 'title': "Vaksina: 'Ishlatish' tugmasi", 'content_uz': "💉 Vaksinani ishlatish"},
+    {'key': 'btn_vaksina_skip', 'category': 'ACTION_BUTTONS', 'title': "Vaksina: 'Ishlatmaslik' tugmasi", 'content_uz': "❌ Ishlatmaslik"},
 ]
 
 

@@ -49,8 +49,10 @@ def build_child_start_keyboard(bot_username: str, lang_code: str = 'uz') -> Inli
     l = labels.get(lang_code, labels['uz'])
 
     from apps.superadmin.services import TextService
-    txt_add = TextService.get_text('btn_father_create_bot', fallback=l['add'])
-    txt_rules = TextService.get_text('btn_profile_rules', fallback=l['rules'])
+    txt_add = TextService.get_text('btn_child_add_group', fallback=l['add'])
+    txt_lang = TextService.get_text('btn_child_lang', fallback=l['lang'])
+    txt_news = TextService.get_text('btn_child_news', fallback=l['news'])
+    txt_rules = TextService.get_text('btn_child_rules', fallback=l['rules'])
 
     builder.row(
         InlineKeyboardButton(
@@ -60,11 +62,11 @@ def build_child_start_keyboard(bot_username: str, lang_code: str = 'uz') -> Inli
     )
     builder.row(
         InlineKeyboardButton(
-            text=l['lang'],
+            text=txt_lang,
             callback_data="child:lang"
         ),
         InlineKeyboardButton(
-            text=l['news'],
+            text=txt_news,
             url="https://t.me/MafiaBotFather"
         )
     )
@@ -172,14 +174,17 @@ def _player_team_badge(player) -> str:
 
 def build_team_lobby_keyboard(bot_username: str, game_id: str, red_count: int = 0, blue_count: int = 0) -> InlineKeyboardMarkup:
     """Builds group /team lobby keyboard with Red and Blue team deep links."""
+    from apps.superadmin.services import TextService
+    lbl_red = TextService.get_text('btn_team_red', fallback="🔴 Qizil jamoa ({count})").replace('{count}', str(red_count))
+    lbl_blue = TextService.get_text('btn_team_blue', fallback="🔵 Ko'k jamoa ({count})").replace('{count}', str(blue_count))
     builder = InlineKeyboardBuilder()
     builder.row(
         InlineKeyboardButton(
-            text=f"🔴 Qizil jamoa ({red_count})",
+            text=lbl_red,
             url=f"https://t.me/{bot_username}?start=jointeam_{game_id}_RED"
         ),
         InlineKeyboardButton(
-            text=f"🔵 Ko'k jamoa ({blue_count})",
+            text=lbl_blue,
             url=f"https://t.me/{bot_username}?start=jointeam_{game_id}_BLUE"
         )
     )
@@ -221,6 +226,8 @@ def build_group_lobby_keyboard(arg1: str, arg2: str) -> InlineKeyboardMarkup:
 
 def build_back_to_group_keyboard(chat_id: int = None, chat_username: str = None) -> InlineKeyboardMarkup:
     """Builds 'Guruhga o'tish ↗' PM button."""
+    from apps.superadmin.services import TextService
+    lbl = TextService.get_text('btn_back_group', fallback="Guruhga o'tish ↗")
     builder = InlineKeyboardBuilder()
     if chat_username:
         url = f"https://t.me/{chat_username.replace('@', '')}"
@@ -232,17 +239,19 @@ def build_back_to_group_keyboard(chat_id: int = None, chat_username: str = None)
     else:
         url = "https://t.me"
     builder.row(
-        InlineKeyboardButton(text="Guruhga o'tish ↗", url=url)
+        InlineKeyboardButton(text=lbl, url=url)
     )
     return builder.as_markup()
 
 
 def build_bot_pm_keyboard(bot_username: str) -> InlineKeyboardMarkup:
     """Builds 'Botga o'tish ↗' button for group messages."""
+    from apps.superadmin.services import TextService
+    lbl = TextService.get_text('btn_bot_pm', fallback="Botga o'tish ↗")
     builder = InlineKeyboardBuilder()
     builder.row(
         InlineKeyboardButton(
-            text="Botga o'tish ↗",
+            text=lbl,
             url=f"https://t.me/{bot_username}"
         )
     )
@@ -410,11 +419,12 @@ def build_profile_interactive_keyboard(
     builder.row(
         InlineKeyboardButton(text=lbl_hero, callback_data="eco:menu:hero")
     )
-    from apps.superadmin.services import SettingService
+    from apps.superadmin.services import SettingService, TextService
     base_url = SettingService.get('webapp_base_url', os.environ.get('WEBAPP_BASE_URL', 'https://16-171-175-23.sslip.io')).rstrip('/')
     webapp_url = f"{base_url}/webapp/profile/?tg_id={tg_id}"
+    lbl_webapp = TextService.get_text('btn_profile_webapp', fallback="📱 Mini Appda ochish ↗")
     builder.row(
-        InlineKeyboardButton(text="📱 Mini Appda ochish ↗", web_app=WebAppInfo(url=webapp_url))
+        InlineKeyboardButton(text=lbl_webapp, web_app=WebAppInfo(url=webapp_url))
     )
     return builder.as_markup()
 
@@ -599,39 +609,46 @@ def build_buy_dollars_keyboard() -> InlineKeyboardMarkup:
 
 def build_my_hero_keyboard(hero=None, recharge_cost: int = 10, tg_id: int = None) -> InlineKeyboardMarkup:
     """Builds full interactive keyboard for Mening Geroyim view."""
+    from apps.superadmin.services import SettingService, TextService
     builder = InlineKeyboardBuilder()
+    price_create = SettingService.get_int('price_hero_buy', 80)
     if not hero:
+        lbl_create = TextService.get_text('btn_hero_create', fallback="🥷 Geroy Yaratish ({price} 💎)").replace('{price}', str(price_create))
         builder.row(
-            InlineKeyboardButton(text="🥷 Geroy Yaratish (80 💎)", callback_data="hero:create_prompt")
+            InlineKeyboardButton(text=lbl_create, callback_data="hero:create_prompt")
         )
     else:
-        from apps.superadmin.services import SettingService
         recharge_amount = SettingService.get_int('hero_recharge_amount', 1)
         rename_cost = SettingService.get_int('price_hero_rename', 5)
         charge_lbl = f"+{recharge_amount}" if recharge_amount > 1 else "+1"
+        lbl_recharge = TextService.get_text('btn_hero_recharge', fallback="🩸 Zaryadlash ({charge_lbl}) — {price} 💎").replace('{charge_lbl}', charge_lbl).replace('{price}', str(recharge_cost))
+        lbl_rename = TextService.get_text('btn_hero_rename', fallback="✏️ Nomlash ({price} 💎)").replace('{price}', str(rename_cost))
+        lbl_transfer = TextService.get_text('btn_hero_transfer', fallback="🎁 Boshqa o'yinchiga o'tkazish")
+        lbl_status = TextService.get_text('btn_hero_status_on' if hero.is_active else 'btn_hero_status_off', fallback="Holat: 🟢 Faol" if hero.is_active else "Holat: 🔴 O'chirilgan")
+
         builder.row(
-            InlineKeyboardButton(text=f"🩸 Zaryadlash ({charge_lbl}) — {recharge_cost} 💎", callback_data="hero:recharge")
+            InlineKeyboardButton(text=lbl_recharge, callback_data="hero:recharge")
         )
-        toggle_icon = "🟢 Faol" if hero.is_active else "🔴 O'chirilgan"
         builder.row(
-            InlineKeyboardButton(text=f"Holat: {toggle_icon}", callback_data="hero:toggle"),
-            InlineKeyboardButton(text=f"✏️ Nomlash ({rename_cost} 💎)", callback_data="hero:rename_prompt")
+            InlineKeyboardButton(text=lbl_status, callback_data="hero:toggle"),
+            InlineKeyboardButton(text=lbl_rename, callback_data="hero:rename_prompt")
         )
         builder.row(
-            InlineKeyboardButton(text="🎁 Boshqa o'yinchiga o'tkazish", callback_data="hero:transfer_prompt")
+            InlineKeyboardButton(text=lbl_transfer, callback_data="hero:transfer_prompt")
         )
 
     target_tg_id = getattr(hero, 'telegram_id', None) or tg_id
     if target_tg_id:
-        from apps.superadmin.services import SettingService
         base_url = SettingService.get('webapp_base_url', os.environ.get('WEBAPP_BASE_URL', 'https://16-171-175-23.sslip.io')).rstrip('/')
         webapp_url = f"{base_url}/webapp/profile/?tg_id={target_tg_id}"
+        lbl_webapp = TextService.get_text('btn_profile_webapp', fallback="📱 Mini Appda ochish ↗")
         builder.row(
-            InlineKeyboardButton(text="📱 Mini Appda ochish ↗", web_app=WebAppInfo(url=webapp_url))
+            InlineKeyboardButton(text=lbl_webapp, web_app=WebAppInfo(url=webapp_url))
         )
 
+    lbl_back = TextService.get_text('btn_father_back', fallback="🔙 Orqaga")
     builder.row(
-        InlineKeyboardButton(text="🔙 Orqaga", callback_data="eco:menu:profile")
+        InlineKeyboardButton(text=lbl_back, callback_data="eco:menu:profile")
     )
     return builder.as_markup()
 
@@ -654,6 +671,7 @@ def build_star_pay_keyboard() -> InlineKeyboardMarkup:
 
 def build_joker_boxes_setup_keyboard(game_id: str, selected_boxes: list = None) -> InlineKeyboardMarkup:
     """Builds 4 boxes for Joker to plant bombs."""
+    from apps.superadmin.services import TextService
     selected_boxes = selected_boxes or []
     builder = InlineKeyboardBuilder()
     gid = _short(game_id)
@@ -664,8 +682,9 @@ def build_joker_boxes_setup_keyboard(game_id: str, selected_boxes: list = None) 
             callback_data=f"jk_box:{gid}:{num}"
         )
     builder.adjust(2)
+    lbl_send = TextService.get_text('btn_joker_send', fallback="🚀 Sovg'ani yuborish (Nishonni tanlash)")
     builder.row(
-        InlineKeyboardButton(text="🚀 Sovg'ani yuborish (Nishonni tanlash)", callback_data=f"jk_send:{gid}")
+        InlineKeyboardButton(text=lbl_send, callback_data=f"jk_send:{gid}")
     )
     return builder.as_markup()
 
@@ -685,10 +704,13 @@ def build_joker_guess_keyboard(game_id: str) -> InlineKeyboardMarkup:
 
 def build_vaksina_prompt_keyboard(game_id: str) -> InlineKeyboardMarkup:
     """Prompts zombie-infected player whether to use Vaccine."""
+    from apps.superadmin.services import TextService
     builder = InlineKeyboardBuilder()
     gid = _short(game_id)
-    builder.button(text="💉 Vaksinani ishlatish", callback_data=f"vak_use:{gid}")
-    builder.button(text="❌ Ishlatmaslik", callback_data=f"vak_skip:{gid}")
+    lbl_use = TextService.get_text('btn_vaksina_use', fallback="💉 Vaksinani ishlatish")
+    lbl_skip = TextService.get_text('btn_vaksina_skip', fallback="❌ Ishlatmaslik")
+    builder.button(text=lbl_use, callback_data=f"vak_use:{gid}")
+    builder.button(text=lbl_skip, callback_data=f"vak_skip:{gid}")
     builder.adjust(2)
     return builder.as_markup()
 
@@ -705,18 +727,22 @@ def build_konchi_mines_keyboard(game_id: str) -> InlineKeyboardMarkup:
 
 def build_hero_dawn_ask_keyboard(game_id: str, shooter_player_id: str) -> InlineKeyboardMarkup:
     """Builds Dawn prompt for Don/Komissar to decide whether to use their Hero."""
+    from apps.superadmin.services import TextService
     builder = InlineKeyboardBuilder()
     gid = _short(game_id)
     pid = _short(shooter_player_id)
+    lbl_yes = TextService.get_text('btn_hero_dawn_yes', fallback="⚔️ Xa")
+    lbl_no = TextService.get_text('btn_hero_dawn_no', fallback="❌ Yo'q")
     builder.row(
-        InlineKeyboardButton(text="⚔️ Xa", callback_data=f"hero_dawn:yes:{gid}:{pid}"),
-        InlineKeyboardButton(text="❌ Yo'q", callback_data=f"hero_dawn:no:{gid}:{pid}")
+        InlineKeyboardButton(text=lbl_yes, callback_data=f"hero_dawn:yes:{gid}:{pid}"),
+        InlineKeyboardButton(text=lbl_no, callback_data=f"hero_dawn:no:{gid}:{pid}")
     )
     return builder.as_markup()
 
 
 def build_hero_dawn_targets_keyboard(game_id: str, shooter_player_id: str, living_players: list) -> InlineKeyboardMarkup:
     """Builds target selection keyboard for Hero strike at Dawn."""
+    from apps.superadmin.services import TextService
     builder = InlineKeyboardBuilder()
     gid = _short(game_id)
     spid = _short(shooter_player_id)
@@ -731,8 +757,9 @@ def build_hero_dawn_targets_keyboard(game_id: str, shooter_player_id: str, livin
             callback_data=f"hero_dawn:target:{gid}:{spid}:{pid}"
         )
     builder.adjust(1)
+    lbl_cancel = TextService.get_text('btn_hero_cancel', fallback="⬅️ Bekor qilish")
     builder.row(
-        InlineKeyboardButton(text="⬅️ Bekor qilish", callback_data=f"hero_dawn:no:{gid}:{spid}")
+        InlineKeyboardButton(text=lbl_cancel, callback_data=f"hero_dawn:no:{gid}:{spid}")
     )
     return builder.as_markup()
 

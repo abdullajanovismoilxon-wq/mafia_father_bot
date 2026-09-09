@@ -541,9 +541,9 @@ async def cmd_create_game_lobby(message: types.Message, bot: Bot):
     await _handle_create_lobby(message, bot, mode="CLASSIC")
 
 
-@router.message(Command("team", "jamoa", "team_game", ignore_case=True))
+@router.message(Command("team", "jamoa", "komanda", "team_game", "teamgame", ignore_case=True))
 async def cmd_create_team_lobby(message: types.Message, bot: Bot):
-    """Handles /team or /jamoa in group chat (Red 🔴 vs Blue 🔵)."""
+    """Handles /team, /jamoa, /komanda in group chat (Red 🔴 vs Blue 🔵)."""
     await _handle_create_lobby(message, bot, mode="TEAM")
 
 

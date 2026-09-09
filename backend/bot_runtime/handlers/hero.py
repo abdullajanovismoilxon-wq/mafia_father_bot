@@ -493,10 +493,11 @@ async def handle_hero_dawn_target(callback: types.CallbackQuery, bot: Bot):
 # ---------------------------------------------------------------------------
 # /shoot, /otish, /ot Group Command
 # ---------------------------------------------------------------------------
-@router.message(Command("shoot", "zarba", "kill", ignore_case=True))
+@router.message(Command("shoot", "zarba", "kill", "otish", "ot", ignore_case=True))
 async def handle_daytime_hero_shoot(message: types.Message, bot: Bot):
     """Allows players with living heroes to strike another player during Daytime/Dawn.
     Usage: /shoot (reply to victim) or /shoot @username / /shoot {player_number}
+    Preserves 100% anonymity by deleting the command message and sending errors to PM.
     """
     if message.chat.type in ["private"]:
         await message.reply("Bu buyruq faqat o'yin ketayotgan guruhda ishlaydi!")
@@ -506,13 +507,25 @@ async def handle_daytime_hero_shoot(message: types.Message, bot: Bot):
     shooter_tg_id = message.from_user.id
     shooter_name = _get_display_name(message.from_user)
 
+    # Immediately try to delete the shooter's message in the group to keep identity hidden
+    try:
+        await message.delete()
+    except Exception:
+        pass
+
+    async def _send_private_error(err_text: str):
+        try:
+            await bot.send_message(shooter_tg_id, err_text, parse_mode="HTML")
+        except Exception:
+            pass
+
     # 1. Find active game in this chat
     def _get_active_game(c_id: int):
         return Game.objects.filter(chat_id=c_id, phase__in=[GamePhase.DAY, GamePhase.DISCUSSION, GamePhase.VOTING]).first()
 
     game = await sync_to_async(_get_active_game)(chat_id)
     if not game:
-        await message.reply("Hozirda ushbu guruhda kunduzgi bosqichdagi faol o'yin mavjud emas!")
+        await _send_private_error("⚠️ Hozirda ushbu guruhda kunduzgi bosqichdagi faol o'yin mavjud emas!")
         return
 
     # 2. Check shooter role and living status
@@ -521,26 +534,25 @@ async def handle_daytime_hero_shoot(message: types.Message, bot: Bot):
 
     shooter_player = await sync_to_async(_get_shooter_player)(game, shooter_tg_id)
     if not shooter_player:
-        await message.reply("Siz bu o'yinda qatnashmayapsiz yoki allaqachon o'yindan chiqqansiz!")
+        await _send_private_error("⚠️ Siz bu o'yinda qatnashmayapsiz yoki allaqachon o'yindan chiqqansiz!")
         return
 
     role_code = (shooter_player.role.code.lower() if (shooter_player.role and hasattr(shooter_player.role, 'code')) else '')
     role_name = (shooter_player.role.name or '').upper() if shooter_player.role else ''
     if role_code not in ['don', 'komissar', 'detective'] and role_name not in ['DON', 'KOMISSAR', 'DETECTIVE']:
-        await message.reply("🥷 Geroy faqatkina o'yindagi rolingiz <b>Don</b> yoki <b>Komissar</b> bo'lsagina o't ocha oladi!", parse_mode="HTML")
+        await _send_private_error("🥷 Geroy faqatkina o'yindagi rolingiz <b>Don</b> yoki <b>Komissar</b> bo'lsagina o't ocha oladi!")
         return
 
     # 3. Check shooter hero and charges
     hero = await sync_to_async(HeroService.get_hero)(telegram_id=shooter_tg_id)
     if not hero or not hero.is_active:
-        await message.reply("Sizda faol Geroy mavjud emas!")
+        await _send_private_error("⚠️ Sizda faol Geroy mavjud emas!")
         return
 
     if hero.charges <= 0:
-        await message.reply(
+        await _send_private_error(
             "🩸 Geroyingizning zaryadi tugagan (0 ta zaryad)!\n"
-            "Lichkada /myhero buyrug'i orqali zaryadlang.",
-            parse_mode="HTML"
+            "Lichkada /myhero buyrug'i orqali zaryadlang."
         )
         return
 
@@ -568,10 +580,7 @@ async def handle_daytime_hero_shoot(message: types.Message, bot: Bot):
                 target_tg_id = await sync_to_async(_get_by_un)(u_clean)
 
     if not target_tg_id or target_tg_id == shooter_tg_id:
-        await message.reply(
-            "Iltimos, nishonga olingan o'yinchining xabariga reply qilib yoki <code>/shoot @username</code> yuboring!",
-            parse_mode="HTML"
-        )
+        await _send_private_error("⚠️ Iltimos, nishonga olingan o'yinchining xabariga reply qilib yoki <code>/shoot @username</code> yuboring!")
         return
 
     def _get_victim_player(g_obj, tg_id):
@@ -579,13 +588,13 @@ async def handle_daytime_hero_shoot(message: types.Message, bot: Bot):
 
     victim_player = await sync_to_async(_get_victim_player)(game, target_tg_id)
     if not victim_player:
-        await message.reply("Nishon o'yinda mavjud emas yoki allaqachon o'lgan!")
+        await _send_private_error("⚠️ Nishon o'yinda mavjud emas yoki allaqachon o'lgan!")
         return
 
     # Execute Strike
     res = await sync_to_async(HeroService.execute_hero_strike)(game, shooter_player, victim_player)
     if not res.get('ok'):
-        await message.reply(res.get('error', "Xatolik yuz berdi!"), parse_mode="HTML")
+        await _send_private_error(res.get('error', "Xatolik yuz berdi!"))
         return
 
     victim_name = victim_player.display_name or victim_player.username or f"O'yinchi {target_tg_id}"
@@ -593,14 +602,35 @@ async def handle_daytime_hero_shoot(message: types.Message, bot: Bot):
     r_icon = _role_icon(r_name)
 
     if res.get('blocked'):
+        try:
+            await bot.send_message(
+                shooter_tg_id,
+                f"🔰 <b>{victim_name}</b> ning <b>Geroydan Himoyasi</b> zarbani qaytardi!\n"
+                f"🩸 Qolgan zaryadingiz: {res['charges_left']} ta.",
+                parse_mode="HTML"
+            )
+        except Exception:
+            pass
+
         tpl = await sync_to_async(TextService.get_text)(
             'hero_group_strike_blocked',
             fallback="💥 Kimdir o'z Geroyidan foydalanib <b>{target_name}</b>ga zarba berdi!\n\n🔰 <b>{target_name}</b> ning <b>Geroydan Himoyasi</b> zarbani to'liq qaytardi va uning hayotini saqlab qoldi!"
         )
-        await message.reply(tpl.format(target_name=victim_name), parse_mode="HTML")
+        await bot.send_message(chat_id, tpl.format(target_name=victim_name), parse_mode="HTML")
         return
 
     if res.get('killed'):
+        try:
+            await bot.send_message(
+                shooter_tg_id,
+                f"☠️ <b>{victim_name}</b> {res['damage']}% zarba bilan halok qilindi!\n"
+                f"⭐ Geroyingizga <b>+150 ball</b> qo'shildi! (Jami: {hero.score} ball, Daraja: {hero.level})\n"
+                f"🩸 Qolgan zaryad: {res['charges_left']} ta.",
+                parse_mode="HTML"
+            )
+        except Exception:
+            pass
+
         tpl1 = await sync_to_async(TextService.get_text)(
             'hero_group_strike_kill_part1',
             fallback="💥 Kimdir o'z Geroyidan foydalanib <b>{target_name}</b>ga {damage}% shikast yetkazdi!"
@@ -613,7 +643,7 @@ async def handle_daytime_hero_shoot(message: types.Message, bot: Bot):
         )
         msg2 = tpl2.format(target_name=victim_name, role_icon=r_icon, role_name=r_name)
 
-        await message.reply(msg1, parse_mode="HTML")
+        await bot.send_message(chat_id, msg1, parse_mode="HTML")
         await asyncio.sleep(0.4)
         await bot.send_message(chat_id, msg2, parse_mode="HTML")
 
@@ -637,9 +667,20 @@ async def handle_daytime_hero_shoot(message: types.Message, bot: Bot):
             from bot_runtime.handlers.night import _announce_game_winner
             await _announce_game_winner(game, winner, bot, story_lines=[f"💥 Geroy zarbasi natijasida o'yin yakunlandi!"])
     else:
+        try:
+            await bot.send_message(
+                shooter_tg_id,
+                f"💥 <b>{victim_name}</b> ga {res['damage']}% shikast yetkazildi!\n"
+                f"🩸 Qolgan joni: <b>{res['remaining_hp']}% ❤️</b>\n"
+                f"🩸 Qolgan zaryad: {res['charges_left']} ta.",
+                parse_mode="HTML"
+            )
+        except Exception:
+            pass
+
         tpl = await sync_to_async(TextService.get_text)(
             'hero_group_strike_hit',
             fallback="💥 Kimdir o'z Geroyidan foydalanib <b>{target_name}</b>ga {damage}% shikast yetkazdi!\n🩸 <b>{target_name}</b> ning qolgan joni: <b>{remaining_hp}% ❤️</b>"
         )
-        await message.reply(tpl.format(target_name=victim_name, damage=res['damage'], remaining_hp=res['remaining_hp']), parse_mode="HTML")
+        await bot.send_message(chat_id, tpl.format(target_name=victim_name, damage=res['damage'], remaining_hp=res['remaining_hp']), parse_mode="HTML")
 
