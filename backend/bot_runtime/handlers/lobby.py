@@ -924,7 +924,10 @@ async def cmd_start_game(message: types.Message, bot: Bot):
 
 @router.message(Command("roles", "rollar", "qoidalar", ignore_case=True))
 async def cmd_roles_catalog(message: types.Message, bot: Bot):
-    """Handles /roles command opening the Roles Mini App."""
+    """Handles /roles command opening the Roles Mini App (PM only)."""
+    if message.chat.type != "private":
+        return
+
     bot_info = await bot.get_me()
     if not is_targeted_at_this_bot(message, bot_info.username):
         return
@@ -1615,78 +1618,43 @@ async def handle_utag_mention_or_command(message: types.Message, bot: Bot):
 
 @router.message(Command("cabinet", "kabinet", "settings", "sozlamalar", ignore_case=True))
 async def cmd_group_cabinet_info(message: types.Message, bot: Bot):
-    """Provides group cabinet login, password, and direct Mini App WebApp link."""
-    if message.chat.type == "private":
-        await message.answer("⚠️ Guruh kabineti ma'lumotlari guruhlar uchun mo'ljallangan. Meni guruhingizga qo'shing va guruhda <code>/cabinet</code> deb yozing.", parse_mode="HTML")
+    """Cabinet command handler (disabled in groups)."""
+    if message.chat.type in ["group", "supergroup"]:
         return
 
-    chat_id = message.chat.id
-    user_id = message.from_user.id if message.from_user else 0
-    bot_info = await bot.get_me()
-    
-    bot_record = await sync_to_async(
-        lambda: BotModel.objects.filter(
-            Q(telegram_bot_id=bot.id) | Q(telegram_username__iexact=bot_info.username)
-        ).first()
-    )()
-    if not bot_record:
-        bot_record = await sync_to_async(BotModel.objects.first)()
-
-    await sync_group_info(bot, message.chat, bot_record)
-
-    from apps.bots.models import BotGroup
-    group = await sync_to_async(
-        lambda: BotGroup.objects.filter(chat_id=chat_id).first()
-    )()
-
-    if not group:
-        await message.reply("⚠️ Guruh ma'lumotlari topilmadi.")
-        return
-
-    # Check admin permission
-    allowed, err_msg = await check_user_group_permission(bot, chat_id, user_id, required_level='ADMINS')
-    if not allowed:
-        await message.reply("⚠️ Guruh kabineti ma'lumotlarini faqat <b>guruh adminlari yoki guruh egasi</b> ko'rishi mumkin.", parse_mode="HTML")
-        return
-
-    webapp_base = getattr(settings, 'WEBAPP_BASE_URL', '') or 'https://api.bloodymafia.uz'
-    webapp_url = f"{webapp_base}/webapp/profile/?tg_id={user_id}&tab=group&group_id={group.id}"
-
-    text = (
-        f"👥 <b>Guruh Boshqaruv Kabineti</b>\n"
-        f"━━━━━━━━━━━━━━━━━━━\n"
-        f"🏛 <b>Guruh:</b> {html.escape(group.title)}\n"
-        f"🤖 <b>Bot:</b> @{bot_info.username}\n\n"
-        f"🔑 <b>Kabinet Logini:</b> <code>{group.cabinet_login}</code>\n"
-        f"🔒 <b>Kabinet Paroli:</b> <code>{group.cabinet_password}</code>\n\n"
-        f"⚙️ <i>Mini App orqali guruh sozlamalari, o'yinchi yig'ish vaqti, tun va ovoz berish vaqtlari hamda buyruqlar ruxsatini boshqarishingiz mumkin:</i>"
-    )
-
-    kb = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="📱 Guruh Kabinetiga Kirish 🚀", web_app=WebAppInfo(url=webapp_url))]
-    ])
-
-    await message.reply(text, reply_markup=kb, parse_mode="HTML")
+    await message.answer("⚠️ Guruh kabineti boshqaruvi SuperAdmin panel orqali amalga oshiriladi.", parse_mode="HTML")
 
 
-@router.my_chat_member()
+@router.chat_member()
 async def handle_bot_chat_member_update(event: types.ChatMemberUpdated, bot: Bot):
-    """Triggered whenever bot is added to a group or its administrator status changes."""
-    if event.chat.type not in ["group", "supergroup"]:
-        return
+    """
+    Auto-detects when bot is added to a group or promoted to admin.
+    Sends greeting with instructions to grant admin privileges.
+    """
     try:
+        if not event.chat or event.chat.type not in ["group", "supergroup"]:
+            return
+
         new_status = event.new_chat_member.status
+        old_status = event.old_chat_member.status if event.old_chat_member else None
+
         bot_info = await bot.get_me()
+        if event.new_chat_member.user.id != bot_info.id:
+            return
+
         bot_record = await sync_to_async(
             lambda: BotModel.objects.filter(
                 Q(telegram_bot_id=bot.id) | Q(telegram_username__iexact=bot_info.username)
             ).first()
         )()
-        if bot_record:
-            await sync_group_info(bot, event.chat, bot_record)
+        if not bot_record:
+            bot_record = await sync_to_async(BotModel.objects.first)()
 
-        if new_status in ['member', 'restricted']:
-            bot_name = bot_info.first_name or "Mafia Bot"
+        await sync_group_info(bot, event.chat, bot_record)
+
+        bot_name = bot_record.name if bot_record else "Bloody Mafia"
+
+        if new_status == 'member' and old_status in ['left', 'kicked', None]:
             kb = InlineKeyboardMarkup(inline_keyboard=[
                 [
                     InlineKeyboardButton(
@@ -1711,8 +1679,7 @@ async def handle_bot_chat_member_update(event: types.ChatMemberUpdated, bot: Bot
                 chat_id=event.chat.id,
                 text=(
                     f"🎉 <b>Rahmat! Menga administratorlik huquqi berildi.</b>\n\n"
-                    f"Endi bemalol <b>/game</b> buyrug'i orqali qizg'in Mafiya o'yinlarini boshlashingiz mumkin! 🚀\n"
-                    f"<i>Guruh sozlamalari va kabinet: /cabinet</i>"
+                    f"Endi bemalol <b>/game</b> yoki <b>/team</b> buyrug'i orqali qizg'in Mafiya o'yinlarini boshlashingiz mumkin! 🚀"
                 ),
                 parse_mode="HTML"
             )

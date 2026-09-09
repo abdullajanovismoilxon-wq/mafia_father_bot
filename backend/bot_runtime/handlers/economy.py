@@ -702,7 +702,9 @@ ROLES_DATA = {
 
 @router.message(Command("roles"))
 async def cmd_roles(message: types.Message):
-    """Displays roles menu with detailed guides."""
+    """Displays roles menu with detailed guides (PM only)."""
+    if message.chat.type != "private":
+        return
     text = "🎭 **Mafia o'yini rollari:**\n\nBatafsil ma'lumot olish uchun rolni tanlang:"
     await message.answer(text, reply_markup=build_roles_list_keyboard(), parse_mode="Markdown")
 

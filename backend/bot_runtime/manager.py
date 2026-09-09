@@ -67,7 +67,7 @@ class BotRuntimeManager:
                         ]
                         await bot.set_my_commands(pm_commands, scope=BotCommandScopeAllPrivateChats())
 
-                        # 2. Group commands (clean menu with game, team, leave, giveaway, geroyinfo, utag, cabinet)
+                        # 2. Group commands (clean menu with game, team, leave, giveaway, geroyinfo, utag)
                         group_commands = [
                             BotCommand(command="game", description="O'yin yaratish"),
                             BotCommand(command="team", description="Jamoaviy o'yin yaratish (Qizil vs Ko'k)"),
@@ -77,9 +77,7 @@ class BotRuntimeManager:
                             BotCommand(command="changemoney", description="Guruhga dollar ulashish 💶"),
                             BotCommand(command="utag", description="Guruh a'zolarini chaqirish"),
                             BotCommand(command="stop_tag", description="Chaqirishni to'xtatish"),
-                            BotCommand(command="cabinet", description="Guruh boshqaruv kabineti"),
                             BotCommand(command="geroyinfo", description="Geroy ma'lumotlari"),
-                            BotCommand(command="roles", description="Rollar haqida ma'lumot"),
                             BotCommand(command="stop", description="O'yinni to'xtatish"),
                         ]
                         await bot.set_my_commands(group_commands, scope=BotCommandScopeAllGroupChats())
