@@ -13,9 +13,10 @@ import random
 from datetime import timedelta
 from typing import Optional, Dict, List, Any, Set, Tuple
 import logging
-from aiogram import Router, types, Bot, F
+from aiogram import Router, types, Bot, F, BaseMiddleware
 from aiogram.filters import Command, CommandStart, CommandObject
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, WebAppInfo
+from aiogram.exceptions import TelegramRetryAfter, TelegramBadRequest, TelegramForbiddenError, TelegramAPIError
 from asgiref.sync import sync_to_async
 from django.utils import timezone
 
@@ -824,6 +825,13 @@ async def cmd_stop_game(message: types.Message, bot: Bot):
     )()
 
     if not active_game:
+        # Also check if @utag is running in this chat
+        task_key = (bot_info.id, chat_id)
+        tag_task = ACTIVE_TAG_TASKS.pop(task_key, None) or ACTIVE_TAG_TASKS.pop(chat_id, None)
+        if tag_task and not tag_task.done():
+            tag_task.cancel()
+            await message.answer("🛑 <b>A'zolarni chaqirish jarayoni to'xtatildi!</b>", parse_mode="HTML")
+            return
         await message.answer("ℹ️ Guruhda to'xtatish uchun faol o'yin topilmadi.")
         return
 
@@ -1064,6 +1072,18 @@ def record_group_user(chat_id: int, user: Optional[types.User]):
     }
 
 
+class GroupUserTrackingMiddleware(BaseMiddleware):
+    """Outer middleware to continuously record any user sending messages in groups."""
+    async def __call__(self, handler, event: types.TelegramObject, data: dict):
+        if isinstance(event, types.Message) and event.chat and event.chat.type in ["group", "supergroup"]:
+            if event.from_user:
+                record_group_user(event.chat.id, event.from_user)
+        return await handler(event, data)
+
+
+router.message.outer_middleware(GroupUserTrackingMiddleware())
+
+
 UTAG_CREATIVE_PHRASES = [
     # ─── 1. O'ZBEKCHA INSTAGRAM MEMLAR VA VIRAL GAPLAR ────────────────────────
     "Instagramda reels ko'rib o'tirmasdan bir o'yinga kiring! 🎬😂",
@@ -1143,10 +1163,10 @@ async def cmd_stop_utag(message: types.Message, bot: Bot):
         await message.reply(err_msg, parse_mode="HTML")
         return
 
-    if chat_id in ACTIVE_TAG_TASKS:
-        task = ACTIVE_TAG_TASKS.pop(chat_id, None)
-        if task and not task.done():
-            task.cancel()
+    task_key = (bot_info.id, chat_id)
+    task = ACTIVE_TAG_TASKS.pop(task_key, None) or ACTIVE_TAG_TASKS.pop(chat_id, None)
+    if task and not task.done():
+        task.cancel()
         await message.answer("🛑 <b>A'zolarni chaqirish jarayoni to'xtatildi!</b>", parse_mode="HTML")
     else:
         await message.answer("ℹ️ Hozirda faol chaqirish (@utag) jarayoni mavjud emas.")
@@ -1183,10 +1203,10 @@ async def handle_utag_mention_or_command(message: types.Message, bot: Bot):
         return
 
     # Cancel previous tag task if running
-    if chat_id in ACTIVE_TAG_TASKS:
-        prev_task = ACTIVE_TAG_TASKS.pop(chat_id, None)
-        if prev_task and not prev_task.done():
-            prev_task.cancel()
+    task_key = (bot_info.id, chat_id)
+    prev_task = ACTIVE_TAG_TASKS.pop(task_key, None) or ACTIVE_TAG_TASKS.pop(chat_id, None)
+    if prev_task and not prev_task.done():
+        prev_task.cancel()
 
     # 2. Collect distinct group members / active players
     def _collect_group_members():
@@ -1204,6 +1224,21 @@ async def handle_utag_mention_or_command(message: types.Message, bot: Bot):
                     'username': uname,
                     'is_bot': False
                 }
+
+        # BotGroup owner
+        from apps.bots.models import BotGroup
+        bg_qs = BotGroup.objects.filter(chat_id=chat_id).values('owner_telegram_id', 'owner_name', 'owner_username')
+        for bg in bg_qs:
+            ouid = bg['owner_telegram_id']
+            ouname = bg['owner_username'] or ''
+            if ouid and ouid != bot_info.id and ouid != 777000 and not ouname.lower().endswith('bot'):
+                if ouid not in members_map:
+                    members_map[ouid] = {
+                        'telegram_user_id': ouid,
+                        'display_name': bg['owner_name'] or ouname or "Guruh Egasi",
+                        'username': ouname,
+                        'is_bot': False
+                    }
 
         # Tracked in-memory users seen in group
         if chat_id in GROUP_TRACKED_USERS:
@@ -1238,14 +1273,14 @@ async def handle_utag_mention_or_command(message: types.Message, bot: Bot):
 
     random.shuffle(members_list)
     try:
-        await message.reply("📢 <b>Guruh a'zolarini chaqirish boshlandi!</b>\n<i>(To'xtatish uchun: <code>@stop</code> yozing)</i>", parse_mode="HTML")
+        await message.reply(f"📢 <b>Guruh a'zolarini chaqirish boshlandi!</b> (Jami: {len(members_list)} ta a'zo)\n<i>(To'xtatish uchun: <code>@stop</code> yozing)</i>", parse_mode="HTML")
     except Exception:
         pass
 
     async def _tag_loop():
         try:
             for m in members_list:
-                if chat_id not in ACTIVE_TAG_TASKS:
+                if task_key not in ACTIVE_TAG_TASKS and chat_id not in ACTIVE_TAG_TASKS:
                     break
                 uid = m.get('telegram_user_id')
                 if not uid or m.get('is_bot') or uid in (bot_info.id, 777000, 1087968824):
@@ -1253,23 +1288,61 @@ async def handle_utag_mention_or_command(message: types.Message, bot: Bot):
 
                 phrase = random.choice(UTAG_CREATIVE_PHRASES)
                 if m.get('username'):
-                    tag_str = f"@{m['username']}"
+                    uname_clean = str(m['username']).lstrip('@')
+                    tag_str = f"@{uname_clean}"
                 else:
-                    name_esc = html.escape(m.get('display_name') or "O'yinchi")
+                    name_esc = html.escape(str(m.get('display_name') or "O'yinchi"))
                     tag_str = f'<a href="tg://user?id={uid}">{name_esc}</a>'
 
                 text = f"{tag_str} {phrase}"
+
+                # Robust message sending with Flood Control retry and BadRequest recovery
+                for attempt in range(3):
+                    if task_key not in ACTIVE_TAG_TASKS and chat_id not in ACTIVE_TAG_TASKS:
+                        break
+                    try:
+                        await bot.send_message(chat_id, text, parse_mode="HTML")
+                        break
+                    except TelegramRetryAfter as flood:
+                        logger.warning(f"Telegram flood control in utag (chat {chat_id}): sleeping {flood.retry_after + 1}s")
+                        await asyncio.sleep(flood.retry_after + 1)
+                    except TelegramBadRequest as br_err:
+                        logger.debug(f"HTML error in utag, falling back to plain text: {br_err}")
+                        try:
+                            plain_tag = f"@{str(m['username']).lstrip('@')}" if m.get('username') else str(m.get('display_name') or "O'yinchi")
+                            await bot.send_message(chat_id, f"{plain_tag} {phrase}")
+                        except Exception:
+                            pass
+                        break
+                    except TelegramForbiddenError:
+                        logger.warning(f"Bot forbidden in chat {chat_id} during utag")
+                        return
+                    except Exception as send_err:
+                        logger.warning(f"Error sending utag message for user {uid} (attempt {attempt+1}): {send_err}")
+                        await asyncio.sleep(1.0)
+
+                await asyncio.sleep(1.2)
+
+            # Check if all completed naturally without cancellation
+            if task_key in ACTIVE_TAG_TASKS or chat_id in ACTIVE_TAG_TASKS:
                 try:
-                    await bot.send_message(chat_id, text, parse_mode="HTML")
-                except Exception as send_err:
-                    logger.debug(f"Failed to send utag message for {m}: {send_err}")
-                await asyncio.sleep(0.75)
+                    await bot.send_message(
+                        chat_id,
+                        f"✅ <b>Guruh a'zolarini chaqirish yakunlandi!</b> (Jami: {len(members_list)} ta a'zo)",
+                        parse_mode="HTML"
+                    )
+                except Exception:
+                    pass
         except asyncio.CancelledError:
-            pass
+            logger.info(f"Utag task cancelled for chat {chat_id}")
+        except Exception as loop_err:
+            logger.exception(f"Unexpected error in _tag_loop for chat {chat_id}: {loop_err}")
         finally:
+            ACTIVE_TAG_TASKS.pop(task_key, None)
             ACTIVE_TAG_TASKS.pop(chat_id, None)
 
     task = asyncio.create_task(_tag_loop())
+    ACTIVE_TAG_TASKS[task_key] = task
     ACTIVE_TAG_TASKS[chat_id] = task
 
 
