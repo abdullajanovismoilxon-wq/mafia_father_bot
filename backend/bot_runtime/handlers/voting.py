@@ -532,13 +532,14 @@ async def _advance_to_next_night(game: Game, bot: Bot, reason: str = ""):
         except Exception:
             pass
 
-        living_players = await sync_to_async(
-            lambda: list(game.players.filter(is_alive=True).select_related('role'))
+        all_players = await sync_to_async(
+            lambda: list(game.players.all().order_by('created_at').select_related('role'))
         )()
+        living_players = [p for p in all_players if p.is_alive]
 
         living_roster = "\n".join([
-            f' {idx}. {_player_team_badge(p)}<a href="tg://user?id={p.telegram_user_id}">{html.escape(p.display_name)}</a>'
-            for idx, p in enumerate(living_players, 1)
+            f' {all_players.index(p) + 1}. {_player_team_badge(p)}<a href="tg://user?id={p.telegram_user_id}">{html.escape(p.display_name)}</a>'
+            for p in living_players
         ])
 
         from apps.superadmin.services import TextService

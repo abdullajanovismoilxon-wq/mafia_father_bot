@@ -1541,12 +1541,12 @@ async def handle_utag_mention_or_command(message: types.Message, bot: Bot):
 
     members_list = list(members_dict.values())
     if not members_list:
-        await message.reply("ℹ️ Guruhda chaqirish uchun a'zolar topilmadi.")
+        await message.answer("ℹ️ Guruhda chaqirish uchun a'zolar topilmadi.")
         return
 
     random.shuffle(members_list)
     try:
-        await message.reply(f"📢 <b>Guruh a'zolarini chaqirish boshlandi!</b> (Jami: {len(members_list)} ta a'zo)\n<i>(To'xtatish uchun: <code>@stop</code> yozing)</i>", parse_mode="HTML")
+        await message.answer(f"📢 <b>Guruh a'zolarini chaqirish boshlandi!</b> (Jami: {len(members_list)} ta a'zo)\n<i>(To'xtatish uchun: <code>@stop</code> yozing)</i>", parse_mode="HTML")
     except Exception:
         pass
 
@@ -1560,12 +1560,9 @@ async def handle_utag_mention_or_command(message: types.Message, bot: Bot):
                     continue
 
                 phrase = random.choice(UTAG_CREATIVE_PHRASES)
-                if m.get('username'):
-                    uname_clean = str(m['username']).lstrip('@')
-                    tag_str = f"@{uname_clean}"
-                else:
-                    name_esc = html.escape(str(m.get('display_name') or "O'yinchi"))
-                    tag_str = f'<a href="tg://user?id={uid}">{name_esc}</a>'
+                user_label = m.get('display_name') or m.get('username') or "O'yinchi"
+                name_esc = html.escape(str(user_label))
+                tag_str = f'<a href="tg://user?id={uid}">{name_esc}</a>'
 
                 text = f"{tag_str} {phrase}"
 
@@ -1582,7 +1579,7 @@ async def handle_utag_mention_or_command(message: types.Message, bot: Bot):
                     except TelegramBadRequest as br_err:
                         logger.debug(f"HTML error in utag, falling back to plain text: {br_err}")
                         try:
-                            plain_tag = f"@{str(m['username']).lstrip('@')}" if m.get('username') else str(m.get('display_name') or "O'yinchi")
+                            plain_tag = f"@{str(m['username']).lstrip('@')}" if m.get('username') else str(user_label)
                             await bot.send_message(chat_id, f"{plain_tag} {phrase}")
                         except Exception:
                             pass

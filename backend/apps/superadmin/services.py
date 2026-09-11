@@ -411,7 +411,7 @@ DEFAULT_BOT_TEXTS = [
     {'key': 'dawn_nobody_died', 'category': 'DAWN', 'title': "Tunda hech kim o'lmaganda xabar", 'content_uz': "😴 <b>Bu tun tinch o'tdi.</b> Hech kim qurbon bo'lmadi."},
     {'key': 'dawn_doctor_saved', 'category': 'DAWN', 'title': "Shifokor qutqarganda xabar", 'content_uz': "🩺 <b>Ishonish qiyin!</b> Lekin, bu tunda hech kim o'lmadi...\nShifokor kimnidir o'limdan qutqardi!"},
     {'key': 'dawn_shield_saved', 'category': 'DAWN', 'title': "Tungi himoya qalqoni qutqarganda xabar", 'content_uz': "🛡 <b>Tunda kimdir shaxsiy himoya qalqoni tufayli o'limdan omon qoldi!</b>\nHech kim qurbon bo'lmadi."},
-    {'key': 'dawn_living_players_format', 'category': 'DAWN', 'title': "Tirik o'yinchilar ro'yxati xabari", 'content_uz': "👥 <b>Tirik o'yinchilar: ({count} ta)</b>\n{players_list}\n\nOvoz berishgacha ⏳ <b>20 sekund</b> qoldi"},
+    {'key': 'dawn_living_players_format', 'category': 'DAWN', 'title': "Tirik o'yinchilar ro'yxati xabari", 'content_uz': "{players_list}\n\n<b>Ulardan:</b> {roles_list}\n\n<b>Jami:</b> {count}\n\nEndi kechaning natijalarini muhokama qilamiz...\nOvoz berishgacha ⏳ <b>20 sekund</b> qoldi"},
     {'key': 'dawn_death_mafia', 'category': 'DAWN', 'title': "Mafiya o'ldirganda e'lon", 'content_uz': "🩸 {target_name} Mafiyalar tomonidan vahshiylarcha o'ldirildi.\nU: {role_icon} {role_name} edi."},
     {'key': 'dawn_death_komissar', 'category': 'DAWN', 'title': "Komissar otib o'ldirganda e'lon", 'content_uz': "🔫 {target_name} Komissar tomonidan otib o'ldirildi.\nU: {role_icon} {role_name} edi."},
     {'key': 'dawn_death_qotil', 'category': 'DAWN', 'title': "Qotil (Maniac) o'ldirganda e'lon", 'content_uz': "🔪 {target_name} shafqatsiz Qotil tomonidan o'ldirildi.\nU: {role_icon} {role_name} edi."},

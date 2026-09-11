@@ -83,14 +83,14 @@ async def cmd_giveaway_money(message: Message, bot: Bot):
 
 async def _handle_giveaway_create(message: Message, bot: Bot, currency: str):
     if message.chat.type in ["private"]:
-        await message.reply("⚠️ Ushbu buyruq faqat guruhlarda ishlaydi!")
+        await message.answer("⚠️ Ushbu buyruq faqat guruhlarda ishlaydi!")
         return
 
     parts = message.text.strip().split()
     if len(parts) < 2:
         curr_name = "olmos" if currency == CurrencyType.DIAMONDS else "dollar"
         cmd_example = "/changegive 100" if currency == CurrencyType.DIAMONDS else "/changemoney 100"
-        await message.reply(
+        await message.answer(
             f"⚠️ Miqdorni kiriting!\nMasalan: <code>{cmd_example}</code> ({curr_name} ulashish uchun).",
             parse_mode="HTML"
         )
@@ -101,7 +101,7 @@ async def _handle_giveaway_create(message: Message, bot: Bot, currency: str):
         if amount <= 0:
             raise ValueError()
     except Exception:
-        await message.reply("❌ Iltimos, musbat butun son kiriting! (Masalan: 100)")
+        await message.answer("❌ Iltimos, musbat butun son kiriting! (Masalan: 100)")
         return
 
     sender_id = message.from_user.id
@@ -116,7 +116,7 @@ async def _handle_giveaway_create(message: Message, bot: Bot, currency: str):
     )
 
     if not success or not drop:
-        await message.reply(msg, parse_mode="HTML")
+        await message.answer(msg, parse_mode="HTML")
         return
 
     kb = build_giveaway_keyboard(str(drop.id), currency, drop.remaining_amount, drop.total_amount)

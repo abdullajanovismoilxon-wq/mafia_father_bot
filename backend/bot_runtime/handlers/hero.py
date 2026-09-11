@@ -56,7 +56,7 @@ async def handle_geroyinfo(message: types.Message):
     hero = await sync_to_async(HeroService.get_hero)(telegram_id=target_id)
     if not hero:
         text = HeroService.format_no_hero_text(target_name)
-        await message.reply(text, parse_mode="HTML")
+        await message.answer(text, parse_mode="HTML")
         return
 
     # Count geroy_himoya items
@@ -66,7 +66,7 @@ async def handle_geroyinfo(message: types.Message):
 
     geroy_himoya_count = await sync_to_async(_count_defense_items)(target_id)
     text = HeroService.format_hero_card_text(hero, geroy_himoya_count)
-    await message.reply(text, parse_mode="HTML")
+    await message.answer(text, parse_mode="HTML")
 
 
 # ---------------------------------------------------------------------------

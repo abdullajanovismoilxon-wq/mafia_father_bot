@@ -52,35 +52,71 @@ PLAYER_ID_MAP: dict = {}
 JOKER_TEMP_BOXES: dict = {}  # {game_id: {user_id: [1, 2]}}
 
 ROLE_ICONS = {
-    "DON": "🤵🏻",
-    "MAFIA": "🤵🏼",
-    "DOCTOR": "👨🏼‍⚕️",
-    "DETECTIVE": "🕵🏻‍♂️",
+    "DON": "👨‍💼",
+    "MAFIA": "👨‍🦱",
+    "DOCTOR": "👨‍⚕️",
+    "SHIFOKOR": "👨‍⚕️",
+    "DOKTOR": "👨‍⚕️",
+    "DETECTIVE": "🕵️",
+    "KOMISSAR": "🕵️",
     "CITIZEN": "👨🏼",
+    "TINCH AHOLI": "👨🏼",
+    "FUQARO": "👨🏼",
+    "QAROQCHI": "⚔️",
+    "KOLDUN": "⚡",
+    "JANOB": "🎖",
+    "ROBIN GUD": "🏹",
+    "ROBINGUD": "🏹",
+    "BO'RI": "🐺",
+    "BORI": "🐺",
+    "OSHPAZ": "👨‍🍳",
+    "KONCHI": "👷",
+    "AFSUNGAR": "💣",
+    "SOTQIN": "🤓",
+    "JOKER": "🤡",
+    "YOLLANMA QOTIL": "🥷",
     "QOTIL": "🔪",
+    "UBIYTSA": "🥷",
+    "ADMIRAL": "👨‍✈️",
+    "SEHRGAR": "🧙",
     "KEZUVCHI": "💃",
     "SERJANT": "👮🏼‍♂️",
     "DAYDI": "🍾",
     "ADVOKAT": "💼",
     "SUIDSID": "🤡",
-    "UBIYTSA": "🥷",
-    "AFSUNGAR": "🧙🏼",
+    "SUITSID": "🤡",
     "TUZOQCHI": "🕸",
     "ZOMBI": "🧟",
     "KIMYOGAR": "🧪",
     "AXMOQ": "🤪",
     "BUQALAMUN": "🦎",
     "RAIS": "🏛",
+    "MER": "🏛",
     "HAMSHIRA": "👩🏼‍⚕️",
-    "JOKER": "🃏",
+    "MANIAK": "🔪",
+    "KUPIDON": "💘",
+    "KAMIKADZE": "🧨",
+    "LIDER": "👑",
 }
 
 ROLE_LABELS = {
     "DON": "Don",
     "MAFIA": "Mafia",
-    "DOCTOR": "Shifokor",
+    "DOCTOR": "Doktor",
+    "SHIFOKOR": "Shifokor",
     "DETECTIVE": "Komissar",
+    "KOMISSAR": "Komissar",
     "CITIZEN": "Tinch aholi",
+    "TINCH AHOLI": "Tinch aholi",
+    "QAROQCHI": "Qaroqchi",
+    "KOLDUN": "Koldun",
+    "JANOB": "Janob",
+    "ROBIN GUD": "Robin Gud",
+    "BO'RI": "Bo'ri",
+    "OSHPAZ": "Oshpaz",
+    "KONCHI": "Konchi",
+    "AFSUNGAR": "Afsungar",
+    "SOTQIN": "Sotqin",
     "QOTIL": "Qotil",
     "KEZUVCHI": "Kezuvchi",
     "SERJANT": "Serjant",
@@ -88,7 +124,9 @@ ROLE_LABELS = {
     "ADVOKAT": "Advokat",
     "SUIDSID": "Suidsid",
     "UBIYTSA": "Ubiytsa",
-    "AFSUNGAR": "Afsungar",
+    "YOLLANMA QOTIL": "Yollanma qotil",
+    "ADMIRAL": "Admiral",
+    "SEHRGAR": "Sehrgar",
     "TUZOQCHI": "Tuzoqchi",
     "ZOMBI": "Zombi",
     "KIMYOGAR": "Kimyogar",
@@ -101,11 +139,22 @@ ROLE_LABELS = {
 
 
 def role_icon(name: str) -> str:
-    return ROLE_ICONS.get(name, "👤")
+    if not name:
+        return "👤"
+    normalized = str(name).strip().upper()
+    if normalized in ROLE_ICONS:
+        return ROLE_ICONS[normalized]
+    for k, icon in ROLE_ICONS.items():
+        if k in normalized or normalized in k:
+            return icon
+    return "👤"
 
 
 def role_label(name: str) -> str:
-    return ROLE_LABELS.get(name, name)
+    if not name:
+        return ""
+    normalized = str(name).strip().upper()
+    return ROLE_LABELS.get(normalized, name)
 
 
 def _register_ids(game_id: str, players: list):
@@ -735,16 +784,28 @@ async def advance_night_to_day(game: Game, bot: Bot):
 
         await asyncio.sleep(2)
 
-        # --- Dawn Announcement Msg 3: Living Players List ---
-        living_players = await sync_to_async(
-            lambda: list(game.players.filter(is_alive=True).select_related('role'))
+        # --- Dawn Announcement Msg 3: Living Players List & Roles List ---
+        all_players = await sync_to_async(
+            lambda: list(game.players.all().order_by('created_at').select_related('role'))
         )()
+        living_players = [p for p in all_players if p.is_alive]
         _register_ids(game_id, living_players)
 
         living_lines = "\n".join([
-            f'• {_player_team_badge(p)}<a href="tg://user?id={p.telegram_user_id}">{html.escape(p.display_name)}</a>'
+            f'{all_players.index(p) + 1}. {_player_team_badge(p)}<a href="tg://user?id={p.telegram_user_id}">{html.escape(p.display_name)}</a>'
             for p in living_players
         ])
+
+        living_roles = []
+        for p in living_players:
+            if p.role:
+                r_name = role_label(p.role.name) or p.role.name
+                r_icon = role_icon(p.role.name)
+                living_roles.append(f"{r_icon} {r_name}")
+            else:
+                living_roles.append("👨🏼 Tinch aholi")
+
+        living_roles_str = ", ".join(living_roles)
 
         bot_username = "mafia_bot"
         try:
@@ -755,13 +816,23 @@ async def advance_night_to_day(game: Game, bot: Bot):
 
         dawn_template = await sync_to_async(TextService.get_text)(
             'dawn_living_players_format',
-            fallback="👥 <b>Tirik o'yinchilar: ({count} ta)</b>\n{players_list}\n\nOvoz berishgacha ⏳ <b>20 sekund</b> qoldi"
+            fallback="{players_list}\n\n<b>Ulardan:</b> {roles_list}\n\n<b>Jami:</b> {count}\n\nEndi kechaning natijalarini muhokama qilamiz...\nOvoz berishgacha ⏳ <b>20 sekund</b> qoldi"
         )
-        dawn_msg3 = (
-            dawn_template.replace('{count}', str(len(living_players)))
-            .replace('{players_list}', living_lines)
-            .replace('{seconds}', '20')
-        )
+        if '{roles_list}' in dawn_template:
+            dawn_msg3 = (
+                dawn_template.replace('{count}', str(len(living_players)))
+                .replace('{players_list}', living_lines)
+                .replace('{roles_list}', living_roles_str)
+                .replace('{seconds}', '20')
+            )
+        else:
+            dawn_msg3 = (
+                f"{living_lines}\n\n"
+                f"<b>Ulardan:</b> {living_roles_str}\n\n"
+                f"<b>Jami:</b> {len(living_players)}\n\n"
+                f"Endi kechaning natijalarini muhokama qilamiz...\n"
+                f"Ovoz berishgacha ⏳ <b>20 sekund</b> qoldi"
+            )
         try:
             await bot.send_message(
                 game.chat_id,
