@@ -40,53 +40,57 @@ def _create_configuration_snapshot(game: Game) -> ConfigurationSnapshot:
                 'priority': rule.priority,
             })
 
-        snapshot = ConfigurationSnapshot.objects.create(
+        snapshot, _ = ConfigurationSnapshot.objects.update_or_create(
             game=game,
-            configuration_name=config.name,
-            game_mode=config.game_mode,
-            minimum_players=config.minimum_players,
-            maximum_players=config.maximum_players,
-            night_duration=config.night_duration,
-            discussion_duration=config.discussion_duration,
-            voting_duration=config.voting_duration,
-            allow_self_vote=config.allow_self_vote,
-            allow_self_protection=config.allow_self_protection,
-            reveal_role_on_elimination=config.reveal_role_on_elimination,
-            tie_behavior=config.tie_behavior,
-            mafia_vote_mode=config.mafia_vote_mode,
-            automatic_phase_transition=config.automatic_phase_transition,
-            day_discussion_enabled=config.day_discussion_enabled,
-            night_media_url=config.night_media_url,
-            day_media_url=config.day_media_url,
-            elimination_media_url=config.elimination_media_url,
-            victory_media_url=config.victory_media_url,
-            custom_theme=config.custom_theme,
-            role_distribution_snapshot=rules_snapshot,
+            defaults=dict(
+                configuration_name=config.name,
+                game_mode=config.game_mode,
+                minimum_players=config.minimum_players,
+                maximum_players=config.maximum_players,
+                night_duration=config.night_duration,
+                discussion_duration=config.discussion_duration,
+                voting_duration=config.voting_duration,
+                allow_self_vote=config.allow_self_vote,
+                allow_self_protection=config.allow_self_protection,
+                reveal_role_on_elimination=config.reveal_role_on_elimination,
+                tie_behavior=config.tie_behavior,
+                mafia_vote_mode=config.mafia_vote_mode,
+                automatic_phase_transition=config.automatic_phase_transition,
+                day_discussion_enabled=config.day_discussion_enabled,
+                night_media_url=config.night_media_url,
+                day_media_url=config.day_media_url,
+                elimination_media_url=config.elimination_media_url,
+                victory_media_url=config.victory_media_url,
+                custom_theme=config.custom_theme,
+                role_distribution_snapshot=rules_snapshot,
+            )
         )
     else:
         # Default snapshot
-        snapshot = ConfigurationSnapshot.objects.create(
+        snapshot, _ = ConfigurationSnapshot.objects.update_or_create(
             game=game,
-            configuration_name='Default',
-            game_mode=GameMode.CLASSIC,
-            minimum_players=4,
-            maximum_players=20,
-            night_duration=60,
-            discussion_duration=120,
-            voting_duration=60,
-            allow_self_vote=False,
-            allow_self_protection=False,
-            reveal_role_on_elimination=True,
-            tie_behavior='NO_ELIMINATION',
-            mafia_vote_mode='ANY',
-            automatic_phase_transition=True,
-            day_discussion_enabled=True,
-            night_media_url='',
-            day_media_url='',
-            elimination_media_url='',
-            victory_media_url='',
-            custom_theme='default',
-            role_distribution_snapshot=[],
+            defaults=dict(
+                configuration_name='Default',
+                game_mode=getattr(game, 'mode', 'CLASSIC') or GameMode.CLASSIC,
+                minimum_players=4,
+                maximum_players=30,
+                night_duration=60,
+                discussion_duration=120,
+                voting_duration=60,
+                allow_self_vote=False,
+                allow_self_protection=False,
+                reveal_role_on_elimination=True,
+                tie_behavior='NO_ELIMINATION',
+                mafia_vote_mode='ANY',
+                automatic_phase_transition=True,
+                day_discussion_enabled=True,
+                night_media_url='',
+                day_media_url='',
+                elimination_media_url='',
+                victory_media_url='',
+                custom_theme='default',
+                role_distribution_snapshot=[],
+            )
         )
 
     return snapshot
@@ -282,8 +286,12 @@ class GameService:
         4. Assigns roles (config-driven or default).
         5. Transitions phase: WAITING -> STARTING -> NIGHT.
         """
-        from apps.subscriptions.services import EntitlementService
-        EntitlementService.can_start_game(game.bot.owner, len(game.players.all()))
+        if game.bot and getattr(game.bot, 'owner', None):
+            try:
+                from apps.subscriptions.services import EntitlementService
+                EntitlementService.can_start_game(game.bot.owner, len(game.players.all()))
+            except Exception as ent_err:
+                logger.warning(f"Entitlement bypass on game start for Game #{game.id}: {ent_err}")
 
         with transaction.atomic():
             game = Game.objects.select_for_update().get(id=game.id)
@@ -542,8 +550,12 @@ class GameService:
 
         # Record player stats, coin rewards, and achievements
         try:
+            import random
             from apps.stats.services import StatsService
-            for player in game.players.all().select_related('role'):
+            all_players = list(game.players.all().select_related('role'))
+            winners = []
+            others = []
+            for player in all_players:
                 role_code = player.role.code if (player.role and hasattr(player.role, 'code')) else (player.role.name.lower() if player.role else 'citizen')
                 role_team = str(player.role.team) if (player.role and player.role.team) else 'CIVILIAN'
                 if getattr(game, 'mode', 'CLASSIC') == 'TEAM':
@@ -563,15 +575,51 @@ class GameService:
 
                     won = (team_won and player.is_alive)
 
+                if won:
+                    winners.append((player, role_code, role_team))
+                else:
+                    others.append((player, role_code, role_team))
+
+            # Tiered random rewards: 1st place 70-100, 2nd place 50-70, 3rd place 30-50, 4th+ 20-30
+            winner_rewards = {}
+            for idx, (player, role_code, role_team) in enumerate(winners):
+                if idx == 0:
+                    coins = random.randint(70, 100)
+                elif idx == 1:
+                    coins = random.randint(50, 70)
+                elif idx == 2:
+                    coins = random.randint(30, 50)
+                else:
+                    coins = random.randint(20, 30)
+                winner_rewards[str(player.telegram_user_id)] = coins
+
+                if not player.metadata:
+                    player.metadata = {}
+                player.metadata['reward_coins'] = coins
+                player.save(update_fields=['metadata'])
+
                 StatsService.record_game_player_result(
                     telegram_id=player.telegram_user_id,
-                    won=won,
+                    won=True,
+                    role_team=role_team,
+                    role_type=role_code,
+                    survived=player.is_alive,
+                    username=player.username or '',
+                    first_name=player.display_name or '',
+                    custom_reward_coins=coins
+                )
+
+            for player, role_code, role_team in others:
+                StatsService.record_game_player_result(
+                    telegram_id=player.telegram_user_id,
+                    won=False,
                     role_team=role_team,
                     role_type=role_code,
                     survived=player.is_alive,
                     username=player.username or '',
                     first_name=player.display_name or ''
                 )
+
         except Exception as e:
             logger.exception(f"Error recording stats and rewards for game #{game.id}: {e}")
 

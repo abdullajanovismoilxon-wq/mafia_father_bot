@@ -464,6 +464,7 @@ class NightActionType(models.TextChoices):
     LABORANT_ACTION = 'LABORANT_ACTION', 'Laborant Action'
     QORBOBO_GIFT = 'QORBOBO_GIFT', 'Qorbobo Gift'
     OSHPAZ_FEED = 'OSHPAZ_FEED', 'Oshpaz Feed'
+    SKIP = 'SKIP', 'Skip / Pass'
 
 
 class NightAction(BaseEntityModel):

@@ -129,12 +129,14 @@ class PromoCode(BaseEntityModel):
 
 class BroadcastMessage(BaseEntityModel):
     """
-    Broadcast announcements sent to all players or bot owners.
+    Broadcast announcements sent to channel, all players, or bot owners.
     """
     TARGET_CHOICES = [
-        ('ALL_PLAYERS', "Barcha botlarning barcha o'yinchilariga"),
-        ('BOT_OWNERS', "Faqat botlarning haqiqiy egalariga"),
-        ('SPECIFIC_USER', "Alohida bitta foydalanuvchiga"),
+        ('CHANNEL', "📢 Rasmiy kanal (@MafiaBotFather)"),
+        ('ALL_PLAYERS', "👥 Barcha botlarning barcha o'yinchilariga"),
+        ('BOT_OWNERS', "👑 Faqat botlarning haqiqiy egalariga"),
+        ('SPECIFIC_USER', "🎯 Alohida bitta foydalanuvchiga"),
+        ('SPECIFIC_CHANNEL', "📢 Boshqa kanal yoki guruhga (ID/@username)"),
     ]
     STATUS_CHOICES = [
         ('PENDING', 'Kutilmoqda'),
@@ -145,11 +147,11 @@ class BroadcastMessage(BaseEntityModel):
 
     title = models.CharField(max_length=200, help_text="E'lon sarlavhasi")
     content = models.TextField(help_text="Xabar matni (HTML teglari qo'llab-quvvatlanadi)")
-    target_audience = models.CharField(max_length=30, choices=TARGET_CHOICES, default='ALL_PLAYERS')
-    target_user_id = models.CharField(max_length=100, blank=True, default='', help_text="Alohida foydalanuvchi Telegram ID yoki @username")
+    target_audience = models.CharField(max_length=30, choices=TARGET_CHOICES, default='CHANNEL')
+    target_user_id = models.CharField(max_length=100, blank=True, default='', help_text="Alohida foydalanuvchi/kanal Telegram ID yoki @username")
     target_bot = models.ForeignKey('bots.Bot', on_delete=models.SET_NULL, null=True, blank=True, related_name='broadcasts', help_text="Yuborish uchun tanlangan aniq bot")
     sender_bot_type = models.CharField(max_length=50, default='AUTO', blank=True, help_text="Yuboruvchi bot turi: AUTO, MASTER_BOT, ALL_USER_BOTS, SPECIFIC_BOT, ALL_ACTIVE_BOTS")
-    photo_url = models.URLField(max_length=500, blank=True, default='')
+    photo_url = models.CharField(max_length=1000, blank=True, default='')
     button_text = models.CharField(max_length=100, blank=True, default='')
     button_url = models.URLField(max_length=500, blank=True, default='')
     

@@ -53,13 +53,13 @@ class EntitlementService:
                 'display_order': 1,
             }
         )
-        PlanFeature.objects.get_or_create(plan=free, feature_code=FeatureCode.MAX_BOTS, defaults={'limit_value': 1, 'enabled': True})
-        PlanFeature.objects.get_or_create(plan=free, feature_code=FeatureCode.MAX_ACTIVE_GAMES, defaults={'limit_value': 2, 'enabled': True})
-        PlanFeature.objects.get_or_create(plan=free, feature_code=FeatureCode.MAX_PLAYERS_PER_GAME, defaults={'limit_value': 8, 'enabled': True})
-        PlanFeature.objects.get_or_create(plan=free, feature_code=FeatureCode.MAX_TOURNAMENTS, defaults={'limit_value': 0, 'enabled': False})
-        PlanFeature.objects.get_or_create(plan=free, feature_code=FeatureCode.MAX_TEMPLATES, defaults={'limit_value': 2, 'enabled': True})
-        PlanFeature.objects.get_or_create(plan=free, feature_code=FeatureCode.CUSTOM_ROLES, defaults={'limit_value': 0, 'enabled': False})
-        PlanFeature.objects.get_or_create(plan=free, feature_code=FeatureCode.TOURNAMENT_MODE, defaults={'limit_value': 0, 'enabled': False})
+        PlanFeature.objects.update_or_create(plan=free, feature_code=FeatureCode.MAX_BOTS, defaults={'limit_value': 1, 'enabled': True})
+        PlanFeature.objects.update_or_create(plan=free, feature_code=FeatureCode.MAX_ACTIVE_GAMES, defaults={'limit_value': 2, 'enabled': True})
+        PlanFeature.objects.update_or_create(plan=free, feature_code=FeatureCode.MAX_PLAYERS_PER_GAME, defaults={'limit_value': 8, 'enabled': True})
+        PlanFeature.objects.update_or_create(plan=free, feature_code=FeatureCode.MAX_TOURNAMENTS, defaults={'limit_value': 0, 'enabled': False})
+        PlanFeature.objects.update_or_create(plan=free, feature_code=FeatureCode.MAX_TEMPLATES, defaults={'limit_value': 2, 'enabled': True})
+        PlanFeature.objects.update_or_create(plan=free, feature_code=FeatureCode.CUSTOM_ROLES, defaults={'limit_value': 0, 'enabled': False})
+        PlanFeature.objects.update_or_create(plan=free, feature_code=FeatureCode.TOURNAMENT_MODE, defaults={'limit_value': 0, 'enabled': False})
         plans['FREE'] = free
 
         # 2. STARTER Plan
@@ -73,13 +73,13 @@ class EntitlementService:
                 'display_order': 2,
             }
         )
-        PlanFeature.objects.get_or_create(plan=starter, feature_code=FeatureCode.MAX_BOTS, defaults={'limit_value': 3, 'enabled': True})
-        PlanFeature.objects.get_or_create(plan=starter, feature_code=FeatureCode.MAX_ACTIVE_GAMES, defaults={'limit_value': 5, 'enabled': True})
-        PlanFeature.objects.get_or_create(plan=starter, feature_code=FeatureCode.MAX_PLAYERS_PER_GAME, defaults={'limit_value': 12, 'enabled': True})
-        PlanFeature.objects.get_or_create(plan=starter, feature_code=FeatureCode.MAX_TOURNAMENTS, defaults={'limit_value': 1, 'enabled': True})
-        PlanFeature.objects.get_or_create(plan=starter, feature_code=FeatureCode.MAX_TEMPLATES, defaults={'limit_value': 5, 'enabled': True})
-        PlanFeature.objects.get_or_create(plan=starter, feature_code=FeatureCode.CUSTOM_ROLES, defaults={'limit_value': 5, 'enabled': True})
-        PlanFeature.objects.get_or_create(plan=starter, feature_code=FeatureCode.TOURNAMENT_MODE, defaults={'limit_value': 1, 'enabled': True})
+        PlanFeature.objects.update_or_create(plan=starter, feature_code=FeatureCode.MAX_BOTS, defaults={'limit_value': 3, 'enabled': True})
+        PlanFeature.objects.update_or_create(plan=starter, feature_code=FeatureCode.MAX_ACTIVE_GAMES, defaults={'limit_value': 10, 'enabled': True})
+        PlanFeature.objects.update_or_create(plan=starter, feature_code=FeatureCode.MAX_PLAYERS_PER_GAME, defaults={'limit_value': 20, 'enabled': True})
+        PlanFeature.objects.update_or_create(plan=starter, feature_code=FeatureCode.MAX_TOURNAMENTS, defaults={'limit_value': 3, 'enabled': True})
+        PlanFeature.objects.update_or_create(plan=starter, feature_code=FeatureCode.MAX_TEMPLATES, defaults={'limit_value': 10, 'enabled': True})
+        PlanFeature.objects.update_or_create(plan=starter, feature_code=FeatureCode.CUSTOM_ROLES, defaults={'limit_value': 5, 'enabled': True})
+        PlanFeature.objects.update_or_create(plan=starter, feature_code=FeatureCode.TOURNAMENT_MODE, defaults={'limit_value': 1, 'enabled': True})
         plans['STARTER'] = starter
 
         # 3. PRO Plan
@@ -93,14 +93,14 @@ class EntitlementService:
                 'display_order': 3,
             }
         )
-        PlanFeature.objects.get_or_create(plan=pro, feature_code=FeatureCode.MAX_BOTS, defaults={'limit_value': 10, 'enabled': True})
-        PlanFeature.objects.get_or_create(plan=pro, feature_code=FeatureCode.MAX_ACTIVE_GAMES, defaults={'limit_value': 20, 'enabled': True})
-        PlanFeature.objects.get_or_create(plan=pro, feature_code=FeatureCode.MAX_PLAYERS_PER_GAME, defaults={'limit_value': 20, 'enabled': True})
-        PlanFeature.objects.get_or_create(plan=pro, feature_code=FeatureCode.MAX_TOURNAMENTS, defaults={'limit_value': 10, 'enabled': True})
-        PlanFeature.objects.get_or_create(plan=pro, feature_code=FeatureCode.MAX_TEMPLATES, defaults={'limit_value': 20, 'enabled': True})
-        PlanFeature.objects.get_or_create(plan=pro, feature_code=FeatureCode.CUSTOM_ROLES, defaults={'limit_value': 20, 'enabled': True})
-        PlanFeature.objects.get_or_create(plan=pro, feature_code=FeatureCode.TOURNAMENT_MODE, defaults={'limit_value': 1, 'enabled': True})
-        PlanFeature.objects.get_or_create(plan=pro, feature_code=FeatureCode.ADVANCED_ANALYTICS, defaults={'limit_value': 1, 'enabled': True})
+        PlanFeature.objects.update_or_create(plan=pro, feature_code=FeatureCode.MAX_BOTS, defaults={'limit_value': 10, 'enabled': True})
+        PlanFeature.objects.update_or_create(plan=pro, feature_code=FeatureCode.MAX_ACTIVE_GAMES, defaults={'limit_value': 50, 'enabled': True})
+        PlanFeature.objects.update_or_create(plan=pro, feature_code=FeatureCode.MAX_PLAYERS_PER_GAME, defaults={'limit_value': 50, 'enabled': True})
+        PlanFeature.objects.update_or_create(plan=pro, feature_code=FeatureCode.MAX_TOURNAMENTS, defaults={'limit_value': 10, 'enabled': True})
+        PlanFeature.objects.update_or_create(plan=pro, feature_code=FeatureCode.MAX_TEMPLATES, defaults={'limit_value': 50, 'enabled': True})
+        PlanFeature.objects.update_or_create(plan=pro, feature_code=FeatureCode.CUSTOM_ROLES, defaults={'limit_value': 50, 'enabled': True})
+        PlanFeature.objects.update_or_create(plan=pro, feature_code=FeatureCode.TOURNAMENT_MODE, defaults={'limit_value': 1, 'enabled': True})
+        PlanFeature.objects.update_or_create(plan=pro, feature_code=FeatureCode.ADVANCED_ANALYTICS, defaults={'limit_value': 1, 'enabled': True})
         plans['PRO'] = pro
 
         return plans
@@ -198,6 +198,11 @@ class EntitlementService:
     @classmethod
     def can_start_game(cls, user, player_count: int = 4) -> None:
         """Checks MAX_ACTIVE_GAMES and MAX_PLAYERS_PER_GAME."""
+        if not user:
+            return
+        if getattr(user, 'is_platform_owner', False) or getattr(user, 'is_superuser', False):
+            return
+
         from apps.games.models import Game, GamePhase
         active_games = Game.objects.filter(
             bot__owner=user,

@@ -489,11 +489,11 @@ async def cmd_master_profile(message: types.Message, bot: Bot):
             last_name=user.last_name or ''
         )
         stats = await sync_to_async(lambda: getattr(profile, 'stats', None))()
-        wallet = await sync_to_async(EconomyService.get_or_create_wallet)(telegram_id=user.id)
-        from bot_runtime.handlers.economy import _get_inventory_state, format_custom_profile_text
+        from bot_runtime.handlers.economy import _get_inventory_state, format_custom_profile_text, check_channel_membership_and_apply_bonus
         from bot_runtime.keyboards.inline import build_profile_interactive_keyboard
         inv_state = await _get_inventory_state(user.id)
-        text = format_custom_profile_text(profile, stats, wallet, inv_state)
+        is_member = await check_channel_membership_and_apply_bonus(bot, profile, wallet)
+        text = format_custom_profile_text(profile, stats, wallet, inv_state, is_channel_member=is_member)
         kb = build_profile_interactive_keyboard(
             himoya_on=inv_state['himoya']['on'],
             osish_on=inv_state['osish_himoya']['on'],

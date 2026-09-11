@@ -792,36 +792,114 @@ class BroadcastService:
         from apps.users.models import User
         from django.db.models import Q
 
-        def _send_tg(token: str, chat_id: int) -> bool:
+        def _send_tg(token: str, chat_id) -> bool:
             try:
-                if broadcast.photo_url:
+                import json
+                is_local_file = False
+                if broadcast.photo_url and os.path.exists(broadcast.photo_url):
+                    is_local_file = True
+
+                if is_local_file:
+                    url = f"https://api.telegram.org/bot{token}/sendPhoto"
+                    data = {'chat_id': chat_id, 'caption': broadcast.content, 'parse_mode': 'HTML'}
+                    if reply_markup:
+                        data['reply_markup'] = json.dumps(reply_markup)
+                    with open(broadcast.photo_url, 'rb') as f:
+                        resp = requests.post(url, data=data, files={'photo': f}, timeout=15)
+                    if resp.status_code == 200 and resp.json().get('ok'):
+                        return True
+                    # If HTML parsing failed, retry plain text
+                    err_desc = str(resp.json().get('description', '')).lower()
+                    if 'entity' in err_desc or "can't parse" in err_desc:
+                        data = {'chat_id': chat_id, 'caption': broadcast.content}
+                        if reply_markup:
+                            data['reply_markup'] = json.dumps(reply_markup)
+                        with open(broadcast.photo_url, 'rb') as f:
+                            r2 = requests.post(url, data=data, files={'photo': f}, timeout=15)
+                        if r2.status_code == 200 and r2.json().get('ok'):
+                            return True
+                elif broadcast.photo_url:
                     url = f"https://api.telegram.org/bot{token}/sendPhoto"
                     payload = {'chat_id': chat_id, 'photo': broadcast.photo_url, 'caption': broadcast.content, 'parse_mode': 'HTML'}
+                    if reply_markup:
+                        payload['reply_markup'] = reply_markup
+                    resp = requests.post(url, json=payload, timeout=10)
+                    if resp.status_code == 200 and resp.json().get('ok'):
+                        return True
+                    err_desc = str(resp.json().get('description', '')).lower()
+                    if 'entity' in err_desc or "can't parse" in err_desc:
+                        payload = {'chat_id': chat_id, 'photo': broadcast.photo_url, 'caption': broadcast.content}
+                        if reply_markup:
+                            payload['reply_markup'] = reply_markup
+                        r2 = requests.post(url, json=payload, timeout=10)
+                        if r2.status_code == 200 and r2.json().get('ok'):
+                            return True
                 else:
                     url = f"https://api.telegram.org/bot{token}/sendMessage"
                     payload = {'chat_id': chat_id, 'text': broadcast.content, 'parse_mode': 'HTML'}
-                if reply_markup:
-                    payload['reply_markup'] = reply_markup
-                resp = requests.post(url, json=payload, timeout=7)
-                if resp.status_code == 200 and resp.json().get('ok'):
-                    return True
-                # If HTML parsing failed, retry plain text
-                err_desc = str(resp.json().get('description', '')).lower()
-                if 'entity' in err_desc or "can't parse" in err_desc:
-                    if broadcast.photo_url:
-                        payload = {'chat_id': chat_id, 'photo': broadcast.photo_url, 'caption': broadcast.content}
-                    else:
-                        payload = {'chat_id': chat_id, 'text': broadcast.content}
                     if reply_markup:
                         payload['reply_markup'] = reply_markup
-                    r2 = requests.post(url, json=payload, timeout=7)
-                    if r2.status_code == 200 and r2.json().get('ok'):
+                    resp = requests.post(url, json=payload, timeout=7)
+                    if resp.status_code == 200 and resp.json().get('ok'):
                         return True
-            except Exception:
-                pass
+                    err_desc = str(resp.json().get('description', '')).lower()
+                    if 'entity' in err_desc or "can't parse" in err_desc:
+                        payload = {'chat_id': chat_id, 'text': broadcast.content}
+                        if reply_markup:
+                            payload['reply_markup'] = reply_markup
+                        r2 = requests.post(url, json=payload, timeout=7)
+                        if r2.status_code == 200 and r2.json().get('ok'):
+                            return True
+            except Exception as ex:
+                logger.warning(f"Error sending broadcast to {chat_id}: {ex}")
             return False
 
-        if broadcast.target_audience == 'SPECIFIC_USER':
+        if broadcast.target_audience in ['CHANNEL', 'SPECIFIC_CHANNEL']:
+            channel_target = "@MafiaBotFather" if broadcast.target_audience == 'CHANNEL' else broadcast.target_user_id.strip()
+            if not channel_target.startswith('@') and not channel_target.startswith('-'):
+                channel_target = f"@{channel_target}"
+
+            broadcast.total_recipients = 1
+            broadcast.save(update_fields=['total_recipients'])
+
+            master_token = (
+                os.environ.get('MASTER_BOT_TOKEN') or
+                os.environ.get('TELEGRAM_BOT_TOKEN') or
+                '8741801900:AAHtCUxO2zvG737po1_2mTOEW_hr8lA657g'
+            )
+
+            tokens_to_try = []
+            if broadcast.target_bot:
+                try:
+                    cred = getattr(broadcast.target_bot, 'credential', None)
+                    if cred and cred.get_token():
+                        tokens_to_try.append(cred.get_token())
+                except Exception:
+                    pass
+
+            if master_token not in tokens_to_try:
+                tokens_to_try.append(master_token)
+
+            for cred in BotCredential.objects.select_related('bot').filter(bot__status='ACTIVE'):
+                try:
+                    t = cred.get_token()
+                    if t and t not in tokens_to_try:
+                        tokens_to_try.append(t)
+                except Exception:
+                    pass
+
+            delivered = False
+            for token in tokens_to_try:
+                if _send_tg(token, channel_target):
+                    delivered = True
+                    break
+
+            if delivered:
+                success += 1
+            else:
+                failed += 1
+
+        elif broadcast.target_audience == 'SPECIFIC_USER':
             raw_target = str(broadcast.target_user_id).strip()
             clean_u = raw_target.lstrip('@').strip()
             tg_id = None

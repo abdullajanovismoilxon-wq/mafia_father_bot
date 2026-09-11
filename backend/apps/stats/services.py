@@ -200,7 +200,9 @@ class StatsService:
         votes: int = 0,
         is_mvp: bool = False,
         username: str = '',
-        first_name: str = ''
+        first_name: str = '',
+        custom_reward_coins: int = None,
+        custom_reward_diamonds: int = None
     ):
         """Updates player statistics after game finish, awards coins, and checks achievements."""
         profile = cls.get_or_create_profile(
@@ -239,13 +241,20 @@ class StatsService:
 
             stats.save()
 
-            # Award game reward coins & diamonds dynamically from SuperAdmin SettingService
+            # Award game reward coins & diamonds dynamically from SuperAdmin SettingService or custom tiered amount
             from apps.superadmin.services import SettingService
-            if won:
+            if custom_reward_coins is not None:
+                reward_coins = custom_reward_coins
+            elif won:
                 reward_coins = SettingService.get_int('victory_reward_coins', SettingService.get_int('reward_win_coins', 50))
-                reward_diamonds = SettingService.get_int('victory_reward_diamonds', SettingService.get_int('reward_win_diamonds', 0))
             else:
                 reward_coins = SettingService.get_int('participation_reward_coins', SettingService.get_int('reward_participation_coins', 15))
+
+            if custom_reward_diamonds is not None:
+                reward_diamonds = custom_reward_diamonds
+            elif won:
+                reward_diamonds = SettingService.get_int('victory_reward_diamonds', SettingService.get_int('reward_win_diamonds', 0))
+            else:
                 reward_diamonds = SettingService.get_int('participation_reward_diamonds', SettingService.get_int('reward_participation_diamonds', 0))
 
             wallet = EconomyService.get_or_create_wallet(

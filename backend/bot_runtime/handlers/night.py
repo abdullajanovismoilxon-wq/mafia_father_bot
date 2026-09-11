@@ -829,7 +829,7 @@ async def advance_night_to_day(game: Game, bot: Bot):
                         logger.warning(f"Could not send dawn hero prompt to {lp.telegram_user_id}: {h_err}")
 
         # --- Wait configured seconds then start voting ---
-        bot_id_str = str(game.bot.id) if game.bot else ''
+        bot_id_str = str(game.bot_id) if game and getattr(game, 'bot_id', None) else ''
         dawn_wait = await sync_to_async(SettingService.get_bot_timing)(bot_id_str, 'dawn_wait_duration', 15)
         await asyncio.sleep(dawn_wait)
 
@@ -958,13 +958,14 @@ async def _announce_game_winner(game: Game, winner: str, bot: Bot, story_lines: 
 
     from apps.superadmin.services import SettingService
     from bot_runtime.keyboards.inline import _player_team_badge
-    win_coins = await sync_to_async(SettingService.get_int)('victory_reward_coins', await sync_to_async(SettingService.get_int)('reward_win_coins', 50))
     win_diamonds = await sync_to_async(SettingService.get_int)('victory_reward_diamonds', await sync_to_async(SettingService.get_int)('reward_win_diamonds', 0))
     part_coins = await sync_to_async(SettingService.get_int)('participation_reward_coins', await sync_to_async(SettingService.get_int)('reward_participation_coins', 15))
     part_diamonds = await sync_to_async(SettingService.get_int)('participation_reward_diamonds', await sync_to_async(SettingService.get_int)('reward_participation_diamonds', 0))
 
-    win_reward_str = f"+{win_coins} 💶" + (f", +{win_diamonds} 💎" if win_diamonds > 0 else "")
-    part_reward_str = f"+{part_coins} 💶" + (f", +{part_diamonds} 💎" if part_diamonds > 0 else "")
+    meta_rewards = getattr(game, 'metadata', {}) or {}
+    winner_rewards_map = meta_rewards.get('winner_rewards', {})
+
+    part_reward_str = f"+{part_coins} 💶" + (f", +{win_diamonds} 💎" if win_diamonds > 0 else "")
 
     if getattr(game, 'mode', 'CLASSIC') == 'TEAM':
         if winner == 'TEAM_RED':
@@ -976,8 +977,9 @@ async def _announce_game_winner(game: Game, winner: str, bot: Bot, story_lines: 
     else:
         lines = ["🏆 <b>O'yin tugadi!</b>\n"]
 
+    winner_places_map = {}
     if winners:
-        lines.append(f"<b>G'oliblar ({win_reward_str}):</b>")
+        lines.append("<b>G'oliblar:</b>")
         counter = 1
         for p in winners:
             rname = p.role.name if p.role else "CITIZEN"
@@ -985,11 +987,28 @@ async def _announce_game_winner(game: Game, winner: str, bot: Bot, story_lines: 
             label = role_label(rname)
             team_badge = _player_team_badge(p)
             mention = f'{team_badge}<a href="tg://user?id={p.telegram_user_id}">{html.escape(p.display_name)}</a>'
-            lines.append(f" {counter}. {mention} - {icon} {label}")
+            
+            p_meta = p.metadata or {}
+            p_coins = p_meta.get('reward_coins')
+            if not p_coins:
+                p_coins = winner_rewards_map.get(str(p.telegram_user_id)) or winner_rewards_map.get(p.telegram_user_id)
+            if not p_coins:
+                if counter == 1:
+                    p_coins = random.randint(70, 100)
+                elif counter == 2:
+                    p_coins = random.randint(50, 70)
+                elif counter == 3:
+                    p_coins = random.randint(30, 50)
+                else:
+                    p_coins = random.randint(20, 30)
+
+            winner_places_map[p.telegram_user_id] = (counter, p_coins)
+            dia_str = f", +{win_diamonds} 💎" if win_diamonds > 0 else ""
+            lines.append(f" {counter}. {mention} - {icon} {label} (<b>+{p_coins} 💶</b>{dia_str})")
             counter += 1
 
     if others:
-        lines.append(f"\n<b>Qolgan o'yinchilar ({part_reward_str}):</b>")
+        lines.append(f"\n<b>Qolgan o'yinchilar (+{part_coins} 💶):</b>")
         counter = 1
         for p in others:
             rname = p.role.name if p.role else "CITIZEN"
@@ -1015,7 +1034,7 @@ async def _announce_game_winner(game: Game, winner: str, bot: Bot, story_lines: 
     # Send personal game conclusion PM with updated profile to EVERY player
     from apps.stats.services import StatsService
     from apps.economy.services import EconomyService
-    from bot_runtime.handlers.economy import _sync_get_inventory_state, format_custom_profile_text
+    from bot_runtime.handlers.economy import _sync_get_inventory_state, format_custom_profile_text, check_channel_membership_and_apply_bonus
     from bot_runtime.keyboards.inline import build_profile_interactive_keyboard
 
     for p in all_players:
@@ -1029,18 +1048,21 @@ async def _announce_game_winner(game: Game, winner: str, bot: Bot, story_lines: 
             wallet = await sync_to_async(EconomyService.get_or_create_wallet)(telegram_id=p.telegram_user_id)
             inv_state = await sync_to_async(_sync_get_inventory_state)(p.telegram_user_id)
 
-            prof_text = format_custom_profile_text(profile, stats, wallet, inv_state)
+            is_channel_member = await check_channel_membership_and_apply_bonus(bot, profile, wallet)
+            prof_text = format_custom_profile_text(profile, stats, wallet, inv_state, is_channel_member=is_channel_member)
             is_winner = (p in winners)
 
             if is_winner:
+                place_info, place_coins = winner_places_map.get(p.telegram_user_id, (1, 75))
+                w_reward_str = f"+{place_coins} 💶" + (f", +{win_diamonds} 💎" if win_diamonds > 0 else "")
                 header = (
-                    "🎉 <b>O'yin yakunlandi! Siz g'alaba qozondingiz!</b> 🥳\n"
-                    f"🎁 <b>G'alaba mukofoti:</b> <code>{win_reward_str}</code> hisobingizga qo'shildi!\n\n"
+                    f"🎉 <b>O'yin yakunlandi! Siz {place_info}-o'rin bilan g'alaba qozondingiz!</b> 🥳\n"
+                    f"🎁 <b>G'alaba mukofoti:</b> <code>{w_reward_str}</code> hisobingizga qo'shildi!\n\n"
                 )
             else:
                 header = (
                     "💀 <b>O'yin yakunlandi! Siz mag'lub bo'ldingiz.</b>\n"
-                    f"🎁 <b>Ishtirok mukofoti:</b> <code>{part_reward_str}</code> hisobingizga qo'shildi!\n\n"
+                    f"🎁 <b>Ishtirok mukofoti:</b> <code>+{part_coins} 💶</code> hisobingizga qo'shildi!\n\n"
                 )
 
             pm_text = header + prof_text
@@ -1058,6 +1080,63 @@ async def _announce_game_winner(game: Game, winner: str, bot: Bot, story_lines: 
 # ---------------------------------------------------------------------------
 # Night Action Callbacks (Universal Dispatcher for all 21 Roles)
 # ---------------------------------------------------------------------------
+
+@router.callback_query(lambda c: c.data and (c.data.startswith("n_skip:") or (c.data.startswith("n:") and ":skip:" in c.data)))
+async def handle_night_skip_callback(callback: CallbackQuery, bot: Bot):
+    """
+    Handles player skipping their night action.
+    Format: n_skip:{short_gid} or n:{game12}:skip:{player12}
+    """
+    parts = callback.data.split(":")
+    short_gid = parts[1]
+
+    try:
+        full_gid = await _resolve_game_id(short_gid)
+        game = await sync_to_async(Game.objects.select_related('bot').get)(id=full_gid)
+        if game.phase != GamePhase.NIGHT:
+            await callback.answer("🌙 Tungi bosqich allaqachon yakunlangan.", show_alert=True)
+            return
+
+        actor = await sync_to_async(
+            lambda: Player.objects.select_related('role').filter(
+                game=game, telegram_user_id=callback.from_user.id
+            ).first()
+        )()
+
+        if not actor or not actor.is_alive:
+            await callback.answer("Siz tirik emassiz.", show_alert=True)
+            return
+
+        # Submit SKIP action
+        await sync_to_async(NightActionService.submit_action)(
+            game, actor, None, NightActionType.SKIP
+        )
+
+        rname = actor.role.name if actor.role else ''
+        r_icon = role_icon(rname)
+        r_label = role_label(rname)
+
+        await callback.answer("😴 Dam olishga qaror qildingiz.")
+        await callback.message.edit_text(
+            f"😴 <b>Siz bu tunda dam olishga qaror qildingiz.</b>\nHech qanday harakat bajarilmadi.",
+            reply_markup=build_back_to_group_keyboard(chat_id=game.chat_id),
+            parse_mode="HTML"
+        )
+
+        # Send group notification: "{roli} bugun dam olishga qaror qildi"
+        group_msg = f"{r_icon} <b>{r_label} bugun dam olishga qaror qildi</b>"
+        try:
+            await bot.send_message(game.chat_id, group_msg, parse_mode="HTML")
+        except Exception as g_err:
+            logger.warning(f"Could not send night skip info to group: {g_err}")
+
+        # Check if all living active roles have acted -> advance night to day early!
+        await _check_and_advance_night_if_ready(game, bot)
+
+    except Exception as e:
+        logger.exception("Error in night skip callback:")
+        await callback.answer(f"Xatolik: {e}", show_alert=True)
+
 
 # ---------------------------------------------------------------------------
 # Komissar Action Choice (Tekshirish / Otish)

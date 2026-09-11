@@ -298,8 +298,49 @@ def _sync_sell_item(telegram_id: int, item_code: str) -> tuple[bool, str]:
 # Format Profile Text (Exact Match to User Requirement)
 # ---------------------------------------------------------------------------
 
-def format_custom_profile_text(profile: PlayerProfile, stats: PlayerStats, wallet: Wallet, inv_state: dict) -> str:
-    """Formats player profile matching user's exact specification with VIP dollars/diamonds for platform owner and Hero info."""
+async def check_channel_membership_and_apply_bonus(bot: Bot, profile: PlayerProfile, wallet: Wallet) -> bool:
+    """
+    Checks if player is subscribed to @MafiaBotFather.
+    If subscribed:
+      - If not previously claimed (is_channel_bonus_claimed == False):
+        - Double player's coins in wallet (wallet.coins = wallet.coins * 2)
+        - Mark profile.is_channel_bonus_claimed = True
+      - Returns True (subscribed)
+    If not subscribed:
+      - Returns False
+    """
+    if not bot:
+        return True
+    is_member = False
+    try:
+        member = await bot.get_chat_member(chat_id="@MafiaBotFather", user_id=profile.telegram_id)
+        if member.status in ['creator', 'administrator', 'member', 'restricted']:
+            is_member = True
+    except Exception as e:
+        logger.debug(f"Channel membership check for {profile.telegram_id} failed: {e}")
+        is_member = False
+
+    if is_member:
+        if not getattr(profile, 'is_channel_bonus_claimed', False):
+            # Double dollars (coins)
+            if wallet and wallet.coins > 0:
+                wallet.coins = wallet.coins * 2
+                await sync_to_async(wallet.save)(update_fields=['coins'])
+            profile.is_channel_bonus_claimed = True
+            await sync_to_async(profile.save)(update_fields=['is_channel_bonus_claimed'])
+            logger.info(f"Awarded 2x channel bonus to user {profile.telegram_id}")
+        return True
+    return False
+
+
+def format_custom_profile_text(
+    profile: PlayerProfile,
+    stats: PlayerStats,
+    wallet: Wallet,
+    inv_state: dict,
+    is_channel_member: bool = True
+) -> str:
+    """Formats player profile matching user's exact specification with VIP dollars/diamonds for platform owner, Hero info, and conditional channel link."""
     from apps.economy.models import PlayerHero
     is_owner = (
         profile.telegram_id == 7782387930 or
@@ -333,7 +374,7 @@ def format_custom_profile_text(profile: PlayerProfile, stats: PlayerStats, walle
 
     name = profile.display_name if hasattr(profile, 'display_name') and profile.display_name else (profile.first_name or profile.telegram_username or "O'yinchi")
 
-    return (
+    res = (
         f"👤 {name}\n\n"
         f"💵 Dollar: {dollars_str}\n"
         f"💎 Olmos: {diamonds_str}\n\n"
@@ -346,6 +387,11 @@ def format_custom_profile_text(profile: PlayerProfile, stats: PlayerStats, walle
         f"🎲 Barcha o'yinlar: {games_str}\n\n"
         f"🃏 Faol rollar: {active_role_str}"
     )
+
+    if not is_channel_member:
+        res += "\n\nkanalga qo'shilsangiz hisobingiz 2x bo'ladi: https://t.me/MafiaBotFather"
+
+    return res
 
 
 
@@ -371,7 +417,8 @@ async def cmd_profile(message: types.Message, bot: Bot):
         wallet = await sync_to_async(EconomyService.get_or_create_wallet)(telegram_id=user.id)
         inv_state = await _get_inventory_state(user.id)
 
-        text = format_custom_profile_text(profile, stats, wallet, inv_state)
+        is_member = await check_channel_membership_and_apply_bonus(bot, profile, wallet)
+        text = format_custom_profile_text(profile, stats, wallet, inv_state, is_channel_member=is_member)
         kb = build_profile_interactive_keyboard(
             himoya_on=inv_state['himoya']['on'],
             osish_on=inv_state['osish_himoya']['on'],
@@ -408,7 +455,8 @@ async def handle_item_toggle(callback: types.CallbackQuery):
     wallet = await sync_to_async(EconomyService.get_or_create_wallet)(telegram_id=user_id)
     inv_state = await _get_inventory_state(user_id)
 
-    text = format_custom_profile_text(profile, stats, wallet, inv_state)
+    is_member = await check_channel_membership_and_apply_bonus(callback.bot, profile, wallet)
+    text = format_custom_profile_text(profile, stats, wallet, inv_state, is_channel_member=is_member)
     kb = build_profile_interactive_keyboard(
         himoya_on=inv_state['himoya']['on'],
         osish_on=inv_state['osish_himoya']['on'],
@@ -639,7 +687,8 @@ async def handle_back_to_profile(callback: types.CallbackQuery):
     wallet = await sync_to_async(EconomyService.get_or_create_wallet)(telegram_id=user_id)
     inv_state = await _get_inventory_state(user_id)
 
-    text = format_custom_profile_text(profile, stats, wallet, inv_state)
+    is_member = await check_channel_membership_and_apply_bonus(callback.bot, profile, wallet)
+    text = format_custom_profile_text(profile, stats, wallet, inv_state, is_channel_member=is_member)
     kb = build_profile_interactive_keyboard(
         himoya_on=inv_state['himoya']['on'],
         osish_on=inv_state['osish_himoya']['on'],

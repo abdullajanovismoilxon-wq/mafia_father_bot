@@ -694,6 +694,6 @@ async def _advance_to_next_night(game: Game, bot: Bot, reason: str = ""):
     finally:
         from bot_runtime.handlers.night import start_night_timer
         from apps.superadmin.services import SettingService
-        bot_id_str = str(game.bot.id) if game and game.bot else ''
+        bot_id_str = str(game.bot_id) if game and getattr(game, 'bot_id', None) else ''
         n_dur = await sync_to_async(SettingService.get_bot_timing)(bot_id_str, 'night_duration', 60)
         start_night_timer(game_id, bot, duration=n_dur)

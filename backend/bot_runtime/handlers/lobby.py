@@ -373,7 +373,7 @@ async def cmd_start_private(message: types.Message, command: CommandObject, bot:
                     )
 
             try:
-                bot_name = game.bot.name if game.bot else "Bloody Mafia"
+                bot_name = await sync_to_async(lambda: game.bot.name if game and getattr(game, 'bot', None) else "Bloody Mafia")()
                 new_text = await sync_to_async(format_lobby_text)(game, bot_name)
                 kb = await sync_to_async(_get_lobby_keyboard)(game, bot_info.username)
                 if game.lobby_message_id:
@@ -604,7 +604,7 @@ async def cmd_start_game(message: types.Message, bot: Bot):
 
     chat_id = message.chat.id
     game = await sync_to_async(
-        lambda: Game.objects.filter(chat_id=chat_id, phase=GamePhase.WAITING).order_by('-created_at').first()
+        lambda: Game.objects.select_related('bot', 'bot__owner', 'game_configuration').filter(chat_id=chat_id, phase=GamePhase.WAITING).order_by('-created_at').first()
     )()
 
     if not game:
@@ -907,7 +907,7 @@ async def cmd_start_game(message: types.Message, bot: Bot):
                 logger.warning(f"Failed to send night prompt to {player.telegram_user_id}: {e}")
 
         # Start Night Timer with bot timing setting
-        bot_id_str = str(game.bot.id) if game and game.bot else ''
+        bot_id_str = str(game.bot_id) if game and getattr(game, 'bot_id', None) else ''
         n_dur = await sync_to_async(SettingService.get_group_or_bot_timing)(game.chat_id, bot_id_str, 'night_duration', 60)
         start_night_timer(str(game.id), bot, duration=n_dur)
 
@@ -919,7 +919,10 @@ async def cmd_start_game(message: types.Message, bot: Bot):
         )
     except Exception as e:
         logger.exception("Error starting game:")
-        await message.answer(f"❌ O'yinni boshlashda xatolik yuz berdi.", parse_mode="HTML")
+        await message.answer(
+            f"❌ <b>O'yinni boshlashda xatolik:</b> {html.escape(str(e))}",
+            parse_mode="HTML"
+        )
 
 
 @router.message(Command("roles", "rollar", "qoidalar", ignore_case=True))
@@ -1048,7 +1051,7 @@ async def cmd_leave_game(message: types.Message, bot: Bot):
 
     # 1. Left Waiting Lobby
     if phase_mode == 'LOBBY':
-        bot_name = game.bot.name if game.bot else "Bloody Mafia"
+        bot_name = await sync_to_async(lambda: game.bot.name if game and getattr(game, 'bot', None) else "Bloody Mafia")()
         new_text = await sync_to_async(format_lobby_text)(game, bot_name)
         kb = await sync_to_async(_get_lobby_keyboard)(game, bot_info.username)
 
@@ -1151,7 +1154,7 @@ async def handle_lobby_callback(callback: types.CallbackQuery, bot: Bot):
             )
             if created:
                 await callback.answer("✅ Siz o'yinga qo'shildingiz!")
-                bot_name = game.bot.name if game.bot else "Bloody Mafia"
+                bot_name = await sync_to_async(lambda: game.bot.name if game and getattr(game, 'bot', None) else "Bloody Mafia")()
                 new_text = await sync_to_async(format_lobby_text)(game, bot_name)
                 kb = await sync_to_async(_get_lobby_keyboard)(game, bot_info.username)
                 try:
@@ -1167,7 +1170,7 @@ async def handle_lobby_callback(callback: types.CallbackQuery, bot: Bot):
             )
             if removed:
                 await callback.answer("🚪 Siz o'yindan chiqdingiz.")
-                bot_name = game.bot.name if game.bot else "Bloody Mafia"
+                bot_name = await sync_to_async(lambda: game.bot.name if game and getattr(game, 'bot', None) else "Bloody Mafia")()
                 new_text = await sync_to_async(format_lobby_text)(game, bot_name)
                 kb = await sync_to_async(_get_lobby_keyboard)(game, bot_info.username)
                 try:

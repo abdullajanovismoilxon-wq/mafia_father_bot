@@ -114,7 +114,7 @@
                 <h5 class="modal-title fw-bold text-white"><i class="fa-solid fa-bullhorn text-danger me-2"></i>Yangi E'lon Yaratish & Telegram Formatlash</h5>
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
             </div>
-            <form method="POST" action="{% url 'superadmin:broadcast_create' %}">
+            <form method="POST" action="{% url 'superadmin:broadcast_create' %}" enctype="multipart/form-data">
                 {% csrf_token %}
                 <div class="modal-body p-4">
                     <div class="row g-4">
@@ -130,17 +130,19 @@
                                 <div class="col-md-6">
                                     <label class="form-label text-secondary small fw-semibold">Kimga Yuborilsin? (Auditoriya)</label>
                                     <select name="target_audience" id="targetAudienceSelect" onchange="handleAudienceChange()" class="form-select bg-dark border-secondary border-opacity-25 text-white">
+                                        <option value="CHANNEL" selected>📢 Rasmiy kanal (@MafiaBotFather)</option>
                                         <option value="ALL_PLAYERS">👥 Barcha o'yin botlarining o'yinchilariga</option>
                                         <option value="BOT_OWNERS">👑 Faqat bot egalariga (Father Bot orqali)</option>
                                         <option value="SPECIFIC_USER">🎯 Alohida bitta foydalanuvchiga (ID yoki @username)</option>
+                                        <option value="SPECIFIC_CHANNEL">📢 Boshqa kanal yoki guruhga (ID yoki @username)</option>
                                     </select>
                                 </div>
 
                                 <div class="col-12" id="specificUserContainer" style="display: none;">
                                     <div class="p-3 rounded-3" style="background: rgba(59, 130, 246, 0.08); border: 1px solid rgba(59, 130, 246, 0.25);">
-                                        <label class="form-label text-info small fw-bold mb-1"><i class="fa-solid fa-crosshairs me-1"></i> Foydalanuvchi Telegram ID yoki @username</label>
+                                        <label class="form-label text-info small fw-bold mb-1" id="specificTargetLabel"><i class="fa-solid fa-crosshairs me-1"></i> Foydalanuvchi yoki Kanal ID / @username</label>
                                         <div class="input-group mb-2">
-                                            <input type="text" name="target_user_id" id="targetUserIdInput" class="form-control bg-dark border-info text-white" placeholder="Masalan: @ismoilo9 yoki 7782387930" oninput="debounceUserSearch()">
+                                            <input type="text" name="target_user_id" id="targetUserIdInput" class="form-control bg-dark border-info text-white" placeholder="Masalan: @MafiaBotFather yoki @ismoilo9" oninput="debounceUserSearch()">
                                             <button type="button" class="btn btn-info text-dark fw-bold px-3" onclick="searchUserBots()">
                                                 <i class="fa-solid fa-magnifying-glass me-1"></i> Tekshirish
                                             </button>
@@ -166,12 +168,12 @@
                                                 <i class="fa-brands fa-telegram text-primary me-1"></i> Qaysi bot orqali xabar yuborilsin?
                                             </label>
                                             <select name="sender_bot_type" id="senderBotTypeSelect" class="form-select bg-dark border-secondary border-opacity-25 text-white" onchange="onSenderBotTypeChange()">
-                                                <option value="AUTO">🌟 Foydalanuvchi ulangan barcha botlar orqali (Tavsiya etiladi)</option>
+                                                <option value="AUTO">🌟 Avtomatik / Master Bot orqali (Tavsiya etiladi)</option>
                                                 <option value="MASTER_BOT">👑 Master Mafia Father Bot orqali</option>
                                             </select>
                                             <input type="hidden" name="target_bot_id" id="targetBotIdInput" value="">
                                             <small class="text-secondary d-block mt-1" id="senderBotHelpText" style="font-size: 11px;">
-                                                Foydalanuvchi botlardan qaysi biriga <b>/start</b> bosgan bo'lsa, xabar o'sha bot orqali lichkasiga yetkaziladi.
+                                                Kanalga yoki foydalanuvchiga xabar yuborish uchun bot admin bo'lishi kerak.
                                             </small>
                                         </div>
                                     </div>
@@ -238,8 +240,17 @@
                                 </div>
 
                                 <div class="col-12">
-                                    <label class="form-label text-secondary small fw-semibold">Rasm Havolasi (Photo URL - ixtiyoriy)</label>
-                                    <input type="url" id="broadcastPhoto" name="photo_url" class="form-control bg-dark border-secondary border-opacity-25 text-white" placeholder="https://images.unsplash.com/... yoki https://.../banner.jpg" oninput="updatePreview()">
+                                    <label class="form-label text-secondary small fw-semibold"><i class="fa-solid fa-image text-danger me-1"></i> Rasm Biriktirish (Fayl Yuklash yoki URL Havolasi)</label>
+                                    <div class="row g-2">
+                                        <div class="col-md-6">
+                                            <input type="file" id="broadcastPhotoFile" name="photo_file" class="form-control bg-dark border-secondary border-opacity-25 text-white" accept="image/*" onchange="previewUploadedImage(this)">
+                                            <small class="text-secondary" style="font-size: 11px;">Kompyuterdan rasm faylini yuklash</small>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <input type="text" id="broadcastPhoto" name="photo_url" class="form-control bg-dark border-secondary border-opacity-25 text-white" placeholder="https://.../rasm.jpg" oninput="updatePreview()">
+                                            <small class="text-secondary" style="font-size: 11px;">Yoki rasm URL havolasi</small>
+                                        </div>
+                                    </div>
                                 </div>
 
                                 <div class="col-md-6">
@@ -436,6 +447,23 @@ function updatePreview() {
     document.getElementById('previewTime').innerText = `${hrs}:${mins}`;
 }
 
+function previewUploadedImage(input) {
+    if (input.files && input.files[0]) {
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            const previewPhoto = document.getElementById('previewPhoto');
+            const previewPhotoContainer = document.getElementById('previewPhotoContainer');
+            if (previewPhoto && previewPhotoContainer) {
+                previewPhoto.src = e.target.result;
+                previewPhotoContainer.style.display = 'block';
+            }
+        }
+        reader.readAsDataURL(input.files[0]);
+    } else {
+        updatePreview();
+    }
+}
+
 // Initialize preview on modal show
 document.addEventListener('DOMContentLoaded', function() {
     const modalEl = document.getElementById('newBroadcastModal');
@@ -449,11 +477,22 @@ document.addEventListener('DOMContentLoaded', function() {
 function handleAudienceChange() {
     const sel = document.getElementById('targetAudienceSelect').value;
     const cont = document.getElementById('specificUserContainer');
+    const lbl = document.getElementById('specificTargetLabel');
+    const input = document.getElementById('targetUserIdInput');
     if (cont) {
-        if (sel === 'SPECIFIC_USER') {
+        if (sel === 'SPECIFIC_USER' || sel === 'SPECIFIC_CHANNEL') {
             cont.style.display = 'block';
-            document.getElementById('targetUserIdInput')?.focus();
-            searchUserBots();
+            if (sel === 'SPECIFIC_CHANNEL') {
+                if (lbl) lbl.innerHTML = '<i class="fa-solid fa-bullhorn me-1"></i> Kanal/Guruh username yoki ID (Masalan: @MafiaBotFather)';
+                if (input) input.placeholder = 'Masalan: @kanal_nomi yoki -1001234567890';
+            } else {
+                if (lbl) lbl.innerHTML = '<i class="fa-solid fa-crosshairs me-1"></i> Foydalanuvchi Telegram ID yoki @username';
+                if (input) input.placeholder = 'Masalan: @ismoilo9 yoki 7782387930';
+            }
+            input?.focus();
+            if (sel === 'SPECIFIC_USER') {
+                searchUserBots();
+            }
         } else {
             cont.style.display = 'none';
         }

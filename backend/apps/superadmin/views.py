@@ -630,6 +630,22 @@ def broadcast_create_view(request):
     sender_bot_type = request.POST.get('sender_bot_type', 'AUTO').strip()
     target_bot_id = request.POST.get('target_bot_id', '').strip()
 
+    # Handle direct photo file upload
+    photo_file = request.FILES.get('photo_file')
+    if photo_file:
+        import os
+        import time
+        from django.conf import settings
+        ext = os.path.splitext(photo_file.name)[1]
+        fname = f"broadcast_{int(time.time())}_{photo_file.name.replace(' ', '_')}"
+        upload_dir = os.path.join(settings.MEDIA_ROOT, 'uploads')
+        os.makedirs(upload_dir, exist_ok=True)
+        upload_path = os.path.join(upload_dir, fname)
+        with open(upload_path, 'wb') as f:
+            for chunk in photo_file.chunks():
+                f.write(chunk)
+        photo_url = upload_path
+
     if not title or not content:
         messages.error(request, "Sarlavha va xabar matnini kiritish majburiy!")
         return redirect('superadmin:broadcasts')

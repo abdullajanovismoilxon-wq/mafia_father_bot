@@ -28,6 +28,11 @@ class PlayerProfile(BaseEntityModel):
         db_index=True,
         help_text="Platform Owner status (e.g. @ismoilo9) granting unrestricted features and VIP Diamond."
     )
+    is_channel_bonus_claimed = models.BooleanField(
+        default=False,
+        db_index=True,
+        help_text="Whether player has received the 2x dollar bonus for joining @MafiaBotFather channel."
+    )
 
     class Meta:
         ordering = ['-created_at']

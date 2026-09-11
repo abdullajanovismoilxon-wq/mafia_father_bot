@@ -311,6 +311,9 @@ def build_night_target_keyboard(
             callback_data=f"n:{gid}:{act}:{pid}"
         )
     builder.adjust(1)
+    builder.row(
+        InlineKeyboardButton(text="⏭ O'tkazib yuborish", callback_data=f"n_skip:{gid}")
+    )
     return builder.as_markup()
 
 
@@ -349,7 +352,7 @@ def build_voting_keyboard(
 # ---------------------------------------------------------------------------
 
 def build_komissar_action_keyboard(game_id: str) -> InlineKeyboardMarkup:
-    """Builds Komissar 2-option keyboard (Tekshirish / Otish) using dynamic text."""
+    """Builds Komissar 2-option keyboard (Tekshirish / Otish) with Skip option."""
     from apps.superadmin.services import TextService
     btn_inv = TextService.get_text('btn_action_investigate', fallback="🔍 Tekshirish")
     btn_sht = TextService.get_text('btn_action_shoot', fallback="🔫 Otish")
@@ -358,6 +361,9 @@ def build_komissar_action_keyboard(game_id: str) -> InlineKeyboardMarkup:
     builder.button(text=btn_inv, callback_data=f"km:{gid}:inv")
     builder.button(text=btn_sht, callback_data=f"km:{gid}:sht")
     builder.adjust(2)
+    builder.row(
+        InlineKeyboardButton(text="⏭ O'tkazib yuborish", callback_data=f"n_skip:{gid}")
+    )
     return builder.as_markup()
 
 
@@ -686,6 +692,9 @@ def build_joker_boxes_setup_keyboard(game_id: str, selected_boxes: list = None) 
     builder.row(
         InlineKeyboardButton(text=lbl_send, callback_data=f"jk_send:{gid}")
     )
+    builder.row(
+        InlineKeyboardButton(text="⏭ O'tkazib yuborish", callback_data=f"n_skip:{gid}")
+    )
     return builder.as_markup()
 
 
@@ -722,6 +731,9 @@ def build_konchi_mines_keyboard(game_id: str) -> InlineKeyboardMarkup:
     for i in range(1, 11):
         builder.button(text=f"⛏ {i}-kon", callback_data=f"kn:{gid}:{i}")
     builder.adjust(5, 5)
+    builder.row(
+        InlineKeyboardButton(text="⏭ O'tkazib yuborish", callback_data=f"n_skip:{gid}")
+    )
     return builder.as_markup()
 
 
