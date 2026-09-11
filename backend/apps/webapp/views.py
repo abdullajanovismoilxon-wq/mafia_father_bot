@@ -133,6 +133,27 @@ def _get_user_profile_payload(tg_id: int) -> dict:
                 inv_state[code]['count'] = inv.quantity
                 inv_state[code]['on'] = inv.is_active
 
+    # Couple / Partner Info
+    from apps.stats.services import CoupleService
+    partner_info = CoupleService.get_partner_info(tg_id) if tg_id else None
+    if partner_info:
+        since_date = partner_info['created_at'].strftime('%d.%m.%Y') if partner_info.get('created_at') else ''
+        couple_data = {
+            'has_partner': True,
+            'partner_id': partner_info['partner_id'],
+            'partner_name': partner_info['partner_name'],
+            'partner_link': f"tg://user?id={partner_info['partner_id']}",
+            'since': since_date,
+        }
+    else:
+        couple_data = {
+            'has_partner': False,
+            'partner_id': 0,
+            'partner_name': "Mavjud emas",
+            'partner_link': "#",
+            'since': '',
+        }
+
     return {
         'tg_id': tg_id,
         'display_name': display_name if display_name != "O'yinchi" else ("Ismoil 👑" if is_owner else "O'yinchi"),
@@ -149,6 +170,7 @@ def _get_user_profile_payload(tg_id: int) -> dict:
         'avatar_letter': display_name[0].upper() if display_name else "👤",
         'clan_name': '👑 VIP Asoschi' if is_owner else 'Mavjud emas',
         'inv_state': inv_state,
+        'couple': couple_data,
         'is_owner': is_owner,
     }
 
@@ -715,7 +737,7 @@ def group_cabinet_login_api(request):
             'voting_duration': settings.get('voting_duration', bot_cfg.voting_duration_seconds if bot_cfg else 20),
             'dawn_wait_duration': settings.get('dawn_wait_duration', extra.get('dawn_wait_duration', 15)),
             'last_words_duration': settings.get('last_words_duration', extra.get('last_words_duration', 50)),
-            'lobby_timeout_minutes': settings.get('lobby_timeout_minutes', extra.get('lobby_timeout_minutes', 5)),
+            'lobby_timeout_minutes': settings.get('lobby_timeout_minutes', extra.get('lobby_timeout_minutes', 15)),
             'night_silence_mode': settings.get('night_silence_mode', extra.get('night_silence_mode', 'DELETE_ALL')),
             'cmd_perm_game': settings.get('cmd_perm_game', extra.get('cmd_perm_game', 'ALL')),
             'cmd_perm_start_game': settings.get('cmd_perm_start_game', extra.get('cmd_perm_start_game', 'ADMINS')),
@@ -886,7 +908,7 @@ def group_cabinet_dashboard_api(request):
         'voting_duration': group_settings.get('voting_duration', 20),
         'dawn_wait_duration': group_settings.get('dawn_wait_duration', 15),
         'last_words_duration': group_settings.get('last_words_duration', 50),
-        'lobby_timeout_minutes': group_settings.get('lobby_timeout_minutes', 5),
+        'lobby_timeout_minutes': group_settings.get('lobby_timeout_minutes', 15),
         'cmd_perm_game': group_settings.get('cmd_perm_game', 'ALL'),
         'cmd_perm_start_game': group_settings.get('cmd_perm_start_game', 'ADMINS'),
         'cmd_perm_stop_game': group_settings.get('cmd_perm_stop_game', 'ADMINS'),
@@ -936,7 +958,7 @@ def group_cabinet_save_settings_api(request):
             'voting_duration': int(settings.get('voting_duration', 20)),
             'dawn_wait_duration': int(settings.get('dawn_wait_duration', 15)),
             'last_words_duration': int(settings.get('last_words_duration', 50)),
-            'lobby_timeout_minutes': int(settings.get('lobby_timeout_minutes', 5)),
+            'lobby_timeout_minutes': int(settings.get('lobby_timeout_minutes', 15)),
             'night_silence_mode': settings.get('night_silence_mode', 'DELETE_ALL'),
             'cmd_perm_game': settings.get('cmd_perm_game', 'ALL'),
             'cmd_perm_start_game': settings.get('cmd_perm_start_game', 'ADMINS'),

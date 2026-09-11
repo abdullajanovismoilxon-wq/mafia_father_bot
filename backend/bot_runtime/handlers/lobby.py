@@ -211,11 +211,15 @@ async def _run_lobby_timer(game_id: str, chat_id: int, bot: Bot, timeout: int = 
 
             minutes_display = max(1, timeout // 60)
             try:
+                from apps.superadmin.services import TextService
+                raw_cancel_text = TextService.get_text(
+                    'lobby_timeout_text',
+                    fallback="⚠️ <b>Vaqt cho'zilib ketdi!</b>\n<b>{minutes} daqiqa</b> ichida o'yin boshlanmaganligi sababli ro'yxatdan o'tish bekor qilindi.\n\nYangi o'yin boshlash uchun <code>/game</code> buyrug'ini yuboring."
+                )
+                msg_text = raw_cancel_text.replace('{minutes}', str(minutes_display))
                 await bot.send_message(
                     chat_id,
-                    f"⚠️ <b>Vaqt cho'zilib ketdi!</b>\n"
-                    f"<b>{minutes_display} daqiqa</b> ichida o'yin boshlanmaganligi sababli ro'yxatdan o'tish bekor qilindi.\n\n"
-                    "Yangi o'yin boshlash uchun <code>/game</code> buyrug'ini yuboring.",
+                    msg_text,
                     parse_mode="HTML"
                 )
             except Exception as send_err:
@@ -231,7 +235,7 @@ async def _run_lobby_timer(game_id: str, chat_id: int, bot: Bot, timeout: int = 
         LOBBY_TIMERS.pop(game_id, None)
 
 
-def start_lobby_timer(game_id: str, chat_id: int, bot: Bot, timeout: int = 300):
+def start_lobby_timer(game_id: str, chat_id: int, bot: Bot, timeout: int = 900):
     """Starts or resets a lobby timeout."""
     existing = LOBBY_TIMERS.get(game_id)
     if existing and not existing.done():
@@ -495,7 +499,7 @@ async def _handle_create_lobby(message: types.Message, bot: Bot, mode: str = "CL
         await message.answer(err_msg, parse_mode="HTML")
         return
 
-    lobby_timeout_min = await sync_to_async(SettingService.get_group_or_bot_timing)(chat_id, bot_id_str, 'lobby_timeout_minutes', 5)
+    lobby_timeout_min = await sync_to_async(SettingService.get_group_or_bot_timing)(chat_id, bot_id_str, 'lobby_timeout_minutes', 15)
     lobby_timeout_seconds = max(30, int(lobby_timeout_min) * 60)
 
     now = timezone.now()

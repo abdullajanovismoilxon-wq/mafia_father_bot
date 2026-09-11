@@ -1147,25 +1147,32 @@ async def _announce_game_winner(game: Game, winner: str, bot: Bot, story_lines: 
             prof_text = format_custom_profile_text(profile, stats, wallet, inv_state, is_channel_member=is_channel_member)
             is_winner = (p in winners)
 
+            from apps.superadmin.services import TextService
             if is_winner:
                 place_info, place_coins = winner_places_map.get(p.telegram_user_id, (1, 75))
                 w_reward_str = f"+{place_coins} 💶" + (f", +{win_diamonds} 💎" if win_diamonds > 0 else "")
-                header = (
-                    f"🎉 <b>O'yin yakunlandi! Siz {place_info}-o'rin bilan g'alaba qozondingiz!</b> 🥳\n"
-                    f"🎁 <b>G'alaba mukofoti:</b> <code>{w_reward_str}</code> hisobingizga qo'shildi!\n\n"
+                raw_win_hdr = TextService.get_text(
+                    'game_finish_payout_winner_format',
+                    fallback="🎉 <b>O'yin yakunlandi! Siz {place_info}-o'rin bilan g'alaba qozondingiz!</b> 🥳\n🎁 <b>G'alaba mukofoti:</b> <code>{reward_str}</code> hisobingizga qo'shildi!\n\n"
                 )
+                header = raw_win_hdr.format(place_info=place_info, reward_str=w_reward_str)
             else:
-                header = (
-                    "💀 <b>O'yin yakunlandi! Siz mag'lub bo'ldingiz.</b>\n"
-                    f"🎁 <b>Ishtirok mukofoti:</b> <code>+{part_coins} 💶</code> hisobingizga qo'shildi!\n\n"
+                raw_lose_hdr = TextService.get_text(
+                    'game_finish_payout_loser_format',
+                    fallback="💀 <b>O'yin yakunlandi! Siz mag'lub bo'ldingiz.</b>\n🎁 <b>Ishtirok mukofoti:</b> <code>+{reward_coins} 💶</code> hisobingizga qo'shildi!\n\n"
                 )
+                header = raw_lose_hdr.format(reward_coins=part_coins)
 
             pm_text = header + prof_text
             kb = build_profile_interactive_keyboard(
                 himoya_on=inv_state['himoya']['on'],
                 osish_on=inv_state['osish_himoya']['on'],
                 hujjat_on=inv_state['hujjat']['on'],
-                geroy_himoya_on=inv_state['geroy_himoya']['on']
+                geroy_himoya_on=inv_state['geroy_himoya']['on'],
+                vaksina_on=inv_state['vaksina']['on'],
+                dori_on=inv_state['dori_himoya']['on'],
+                sirpanish_on=inv_state['sirpanish_himoya']['on'],
+                tg_id=p.telegram_user_id
             )
             await bot.send_message(p.telegram_user_id, pm_text, reply_markup=kb, parse_mode="HTML")
         except Exception as pm_err:

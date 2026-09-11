@@ -499,6 +499,9 @@ async def cmd_master_profile(message: types.Message, bot: Bot):
             osish_on=inv_state['osish_himoya']['on'],
             hujjat_on=inv_state['hujjat']['on'],
             geroy_himoya_on=inv_state['geroy_himoya']['on'],
+            vaksina_on=inv_state['vaksina']['on'],
+            dori_on=inv_state['dori_himoya']['on'],
+            sirpanish_on=inv_state['sirpanish_himoya']['on'],
             tg_id=user.id
         )
         await message.answer(text, reply_markup=kb)

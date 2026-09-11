@@ -71,19 +71,16 @@ def _sync_get_inventory_state(telegram_id: int) -> dict:
         'osish_himoya': {'count': 0, 'on': True},
         'hujjat': {'count': 0, 'on': True},
         'geroy_himoya': {'count': 0, 'on': True},
+        'vaksina': {'count': 0, 'on': True},
+        'dori_himoya': {'count': 0, 'on': True},
+        'sirpanish_himoya': {'count': 0, 'on': True},
         'geroy': {'count': 0, 'on': False, 'games_left': 0},
         'active_role': None,
     }
     for inv in inv_items:
         code = inv.item.code if inv.item else ''
-        if code == 'himoya':
-            state['himoya'] = {'count': inv.quantity, 'on': inv.is_active}
-        elif code == 'osish_himoya':
-            state['osish_himoya'] = {'count': inv.quantity, 'on': inv.is_active}
-        elif code == 'hujjat':
-            state['hujjat'] = {'count': inv.quantity, 'on': inv.is_active}
-        elif code == 'geroy_himoya':
-            state['geroy_himoya'] = {'count': inv.quantity, 'on': inv.is_active}
+        if code in state and code not in ('active_role', 'geroy'):
+            state[code] = {'count': inv.quantity, 'on': inv.is_active}
         elif code == 'geroy':
             state['geroy'] = {'count': inv.quantity, 'on': inv.is_active, 'games_left': inv.quantity * 50}
         elif code.startswith('role_') and inv.quantity > 0:
@@ -340,8 +337,11 @@ def format_custom_profile_text(
     inv_state: dict,
     is_channel_member: bool = True
 ) -> str:
-    """Formats player profile matching user's exact specification with VIP dollars/diamonds for platform owner, Hero info, and conditional channel link."""
+    """Formats player profile matching user's exact specification with VIP dollars/diamonds for platform owner, Hero info, Couple info, and customizable TextService."""
     from apps.economy.models import PlayerHero
+    from apps.stats.services import CoupleService
+    from apps.superadmin.services import TextService
+
     is_owner = (
         profile.telegram_id == 7782387930 or
         profile.telegram_username == 'ismoilo9' or
@@ -355,13 +355,23 @@ def format_custom_profile_text(
         dollars_str = f"{wallet.coins:,}" if wallet else "0"
         diamonds_str = f"{wallet.diamonds:,}" if wallet else "0"
 
-    himoya_str = str(inv_state['himoya']['count'])
-    hujjat_str = str(inv_state['hujjat']['count'])
-    osish_str = str(inv_state['osish_himoya']['count'])
-    geroy_h_str = str(inv_state['geroy_himoya']['count'])
+    himoya_str = str(inv_state.get('himoya', {}).get('count', 0))
+    hujjat_str = str(inv_state.get('hujjat', {}).get('count', 0))
+    osish_str = str(inv_state.get('osish_himoya', {}).get('count', 0))
+    geroy_h_str = str(inv_state.get('geroy_himoya', {}).get('count', 0))
+    vaksina_str = str(inv_state.get('vaksina', {}).get('count', 0))
+    dori_h_str = str(inv_state.get('dori_himoya', {}).get('count', 0))
+    sirpanish_h_str = str(inv_state.get('sirpanish_himoya', {}).get('count', 0))
     wins_str = str(stats.games_won if stats else 0)
     games_str = str(stats.games_played if stats else 0)
     active_role_str = inv_state.get('active_role') or "Yo'q"
+
+    # Check Partner info
+    partner_info = CoupleService.get_partner_info(profile.telegram_id)
+    if partner_info:
+        partner_str = f"<a href=\"tg://user?id={partner_info['partner_id']}\">{partner_info['partner_name']}</a> 💍"
+    else:
+        partner_str = "Yo'q 💔"
 
     # Check Hero info
     hero = PlayerHero.objects.filter(telegram_id=profile.telegram_id).first()
@@ -374,22 +384,67 @@ def format_custom_profile_text(
 
     name = profile.display_name if hasattr(profile, 'display_name') and profile.display_name else (profile.first_name or profile.telegram_username or "O'yinchi")
 
-    res = (
-        f"👤 {name}\n\n"
-        f"💵 Dollar: {dollars_str}\n"
-        f"💎 Olmos: {diamonds_str}\n\n"
-        f"🛡️ Himoya: {himoya_str}\n"
-        f"📁 Hujjat: {hujjat_str}\n"
-        f"⚖️ Osishdan himoya: {osish_str}\n"
-        f"🔰 Geroydan himoya: {geroy_h_str}\n\n"
-        f"🥷 Geroy: {hero_str}\n\n"
-        f"🎯 G'alaba: {wins_str}\n"
-        f"🎲 Barcha o'yinlar: {games_str}\n\n"
-        f"🃏 Faol rollar: {active_role_str}"
+    raw_template = TextService.get_text(
+        'profile_custom_card_format',
+        fallback=(
+            "👤 {name}\n\n"
+            "💵 Dollar: {dollars}\n"
+            "💎 Olmos: {diamonds}\n\n"
+            "🛡️ Himoya: {himoya}\n"
+            "📁 Hujjat: {hujjat}\n"
+            "⚖️ Osishdan himoya: {osish_himoya}\n"
+            "🔰 Geroydan himoya: {geroy_himoya}\n"
+            "💉 Vaksina: {vaksina}\n"
+            "💊 Doridan himoya: {dori_himoya}\n"
+            "⛸ Sirpanishdan himoya: {sirpanish_himoya}\n\n"
+            "🥷 Geroy: {hero_info}\n\n"
+            "🎯 G'alaba: {wins}\n"
+            "🎲 Barcha o'yinlar: {games}\n\n"
+            "💍 Parangiz: {partner_info}\n"
+            "🃏 Faol rollar: {active_role}"
+        )
     )
 
+    try:
+        res = raw_template.format(
+            name=name,
+            dollars=dollars_str,
+            diamonds=diamonds_str,
+            himoya=himoya_str,
+            hujjat=hujjat_str,
+            osish_himoya=osish_str,
+            geroy_himoya=geroy_h_str,
+            vaksina=vaksina_str,
+            dori_himoya=dori_h_str,
+            sirpanish_himoya=sirpanish_h_str,
+            hero_info=hero_str,
+            wins=wins_str,
+            games=games_str,
+            partner_info=partner_str,
+            active_role=active_role_str
+        )
+    except Exception:
+        res = (
+            f"👤 {name}\n\n"
+            f"💵 Dollar: {dollars_str}\n"
+            f"💎 Olmos: {diamonds_str}\n\n"
+            f"🛡️ Himoya: {himoya_str}\n"
+            f"📁 Hujjat: {hujjat_str}\n"
+            f"⚖️ Osishdan himoya: {osish_str}\n"
+            f"🔰 Geroydan himoya: {geroy_h_str}\n"
+            f"💉 Vaksina: {vaksina_str}\n"
+            f"💊 Doridan himoya: {dori_h_str}\n"
+            f"⛸ Sirpanishdan himoya: {sirpanish_h_str}\n\n"
+            f"🥷 Geroy: {hero_str}\n\n"
+            f"🎯 G'alaba: {wins_str}\n"
+            f"🎲 Barcha o'yinlar: {games_str}\n\n"
+            f"💍 Parangiz: {partner_str}\n"
+            f"🃏 Faol rollar: {active_role_str}"
+        )
+
     if not is_channel_member:
-        res += "\n\nkanalga qo'shilsangiz hisobingiz 2x bo'ladi: https://t.me/MafiaBotFather"
+        bonus_note = TextService.get_text('profile_channel_bonus_note', fallback="kanalga qo'shilsangiz hisobingiz 2x bo'ladi: https://t.me/MafiaBotFather")
+        res += f"\n\n{bonus_note}"
 
     return res
 
@@ -424,6 +479,9 @@ async def cmd_profile(message: types.Message, bot: Bot):
             osish_on=inv_state['osish_himoya']['on'],
             hujjat_on=inv_state['hujjat']['on'],
             geroy_himoya_on=inv_state['geroy_himoya']['on'],
+            vaksina_on=inv_state['vaksina']['on'],
+            dori_on=inv_state['dori_himoya']['on'],
+            sirpanish_on=inv_state['sirpanish_himoya']['on'],
             tg_id=user.id
         )
         await message.answer(text, reply_markup=kb)
@@ -443,6 +501,9 @@ async def handle_item_toggle(callback: types.CallbackQuery):
         'osish': 'osish_himoya',
         'hujjat': 'hujjat',
         'geroy_h': 'geroy_himoya',
+        'vaksina': 'vaksina',
+        'dori_h': 'dori_himoya',
+        'sirpanish_h': 'sirpanish_himoya',
     }
     key = callback.data.split(":")[2]
     item_code = code_map.get(key, key)
@@ -462,6 +523,9 @@ async def handle_item_toggle(callback: types.CallbackQuery):
         osish_on=inv_state['osish_himoya']['on'],
         hujjat_on=inv_state['hujjat']['on'],
         geroy_himoya_on=inv_state['geroy_himoya']['on'],
+        vaksina_on=inv_state['vaksina']['on'],
+        dori_on=inv_state['dori_himoya']['on'],
+        sirpanish_on=inv_state['sirpanish_himoya']['on'],
         tg_id=user_id
     )
     try:
@@ -470,6 +534,22 @@ async def handle_item_toggle(callback: types.CallbackQuery):
         pass
     status_label = "🟢 ON" if new_state else "🔴 OFF"
     await callback.answer(f"Holat o'zgartirildi: {status_label}")
+
+
+@router.callback_query(lambda c: c.data == "eco:menu:mypara")
+async def handle_my_para_callback(callback: types.CallbackQuery):
+    """Shows player's current couple info or guidance."""
+    from apps.stats.services import CoupleService
+    partner_info = await sync_to_async(CoupleService.get_partner_info)(callback.from_user.id)
+    if partner_info:
+        msg = f"💍 Sizning parangiz: <a href=\"tg://user?id={partner_info['partner_id']}\">{partner_info['partner_name']}</a> ❤️\n\nAjrashish uchun <code>/dpara</code> buyrug'idan foydalanishingiz mumkin."
+    else:
+        msg = "💔 Sizda hozircha para yo'q.\nGuruhda biror o'yinchining xabariga reply qilib <code>/para</code> deb yozing!"
+    await callback.answer()
+    try:
+        await callback.message.answer(msg, parse_mode="HTML")
+    except Exception:
+        pass
 
 
 # ---------------------------------------------------------------------------
@@ -694,6 +774,9 @@ async def handle_back_to_profile(callback: types.CallbackQuery):
         osish_on=inv_state['osish_himoya']['on'],
         hujjat_on=inv_state['hujjat']['on'],
         geroy_himoya_on=inv_state['geroy_himoya']['on'],
+        vaksina_on=inv_state['vaksina']['on'],
+        dori_on=inv_state['dori_himoya']['on'],
+        sirpanish_on=inv_state['sirpanish_himoya']['on'],
         tg_id=user_id
     )
     try:

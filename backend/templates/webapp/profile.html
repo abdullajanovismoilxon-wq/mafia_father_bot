@@ -558,6 +558,30 @@
             border-color: transparent;
         }
 
+        .item-toggle-btn {
+            font-size: 11px;
+            font-weight: 800;
+            padding: 5px 10px;
+            border-radius: 8px;
+            cursor: pointer;
+            border: 1px solid transparent;
+            transition: all 0.2s ease;
+        }
+        .item-toggle-btn.active-switch {
+            color: #34D399;
+            background: rgba(16, 185, 129, 0.15);
+            border-color: rgba(16, 185, 129, 0.4);
+        }
+        .item-toggle-btn.inactive-switch {
+            color: #F87171;
+            background: rgba(239, 68, 68, 0.15);
+            border-color: rgba(239, 68, 68, 0.4);
+        }
+        .item-toggle-btn.loading {
+            opacity: 0.6;
+            pointer-events: none;
+        }
+
         
         /* ===================================================================
            📊 GURUH BOSHQARUV KABINETI — ANALYTICS, CHART & TOP 10 PLAYERS
@@ -1371,6 +1395,37 @@
                 </div>
             </div>
 
+            <!-- 💍 JUFTLIK / PARA CARD -->
+            <div class="couple-card" style="background: linear-gradient(135deg, rgba(236, 72, 153, 0.12) 0%, rgba(219, 39, 119, 0.2) 100%); border: 1px solid rgba(236, 72, 153, 0.35); border-radius: 18px; padding: 14px 16px; margin-top: 12px; margin-bottom: 12px; display: flex; align-items: center; justify-content: space-between;">
+                <div style="display: flex; align-items: center; gap: 12px;">
+                    <div style="width: 44px; height: 44px; border-radius: 14px; background: rgba(236, 72, 153, 0.2); display: flex; align-items: center; justify-content: center; font-size: 22px; box-shadow: 0 4px 12px rgba(236, 72, 153, 0.2);">
+                        💍
+                    </div>
+                    <div>
+                        <div style="font-size: 11px; text-transform: uppercase; letter-spacing: 0.6px; color: #F472B6; font-weight: 700;">
+                            Sizning Parangiz
+                        </div>
+                        {% if couple.has_partner %}
+                            <div style="font-size: 15px; font-weight: 800; color: #FFFFFF; display: flex; align-items: center; gap: 6px;">
+                                <a href="{{ couple.partner_link }}" target="_blank" style="color: #FFF; text-decoration: none;">{{ couple.partner_name }}</a>
+                                <span style="font-size: 14px;">❤️</span>
+                            </div>
+                            {% if couple.since %}
+                                <div style="font-size: 10px; color: rgba(255, 255, 255, 0.6);">{{ couple.since }} dan beri birga</div>
+                            {% endif %}
+                        {% else %}
+                            <div style="font-size: 14px; font-weight: 600; color: var(--text-muted);">
+                                Mavjud emas 💔
+                            </div>
+                            <div style="font-size: 10px; color: var(--text-muted);">Guruhda <code>/para</code> bilan ulaning</div>
+                        {% endif %}
+                    </div>
+                </div>
+                {% if couple.has_partner %}
+                    <a href="{{ couple.partner_link }}" target="_blank" style="padding: 6px 12px; background: rgba(236, 72, 153, 0.25); border: 1px solid rgba(236, 72, 153, 0.4); border-radius: 10px; color: #F472B6; font-size: 11px; font-weight: 700; text-decoration: none;">Profil ↗</a>
+                {% endif %}
+            </div>
+
             <!-- Clan Card -->
             <div class="clan-card">
                 <div class="clan-icon">🛡</div>
@@ -1380,11 +1435,12 @@
                 </div>
             </div>
 
-            <!-- Active Defenses -->
+            <!-- Active Defenses & Inventory -->
             <div class="section-title">
-                <span>🛡 Faol Himoyalar</span>
+                <span>🛡 Faol Himoyalar va Buyumlar</span>
             </div>
             <div class="defense-list">
+                <!-- 🛡 Asosiy Himoya -->
                 <div class="defense-card">
                     <div class="defense-info">
                         <div class="def-icon-box">🛡</div>
@@ -1393,32 +1449,127 @@
                             <p>Tungi otishmalardan 1 martalik qalqon</p>
                         </div>
                     </div>
-                    <div class="def-status-badge {% if not inv_state.himoya.count %}inactive{% endif %}">
-                        {% if inv_state.himoya.count %}{{ inv_state.himoya.count }} ta{% else %}Yo'q{% endif %}
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                        <div class="def-status-badge {% if not inv_state.himoya.count %}inactive{% endif %}">
+                            {% if inv_state.himoya.count %}{{ inv_state.himoya.count }} ta{% else %}Yo'q{% endif %}
+                        </div>
+                        <button class="item-toggle-btn {% if inv_state.himoya.on %}active-switch{% else %}inactive-switch{% endif %}" onclick="toggleInventoryItemSwitch('himoya', this)">
+                            {% if inv_state.himoya.on %}🟢 ON{% else %}🔴 OFF{% endif %}
+                        </button>
                     </div>
                 </div>
+
+                <!-- 📁 Soxta Hujjat -->
                 <div class="defense-card">
                     <div class="defense-info">
                         <div class="def-icon-box">📁</div>
                         <div class="def-details">
                             <h4>Soxta Hujjat</h4>
-                            <p>Komissar tekshirganda tinch aholi bo'lib ko'rinish</p>
+                            <p>Komissar tekshirganda tinch aholi ko'rsatish</p>
                         </div>
                     </div>
-                    <div class="def-status-badge {% if not inv_state.hujjat.count %}inactive{% endif %}">
-                        {% if inv_state.hujjat.count %}{{ inv_state.hujjat.count }} ta{% else %}Yo'q{% endif %}
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                        <div class="def-status-badge {% if not inv_state.hujjat.count %}inactive{% endif %}">
+                            {% if inv_state.hujjat.count %}{{ inv_state.hujjat.count }} ta{% else %}Yo'q{% endif %}
+                        </div>
+                        <button class="item-toggle-btn {% if inv_state.hujjat.on %}active-switch{% else %}inactive-switch{% endif %}" onclick="toggleInventoryItemSwitch('hujjat', this)">
+                            {% if inv_state.hujjat.on %}🟢 ON{% else %}🔴 OFF{% endif %}
+                        </button>
                     </div>
                 </div>
+
+                <!-- ⚖️ Osishdan Himoya -->
+                <div class="defense-card">
+                    <div class="defense-info">
+                        <div class="def-icon-box">⚖️</div>
+                        <div class="def-details">
+                            <h4>Osishdan Himoya</h4>
+                            <p>Kunduzgi dorga osishdan 1 martalik himoya</p>
+                        </div>
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                        <div class="def-status-badge {% if not inv_state.osish_himoya.count %}inactive{% endif %}">
+                            {% if inv_state.osish_himoya.count %}{{ inv_state.osish_himoya.count }} ta{% else %}Yo'q{% endif %}
+                        </div>
+                        <button class="item-toggle-btn {% if inv_state.osish_himoya.on %}active-switch{% else %}inactive-switch{% endif %}" onclick="toggleInventoryItemSwitch('osish_himoya', this)">
+                            {% if inv_state.osish_himoya.on %}🟢 ON{% else %}🔴 OFF{% endif %}
+                        </button>
+                    </div>
+                </div>
+
+                <!-- 🔰 Geroydan Himoya -->
                 <div class="defense-card">
                     <div class="defense-info">
                         <div class="def-icon-box">🔰</div>
                         <div class="def-details">
                             <h4>Geroydan Himoya</h4>
-                            <p>Kunduzgi Geroy o'qlaridan 100% zararsizlanish</p>
+                            <p>Kunduzgi Geroy zarbalaridan 100% himoya</p>
                         </div>
                     </div>
-                    <div class="def-status-badge {% if not inv_state.geroy_himoya.count %}inactive{% endif %}">
-                        {% if inv_state.geroy_himoya.count %}{{ inv_state.geroy_himoya.count }} ta{% else %}Yo'q{% endif %}
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                        <div class="def-status-badge {% if not inv_state.geroy_himoya.count %}inactive{% endif %}">
+                            {% if inv_state.geroy_himoya.count %}{{ inv_state.geroy_himoya.count }} ta{% else %}Yo'q{% endif %}
+                        </div>
+                        <button class="item-toggle-btn {% if inv_state.geroy_himoya.on %}active-switch{% else %}inactive-switch{% endif %}" onclick="toggleInventoryItemSwitch('geroy_himoya', this)">
+                            {% if inv_state.geroy_himoya.on %}🟢 ON{% else %}🔴 OFF{% endif %}
+                        </button>
+                    </div>
+                </div>
+
+                <!-- 💉 Zombi Vaksinasi -->
+                <div class="defense-card">
+                    <div class="defense-info">
+                        <div class="def-icon-box">💉</div>
+                        <div class="def-details">
+                            <h4>Zombi Vaksinasi</h4>
+                            <p>Zombi hujumi va yuqishidan saqlovchi vaksina</p>
+                        </div>
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                        <div class="def-status-badge {% if not inv_state.vaksina.count %}inactive{% endif %}">
+                            {% if inv_state.vaksina.count %}{{ inv_state.vaksina.count }} ta{% else %}Yo'q{% endif %}
+                        </div>
+                        <button class="item-toggle-btn {% if inv_state.vaksina.on %}active-switch{% else %}inactive-switch{% endif %}" onclick="toggleInventoryItemSwitch('vaksina', this)">
+                            {% if inv_state.vaksina.on %}🟢 ON{% else %}🔴 OFF{% endif %}
+                        </button>
+                    </div>
+                </div>
+
+                <!-- 💊 Doridan Himoya -->
+                <div class="defense-card">
+                    <div class="defense-info">
+                        <div class="def-icon-box">💊</div>
+                        <div class="def-details">
+                            <h4>Doridan Himoya</h4>
+                            <p>Kezuvchi dori berishi va zaharlashdan himoya</p>
+                        </div>
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                        <div class="def-status-badge {% if not inv_state.dori_himoya.count %}inactive{% endif %}">
+                            {% if inv_state.dori_himoya.count %}{{ inv_state.dori_himoya.count }} ta{% else %}Yo'q{% endif %}
+                        </div>
+                        <button class="item-toggle-btn {% if inv_state.dori_himoya.on %}active-switch{% else %}inactive-switch{% endif %}" onclick="toggleInventoryItemSwitch('dori_himoya', this)">
+                            {% if inv_state.dori_himoya.on %}🟢 ON{% else %}🔴 OFF{% endif %}
+                        </button>
+                    </div>
+                </div>
+
+                <!-- ⛸ Sirpanishdan Himoya -->
+                <div class="defense-card">
+                    <div class="defense-info">
+                        <div class="def-icon-box">⛸</div>
+                        <div class="def-details">
+                            <h4>Sirpanishdan Himoya</h4>
+                            <p>Tuzoq va sirpanish xavflaridan himoya</p>
+                        </div>
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                        <div class="def-status-badge {% if not inv_state.sirpanish_himoya.count %}inactive{% endif %}">
+                            {% if inv_state.sirpanish_himoya.count %}{{ inv_state.sirpanish_himoya.count }} ta{% else %}Yo'q{% endif %}
+                        </div>
+                        <button class="item-toggle-btn {% if inv_state.sirpanish_himoya.on %}active-switch{% else %}inactive-switch{% endif %}" onclick="toggleInventoryItemSwitch('sirpanish_himoya', this)">
+                            {% if inv_state.sirpanish_himoya.on %}🟢 ON{% else %}🔴 OFF{% endif %}
+                        </button>
                     </div>
                 </div>
             </div>
@@ -2721,6 +2872,48 @@
             }
         }
 
+        async function toggleInventoryItemSwitch(itemCode, btn) {
+            const tgId = currentTgId;
+            if (!tgId) {
+                showToast("O'yinchi aniqlanmadi", "error");
+                return;
+            }
+            const isCurrentlyOn = btn.classList.contains('active-switch');
+            const newState = !isCurrentlyOn;
+            
+            btn.classList.add('loading');
+            try {
+                const resp = await fetch('/webapp/api/toggle-item/', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        tg_id: tgId,
+                        item_code: itemCode,
+                        is_active: newState
+                    })
+                });
+                const res = await resp.json();
+                if (res.ok) {
+                    if (newState) {
+                        btn.classList.add('active-switch');
+                        btn.classList.remove('inactive-switch');
+                        btn.innerHTML = '🟢 ON';
+                    } else {
+                        btn.classList.remove('active-switch');
+                        btn.classList.add('inactive-switch');
+                        btn.innerHTML = '🔴 OFF';
+                    }
+                    showToast("Holat o'zgartirildi: " + (newState ? "🟢 ON" : "🔴 OFF"), "success");
+                } else {
+                    showToast(res.error || "Xatolik yuz berdi", "error");
+                }
+            } catch(e) {
+                showToast("Tarmoq xatosi: " + e.message, "error");
+            } finally {
+                btn.classList.remove('loading');
+            }
+        }
+
         async function buyItem(itemCode) {
             try {
                 const res = await fetch('/webapp/api/shop/buy/', {
@@ -2955,7 +3148,7 @@
             }
 
             const s = activeGroupCabinet.settings || {};
-            if (document.getElementById('setLobbyTimeout')) document.getElementById('setLobbyTimeout').value = s.lobby_timeout_minutes || 5;
+            if (document.getElementById('setLobbyTimeout')) document.getElementById('setLobbyTimeout').value = s.lobby_timeout_minutes || 15;
             document.getElementById('setNightDuration').value = s.night_duration || 60;
             document.getElementById('setVotingDuration').value = s.voting_duration || 20;
             document.getElementById('setDawnDuration').value = s.dawn_wait_duration || 15;
@@ -3127,7 +3320,7 @@
         async function saveGroupSettingsAction() {
             if (!activeGroupCabinet) return;
             const settings = {
-                lobby_timeout_minutes: parseInt(document.getElementById('setLobbyTimeout') ? document.getElementById('setLobbyTimeout').value : 5, 10) || 5,
+                lobby_timeout_minutes: parseInt(document.getElementById('setLobbyTimeout') ? document.getElementById('setLobbyTimeout').value : 15, 10) || 15,
                 night_duration: parseInt(document.getElementById('setNightDuration').value, 10) || 60,
                 voting_duration: parseInt(document.getElementById('setVotingDuration').value, 10) || 20,
                 dawn_wait_duration: parseInt(document.getElementById('setDawnDuration').value, 10) || 15,

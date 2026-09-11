@@ -464,6 +464,15 @@ DEFAULT_BOT_TEXTS = [
     {'key': 'para_mypara_text', 'category': 'GENERAL', 'title': "Mening param (/mypara) xabari", 'content_uz': "💍 Sizning parangiz: {partner_name} ❤️"},
     {'key': 'para_no_partner_text', 'category': 'GENERAL', 'title': "Para yo'q bo'lganda xabar", 'content_uz': "💔 Sizda hozircha para yo'q.\nBiror foydalanuvchining xabariga reply qilib <code>/para</code> deb yozing!"},
 
+    # PROFILE (Profil & Balans)
+    {'key': 'profile_custom_card_format', 'category': 'PROFILE', 'title': "Foydalanuvchi profili matni formati (/profile)", 'content_uz': "👤 {name}\n\n💵 Dollar: {dollars}\n💎 Olmos: {diamonds}\n\n🛡️ Himoya: {himoya}\n📁 Hujjat: {hujjat}\n⚖️ Osishdan himoya: {osish_himoya}\n🔰 Geroydan himoya: {geroy_himoya}\n💉 Vaksina: {vaksina}\n💊 Doridan himoya: {dori_himoya}\n⛸ Sirpanishdan himoya: {sirpanish_himoya}\n\n🥷 Geroy: {hero_info}\n\n🎯 G'alaba: {wins}\n🎲 Barcha o'yinlar: {games}\n\n💍 Parangiz: {partner_info}\n🃏 Faol rollar: {active_role}"},
+    {'key': 'profile_channel_bonus_note', 'category': 'PROFILE', 'title': "Profil ostidagi 2x kanalga obuna bo'lish taklifi", 'content_uz': "kanalga qo'shilsangiz hisobingiz 2x bo'ladi: https://t.me/MafiaBotFather"},
+    {'key': 'game_finish_payout_winner_format', 'category': 'PROFILE', 'title': "O'yin yakunlanganda g'olib o'yinchi PM sarlavhasi", 'content_uz': "🎉 <b>O'yin yakunlandi! Siz {place_info}-o'rin bilan g'alaba qozondingiz!</b> 🥳\n🎁 <b>G'alaba mukofoti:</b> <code>{reward_str}</code> hisobingizga qo'shildi!\n\n"},
+    {'key': 'game_finish_payout_loser_format', 'category': 'PROFILE', 'title': "O'yin yakunlanganda mag'lub o'yinchi PM sarlavhasi", 'content_uz': "💀 <b>O'yin yakunlandi! Siz mag'lub bo'ldingiz.</b>\n🎁 <b>Ishtirok mukofoti:</b> <code>+{reward_coins} 💶</code> hisobingizga qo'shildi!\n\n"},
+
+    # LOBBY (Qo'shimcha)
+    {'key': 'lobby_timeout_text', 'category': 'LOBBY', 'title': "Lobby vaqti tugaganda bekor bo'lish xabari", 'content_uz': "⚠️ <b>Vaqt cho'zilib ketdi!</b>\n<b>{minutes} daqiqa</b> ichida o'yin boshlanmaganligi sababli ro'yxatdan o'tish bekor qilindi.\n\nYangi o'yin boshlash uchun <code>/game</code> buyrug'ini yuboring."},
+
     # FATHER BOT BUTTONS
     {'key': 'btn_father_create_bot', 'category': 'FATHER_BUTTONS', 'title': "Father Bot: 'Bot yaratish' tugmasi", 'content_uz': "➕ Bot yaratish"},
     {'key': 'btn_father_my_bots', 'category': 'FATHER_BUTTONS', 'title': "Father Bot: 'Mening botlarim' tugmasi", 'content_uz': "🤖 Mening botlarim"},
@@ -512,8 +521,16 @@ DEFAULT_BOT_TEXTS = [
     {'key': 'btn_profile_hujjat_off', 'category': 'CHILD_BUTTONS', 'title': "Profil: 'Hujjat O'CHIRILGAN' tugmasi", 'content_uz': "📁 - 🔴 OFF"},
     {'key': 'btn_profile_geroy_h_on', 'category': 'CHILD_BUTTONS', 'title': "Profil: 'Geroydan himoya YOQILGAN' tugmasi", 'content_uz': "🔰 - 🟢 ON"},
     {'key': 'btn_profile_geroy_h_off', 'category': 'CHILD_BUTTONS', 'title': "Profil: 'Geroydan himoya O'CHIRILGAN' tugmasi", 'content_uz': "🔰 - 🔴 OFF"},
+    {'key': 'btn_profile_vaksina_on', 'category': 'CHILD_BUTTONS', 'title': "Profil: 'Vaksina YOQILGAN' tugmasi", 'content_uz': "💉 - 🟢 ON"},
+    {'key': 'btn_profile_vaksina_off', 'category': 'CHILD_BUTTONS', 'title': "Profil: 'Vaksina O'CHIRILGAN' tugmasi", 'content_uz': "💉 - 🔴 OFF"},
+    {'key': 'btn_profile_dori_on', 'category': 'CHILD_BUTTONS', 'title': "Profil: 'Doridan himoya YOQILGAN' tugmasi", 'content_uz': "💊 - 🟢 ON"},
+    {'key': 'btn_profile_dori_off', 'category': 'CHILD_BUTTONS', 'title': "Profil: 'Doridan himoya O'CHIRILGAN' tugmasi", 'content_uz': "💊 - 🔴 OFF"},
+    {'key': 'btn_profile_sirpanish_on', 'category': 'CHILD_BUTTONS', 'title': "Profil: 'Sirpanishdan himoya YOQILGAN' tugmasi", 'content_uz': "⛸ - 🟢 ON"},
+    {'key': 'btn_profile_sirpanish_off', 'category': 'CHILD_BUTTONS', 'title': "Profil: 'Sirpanishdan himoya O'CHIRILGAN' tugmasi", 'content_uz': "⛸ - 🔴 OFF"},
+    {'key': 'btn_profile_mypara', 'category': 'CHILD_BUTTONS', 'title': "Profil: 'Mening Param' tugmasi", 'content_uz': "💍 Mening Param"},
     {'key': 'btn_profile_shop', 'category': 'CHILD_BUTTONS', 'title': "Profil: 'Do'kon' ochish tugmasi", 'content_uz': "🎒 Do'kon"},
     {'key': 'btn_profile_buy_dia', 'category': 'CHILD_BUTTONS', 'title': "Profil: 'Olmos Xarid qilish' tugmasi", 'content_uz': "💎 Xarid qilish"},
+    {'key': 'btn_profile_buy_money', 'category': 'CHILD_BUTTONS', 'title': "Profil: 'Dollar Xarid qilish' tugmasi", 'content_uz': "💶 Xarid qilish"},
     {'key': 'btn_profile_hero', 'category': 'CHILD_BUTTONS', 'title': "Profil: 'Mening Geroyim' tugmasi", 'content_uz': "🥷 Mening Geroyim"},
 
     # HERO MANAGE BUTTONS (Mening Geroyim)
@@ -625,6 +642,9 @@ class PlayerInventoryService:
             'osish_himoya': 0,
             'hujjat': 0,
             'geroy_himoya': 0,
+            'vaksina': 0,
+            'dori_himoya': 0,
+            'sirpanish_himoya': 0,
             'geroy': 0,
             'active_role': '',
         }
@@ -638,7 +658,9 @@ class PlayerInventoryService:
 
     @classmethod
     def set_full_inventory(cls, telegram_id: int, himoya: int = 0, osish_himoya: int = 0,
-                           hujjat: int = 0, geroy_himoya: int = 0, geroy: int = 0, active_role: str = ''):
+                           hujjat: int = 0, geroy_himoya: int = 0, vaksina: int = 0,
+                           dori_himoya: int = 0, sirpanish_himoya: int = 0,
+                           geroy: int = 0, active_role: str = ''):
         from apps.economy.models import Inventory, MarketplaceItem, MarketplaceCategory, MarketplaceItemType
         cat, _ = MarketplaceCategory.objects.get_or_create(code='game_items', defaults={'name': "O'yin buyumlari"})
 
@@ -647,6 +669,9 @@ class PlayerInventoryService:
             'osish_himoya': ("⚖️ Osishdan himoya", osish_himoya),
             'hujjat': ("📁 Soxta hujjat", hujjat),
             'geroy_himoya': ("🔰 Geroydan himoya", geroy_himoya),
+            'vaksina': ("💉 Zombi Vaksinasi", vaksina),
+            'dori_himoya': ("💊 Doridan himoya", dori_himoya),
+            'sirpanish_himoya': ("⛸ Sirpanishdan himoya", sirpanish_himoya),
             'geroy': ("🥷 Geroy", geroy),
         }
         for code, (name, qty) in items_map.items():

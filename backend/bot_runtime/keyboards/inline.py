@@ -391,6 +391,9 @@ def build_profile_interactive_keyboard(
     osish_on: bool = True,
     hujjat_on: bool = True,
     geroy_himoya_on: bool = True,
+    vaksina_on: bool = True,
+    dori_on: bool = True,
+    sirpanish_on: bool = True,
     tg_id: int = 0
 ) -> InlineKeyboardMarkup:
     """Builds /profile keyboard matching user's exact specification with dynamic TextService."""
@@ -398,10 +401,14 @@ def build_profile_interactive_keyboard(
     builder = InlineKeyboardBuilder()
 
     h_btn = TextService.get_text('btn_profile_himoya_on' if himoya_on else 'btn_profile_himoya_off', fallback="🛡 - 🟢 ON" if himoya_on else "🛡 - 🔴 OFF")
-    o_btn = TextService.get_text('btn_profile_osish_on' if osish_on else 'btn_profile_osish_off', fallback="⚖️ - 🟢 ON" if osish_on else "⚖️ - 🔴 OFF")
     d_btn = TextService.get_text('btn_profile_hujjat_on' if hujjat_on else 'btn_profile_hujjat_off', fallback="📁 - 🟢 ON" if hujjat_on else "📁 - 🔴 OFF")
+    o_btn = TextService.get_text('btn_profile_osish_on' if osish_on else 'btn_profile_osish_off', fallback="⚖️ - 🟢 ON" if osish_on else "⚖️ - 🔴 OFF")
     g_btn = TextService.get_text('btn_profile_geroy_h_on' if geroy_himoya_on else 'btn_profile_geroy_h_off', fallback="🔰 - 🟢 ON" if geroy_himoya_on else "🔰 - 🔴 OFF")
+    v_btn = TextService.get_text('btn_profile_vaksina_on' if vaksina_on else 'btn_profile_vaksina_off', fallback="💉 - 🟢 ON" if vaksina_on else "💉 - 🔴 OFF")
+    p_btn = TextService.get_text('btn_profile_dori_on' if dori_on else 'btn_profile_dori_off', fallback="💊 - 🟢 ON" if dori_on else "💊 - 🔴 OFF")
+    s_btn = TextService.get_text('btn_profile_sirpanish_on' if sirpanish_on else 'btn_profile_sirpanish_off', fallback="⛸ - 🟢 ON" if sirpanish_on else "⛸ - 🔴 OFF")
 
+    lbl_para = TextService.get_text('btn_profile_mypara', fallback="💍 Mening Param")
     lbl_shop = TextService.get_text('btn_profile_shop', fallback="🎒 Do'kon")
     lbl_dia = TextService.get_text('btn_profile_buy_dia', fallback="💎 Xarid qilish")
     lbl_money = TextService.get_text('btn_profile_buy_money', fallback="💶 Xarid qilish")
@@ -409,11 +416,19 @@ def build_profile_interactive_keyboard(
 
     builder.row(
         InlineKeyboardButton(text=h_btn, callback_data="eco:toggle:himoya"),
-        InlineKeyboardButton(text=o_btn, callback_data="eco:toggle:osish")
+        InlineKeyboardButton(text=d_btn, callback_data="eco:toggle:hujjat")
     )
     builder.row(
-        InlineKeyboardButton(text=d_btn, callback_data="eco:toggle:hujjat"),
+        InlineKeyboardButton(text=o_btn, callback_data="eco:toggle:osish"),
         InlineKeyboardButton(text=g_btn, callback_data="eco:toggle:geroy_h")
+    )
+    builder.row(
+        InlineKeyboardButton(text=v_btn, callback_data="eco:toggle:vaksina"),
+        InlineKeyboardButton(text=p_btn, callback_data="eco:toggle:dori_h")
+    )
+    builder.row(
+        InlineKeyboardButton(text=s_btn, callback_data="eco:toggle:sirpanish_h"),
+        InlineKeyboardButton(text=lbl_para, callback_data="eco:menu:mypara")
     )
     builder.row(
         InlineKeyboardButton(text=lbl_shop, callback_data="eco:menu:shop")
