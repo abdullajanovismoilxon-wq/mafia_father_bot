@@ -796,16 +796,40 @@ async def advance_night_to_day(game: Game, bot: Bot):
             for p in living_players
         ])
 
-        living_roles = []
+        civilians_roles = []
+        mafias_roles = []
+        solos_roles = []
+
         for p in living_players:
             if p.role:
                 r_name = role_label(p.role.name) or p.role.name
                 r_icon = role_icon(p.role.name)
-                living_roles.append(f"{r_icon} {r_name}")
-            else:
-                living_roles.append("👨🏼 Tinch aholi")
+                r_team = str(getattr(p.role, 'team', 'CIVILIAN')).upper()
+                r_code = str(getattr(p.role, 'code', '') or p.role.name).lower()
+                role_str = f"{r_icon} {r_name}"
 
-        living_roles_str = ", ".join(living_roles)
+                if r_team == 'MAFIA' or r_code in ['don', 'mafia', 'advokat', 'ubiytsa', 'jurnalist', 'aygoqchi', 'laborant']:
+                    mafias_roles.append(role_str)
+                elif r_team in ['SOLO', 'NEUTRAL', 'ZOMBIE'] or r_code in [
+                    'qotil', 'kimyogar', 'rais', 'bori', 'aferist', 'gazabkor', 'sehrgar',
+                    'konchi', 'qaroqchi', 'qorbobo', 'oshpaz', 'afsungar', 'tuzoqchi',
+                    'axmoq', 'buqalamun', 'joker', 'suidsid', 'suitsid', 'zombi', 'maniak', 'koldun'
+                ]:
+                    solos_roles.append(role_str)
+                else:
+                    civilians_roles.append(role_str)
+            else:
+                civilians_roles.append("👨🏼 Tinch aholi")
+
+        group_parts = []
+        if civilians_roles:
+            group_parts.append(f"🟢 <b>Tinch aholi:</b> {', '.join(civilians_roles)}")
+        if mafias_roles:
+            group_parts.append(f"🔴 <b>Mafia:</b> {', '.join(mafias_roles)}")
+        if solos_roles:
+            group_parts.append(f"🟡 <b>Yakkalar:</b> {', '.join(solos_roles)}")
+
+        living_roles_str = "\n".join(group_parts) if group_parts else "Yo'q"
 
         bot_username = "mafia_bot"
         try:
@@ -816,7 +840,7 @@ async def advance_night_to_day(game: Game, bot: Bot):
 
         dawn_template = await sync_to_async(TextService.get_text)(
             'dawn_living_players_format',
-            fallback="{players_list}\n\n<b>Ulardan:</b> {roles_list}\n\n<b>Jami:</b> {count}\n\nEndi kechaning natijalarini muhokama qilamiz...\nOvoz berishgacha ⏳ <b>20 sekund</b> qoldi"
+            fallback="{players_list}\n\n<b>Ulardan:</b>\n{roles_list}\n\n<b>Jami:</b> {count}\n\nEndi kechaning natijalarini muhokama qilamiz...\nOvoz berishgacha ⏳ <b>20 sekund</b> qoldi"
         )
         if '{roles_list}' in dawn_template:
             dawn_msg3 = (
@@ -828,7 +852,7 @@ async def advance_night_to_day(game: Game, bot: Bot):
         else:
             dawn_msg3 = (
                 f"{living_lines}\n\n"
-                f"<b>Ulardan:</b> {living_roles_str}\n\n"
+                f"<b>Ulardan:</b>\n{living_roles_str}\n\n"
                 f"<b>Jami:</b> {len(living_players)}\n\n"
                 f"Endi kechaning natijalarini muhokama qilamiz...\n"
                 f"Ovoz berishgacha ⏳ <b>20 sekund</b> qoldi"
