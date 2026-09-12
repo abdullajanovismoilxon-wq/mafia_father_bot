@@ -122,10 +122,13 @@ async def periodic_game_watchdog(master_bot: Bot):
             ))()
             for g in stuck_day_games:
                 gid = str(g.id)
-                logger.warning(f"Watchdog detected stuck DAY/DISCUSSION in game {g.id}. Advancing...")
+                logger.warning(f"Watchdog detected stuck DAY/DISCUSSION in game {g.id}. Advancing to Voting...")
                 try:
                     game_bot = BotRuntimeManager.get_bot_for_game(g, master_bot)
-                    await advance_night_to_day(g, game_bot)
+                    g.phase = GamePhase.VOTING
+                    g.status = GamePhase.VOTING
+                    await sync_to_async(g.save)(update_fields=['phase', 'status', 'updated_at'])
+                    await auto_close_voting(g, game_bot)
                 except Exception as de:
                     logger.exception(f"Watchdog day advance error for game {g.id}: {de}")
 

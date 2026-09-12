@@ -1245,6 +1245,16 @@ async def advance_night_to_day(game: Game, bot: Bot):
 
     except Exception as e:
         logger.exception(f"Error in advance_night_to_day for game {game_id}: {e}")
+        try:
+            g = await sync_to_async(Game.objects.select_related('bot').get)(id=game_id)
+            if g.phase in [GamePhase.NIGHT, GamePhase.DAY, GamePhase.DISCUSSION] and g.status not in ['FINISHED', 'CANCELED']:
+                g.phase = GamePhase.VOTING
+                g.status = GamePhase.VOTING
+                await sync_to_async(g.save)(update_fields=['phase', 'status', 'updated_at'])
+                from bot_runtime.handlers.voting import auto_close_voting
+                asyncio.create_task(auto_close_voting(g, bot))
+        except Exception as fb_err:
+            logger.error(f"Fallback transition in advance_night_to_day failed: {fb_err}")
     finally:
         ADVANCING_NIGHT_GAMES.discard(game_id)
 
