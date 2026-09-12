@@ -198,7 +198,7 @@ async def handle_hanging_callback(callback: CallbackQuery, bot: Bot):
 
     try:
         voter = await sync_to_async(
-            lambda: Player.objects.get(game__id=game_id_key, telegram_user_id=voter_id, is_alive=True)
+            lambda: Player.objects.select_related('role').get(game__id=game_id_key, telegram_user_id=voter_id, is_alive=True)
         )()
     except Player.DoesNotExist:
         await callback.answer("❌ Siz tirik o'yinchi emassiz.", show_alert=True)
@@ -208,13 +208,14 @@ async def handle_hanging_callback(callback: CallbackQuery, bot: Bot):
         await callback.answer("⚠️ Siz allaqachon ovoz berdingiz!", show_alert=True)
         return
 
+    v_weight = 2 if (voter.role and voter.role.name == 'JANOB') else 1
     h_data['voters'].add(voter_id)
     if choice == 'kill':
-        h_data['kill'] += 1
-        await callback.answer("🩸 Osish uchun ovoz berdingiz!")
+        h_data['kill'] += v_weight
+        await callback.answer("🩸 Osish uchun ovoz berdingiz! (2 ta ovoz)" if v_weight > 1 else "🩸 Osish uchun ovoz berdingiz!")
     else:
-        h_data['save'] += 1
-        await callback.answer("🕊️ Afv etish uchun ovoz berdingiz!")
+        h_data['save'] += v_weight
+        await callback.answer("🕊️ Afv etish uchun ovoz berdingiz! (2 ta ovoz)" if v_weight > 1 else "🕊️ Afv etish uchun ovoz berdingiz!")
 
     kill_c = h_data['kill']
     save_c = h_data['save']
@@ -277,14 +278,15 @@ async def auto_close_voting(game: Game, bot: Bot):
             return
 
         votes = await sync_to_async(
-            lambda: list(game.votes.filter(round=game.round_number).select_related('voter', 'target'))
+            lambda: list(game.votes.filter(round=game.round_number).select_related('voter', 'target', 'voter__role', 'target__role'))
         )()
 
         counts: dict = {}
         target_map: dict = {}
         for v in votes:
             tid = str(v.target_id)
-            counts[tid] = counts.get(tid, 0) + 1
+            weight = 2 if (v.voter and v.voter.role and v.voter.role.name == 'JANOB') else 1
+            counts[tid] = counts.get(tid, 0) + weight
             target_map[tid] = v.target
 
         tally_lines = [
