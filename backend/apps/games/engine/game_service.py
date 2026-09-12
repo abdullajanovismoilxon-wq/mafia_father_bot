@@ -582,7 +582,8 @@ class GameService:
                     if player.role and player.role.name == 'AXMOQ' and player.is_alive:
                         team_won = True
 
-                    won = (team_won and player.is_alive)
+                    hanged_suicide = bool(rname in ['SUIDSID', 'SUITSID'] and player.metadata and player.metadata.get('hanged_as_suicide'))
+                    won = (team_won and player.is_alive) or hanged_suicide
 
                 if won:
                     winners.append((player, role_code, role_team))

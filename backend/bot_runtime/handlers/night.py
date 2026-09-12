@@ -1341,8 +1341,11 @@ async def _announce_game_winner(game: Game, winner: str, bot: Bot, story_lines: 
             if p.role and p.role.name == 'AXMOQ' and p.is_alive:
                 team_won = True
 
-            # In Classic mode, only ALIVE players of winning faction win! Dead players do NOT win.
-            if team_won and p.is_alive:
+            p_meta = p.metadata or {}
+            hanged_suicide = bool(rname in ['SUIDSID', 'SUITSID'] and p_meta.get('hanged_as_suicide'))
+
+            # In Classic mode, alive players of winning faction win! Also hanged Suidsid wins!
+            if (team_won and p.is_alive) or hanged_suicide:
                 winners.append(p)
             else:
                 others.append(p)

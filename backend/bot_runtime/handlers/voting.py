@@ -460,6 +460,13 @@ async def resolve_hanging(game: Game, bot: Bot, original_msg=None):
                     .replace('{role_name}', label)
                 )
 
+                # Suidsid mark if hanged
+                if rname in ["SUIDSID", "SUITSID"]:
+                    if not suspect.metadata:
+                        suspect.metadata = {}
+                    suspect.metadata['hanged_as_suicide'] = True
+                    await sync_to_async(suspect.save)(update_fields=['metadata'])
+
                 # Don succession if hanged Don had Mafia teammates
                 if rname == "DON":
                     import random
@@ -512,15 +519,6 @@ async def resolve_hanging(game: Game, bot: Bot, original_msg=None):
                 pass
 
         # Win check
-        if will_kill and rname in ["SUIDSID", "SUITSID"]:
-            # Suidsid won by getting hanged
-            winner = RoleTeam.SOLO
-            await sync_to_async(GameService.finish_game)(game, winner)
-            from bot_runtime.handlers.night import _announce_game_winner
-            v_story = [f"⚖️ {suspect_mention} shahar qarori bilan osildi! (U: 🤡 Suidsid edi va o'z maqsadiga yetib yakka o'zi g'alaba qozondi!)"]
-            await _announce_game_winner(game, winner, bot, story_lines=v_story)
-            return
-
         game = await sync_to_async(Game.objects.select_related('bot').get)(id=game.id)
         winner = await sync_to_async(WinConditionService.check_win_condition)(game)
 

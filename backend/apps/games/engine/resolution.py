@@ -820,7 +820,12 @@ class GameResolutionService:
                 }
 
 
-            suicide_won = bool(elim_player.role and elim_player.role.name == 'SUIDSID')
+            suicide_won = bool(elim_player.role and elim_player.role.name in ['SUIDSID', 'SUITSID'])
+            if suicide_won:
+                if not elim_player.metadata:
+                    elim_player.metadata = {}
+                elim_player.metadata['hanged_as_suicide'] = True
+                elim_player.save(update_fields=['metadata'])
 
             elim_player.is_alive = False
             elim_player.save(update_fields=['is_alive'])
