@@ -318,13 +318,11 @@ async def _check_and_advance_night_if_ready(game: Game, bot: Bot):
 
         all_acted = True
         for actor in active_actors:
-            # If actor is MAFIA and DON is alive, if DON has acted or MAFIA has acted, team decision is satisfied
+            # If actor is MAFIA and DON is alive, DON makes the primary kill decision so MAFIA is not required to advance
             if actor.role and actor.role.name == 'MAFIA':
                 don_alive = any(p.role and p.role.name == 'DON' for p in living_players)
                 if don_alive:
-                    don_actor = next((p for p in living_players if p.role and p.role.name == 'DON'), None)
-                    if don_actor and don_actor.id in submitted_actor_ids:
-                        continue
+                    continue
             if actor.id not in submitted_actor_ids:
                 all_acted = False
                 break
@@ -1870,17 +1868,32 @@ async def handle_night_action_callback(callback: CallbackQuery, bot: Bot):
                     except Exception:
                         pass
 
-        # Notify Serjant if Komissar acted
+        # Notify Serjant & Admiral if Komissar acted
         if actor.role and actor.role.name in ['DETECTIVE', 'KOMISSAR', 'SHERIFF']:
-            serjant = await sync_to_async(
-                lambda: Player.objects.filter(game=game, is_alive=True, role__name='SERJANT').first()
+            police_subordinates = await sync_to_async(
+                lambda: list(Player.objects.filter(game=game, is_alive=True, role__name__in=['SERJANT', 'ADMIRAL']).exclude(telegram_user_id=callback.from_user.id))
             )()
-            if serjant:
-                act_name = "Tekshiruv" if act_code == 'inv' else "Otish"
+            act_name = "Tekshiruv" if act_code == 'inv' else "Otish"
+            for sub in police_subordinates:
                 try:
                     await bot.send_message(
-                        serjant.telegram_user_id,
+                        sub.telegram_user_id,
                         f"🕵🏻‍♂️ <b>Komissar {act_name} harakatini bajardi:</b>\nNishon: <b>{html.escape(target_name)}</b>",
+                        parse_mode="HTML"
+                    )
+                except Exception:
+                    pass
+
+        # Notify Hamshira if Doctor acted
+        if actor.role and actor.role.name in ['DOCTOR', 'SHIFOKOR', 'DOKTOR']:
+            hamshiras = await sync_to_async(
+                lambda: list(Player.objects.filter(game=game, is_alive=True, role__name='HAMSHIRA').exclude(telegram_user_id=callback.from_user.id))
+            )()
+            for ham in hamshiras:
+                try:
+                    await bot.send_message(
+                        ham.telegram_user_id,
+                        f"👨🏼‍⚕️ <b>Shifokor davolash harakatini bajardi:</b>\nNishon: <b>{html.escape(target_name)}</b>",
                         parse_mode="HTML"
                     )
                 except Exception:
@@ -2099,16 +2112,17 @@ async def handle_private_message_relay(message: Message, bot: Bot):
                 pass
             return
 
-    # 2. Night Chat Relays
+    # 2. Night / Game Chat Relays
     try:
         player = await sync_to_async(
             lambda: Player.objects.select_related('role', 'game')
             .filter(
                 telegram_user_id=user_id,
                 is_alive=True,
-                game__phase__in=[GamePhase.NIGHT, GamePhase.DAY, GamePhase.DISCUSSION, GamePhase.VOTING, GamePhase.ELIMINATION],
-                game__status='ACTIVE'
-            ).order_by('-game__created_at').first()
+            )
+            .exclude(game__phase__in=[GamePhase.FINISHED, GamePhase.CANCELED])
+            .exclude(game__status__in=[GamePhase.FINISHED, GamePhase.CANCELED, 'FINISHED', 'CANCELED'])
+            .order_by('-game__created_at').first()
         )()
 
         if not player or not player.role:
@@ -2120,7 +2134,7 @@ async def handle_private_message_relay(message: Message, bot: Bot):
         r_icon = role_icon(r_name)
         r_lbl = role_label(r_name)
 
-        # Mafia Team Relay (Don, Mafia, Advokat, Ubiytsa, Jurnalist, Aygoqchi, Laborant)
+        # 1. Mafia Team Relay (Don, Mafia, Advokat, Ubiytsa, Jurnalist, Aygoqchi, Laborant)
         is_mafia = (player.role.team == RoleTeam.MAFIA or r_name in ["DON", "MAFIA", "ADVOKAT", "UBIYTSA", "JURNALIST", "AYGOQCHI", "LABORANT"])
         if is_mafia:
             mafia_teammates = await sync_to_async(
@@ -2153,7 +2167,7 @@ async def handle_private_message_relay(message: Message, bot: Bot):
             else:
                 await message.answer("📭 Hozirda sizdan boshqa tirik mafiya a'zosi yo'q.")
 
-        # Police Team Relay (Komissar <-> Serjant <-> Admiral)
+        # 2. Police Team Relay (Komissar <-> Serjant <-> Admiral)
         elif r_name in ['DETECTIVE', 'KOMISSAR', 'SHERIFF', 'SERJANT', 'ADMIRAL']:
             police_partners = await sync_to_async(
                 lambda: list(
@@ -2182,6 +2196,39 @@ async def handle_private_message_relay(message: Message, bot: Bot):
                 await message.answer(f"✅ {len(police_partners)} ta politsiya sherigingizga yetkazildi.")
             else:
                 await message.answer("📭 Hozirda sizdan boshqa tirik politsiya xodimi yo'q.")
+
+        # 3. Medical Team Relay (Doctor <-> Hamshira)
+        elif r_name in ['DOCTOR', 'SHIFOKOR', 'DOKTOR', 'HAMSHIRA']:
+            medical_partners = await sync_to_async(
+                lambda: list(
+                    Player.objects.filter(
+                        game=game, is_alive=True, role__name__in=['DOCTOR', 'SHIFOKOR', 'DOKTOR', 'HAMSHIRA']
+                    ).exclude(telegram_user_id=user_id)
+                )
+            )()
+
+            if medical_partners:
+                tpl = await sync_to_async(TextService.get_text)(
+                    'night_medical_chat_relay',
+                    fallback="💬 <b>[TIBBIYOT CHAT]</b> {role_icon} <b>{sender_name} ({role_label}):</b>\n{text}"
+                )
+                relay_text = tpl.format(
+                    role_icon=r_icon,
+                    sender_name=html.escape(sender_name),
+                    role_label=html.escape(r_lbl),
+                    text=html.escape(message.text)
+                )
+                for mp in medical_partners:
+                    try:
+                        await bot.send_message(mp.telegram_user_id, relay_text, parse_mode="HTML")
+                    except Exception:
+                        pass
+                await message.answer(f"✅ {len(medical_partners)} ta tibbiyot sherigingizga yetkazildi.")
+            else:
+                await message.answer("📭 Hozirda sizdan boshqa tirik shifokor/hamshira yo'q.")
+
+        else:
+            await message.answer("ℹ️ Sizning rolingizda maxfiy guruh chati mavjud emas. Kunduzgi umumiy guruhda suhbatlashing.")
 
     except Exception as e:
         logger.exception("Error in night relay handler:")

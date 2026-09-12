@@ -684,6 +684,7 @@ async def cmd_start_game(message: types.Message, bot: Bot):
 
         mafia_members = [(p, r) for p, r in assignments if r.name in ["DON", "MAFIA", "ADVOKAT", "UBIYTSA", "JURNALIST", "AYGOQCHI", "LABORANT"]]
         police_members = [(p, r) for p, r in assignments if r.name in ['DETECTIVE', 'KOMISSAR', 'SHERIFF', 'SERJANT', 'ADMIRAL']]
+        medical_members = [(p, r) for p, r in assignments if r.name in ['DOCTOR', 'SHIFOKOR', 'DOKTOR', 'HAMSHIRA']]
 
         # Group Message 1
         try:
@@ -827,6 +828,24 @@ async def cmd_start_game(message: types.Message, bot: Bot):
                     await bot.send_message(
                         player.telegram_user_id,
                         pol_team_msg,
+                        parse_mode="HTML"
+                    )
+                except Exception:
+                    pass
+
+            # 2c. Send Teammates Reminder if Medical (Shifokor / Hamshira)
+            if rname in ['DOCTOR', 'SHIFOKOR', 'DOKTOR', 'HAMSHIRA'] and len(medical_members) > 1:
+                med_lines = []
+                for mp, mr in medical_members:
+                    m_icon = role_icon(mr.name)
+                    m_label = role_label(mr.name)
+                    m_badge = _player_team_badge(mp)
+                    med_lines.append(f"<b>{m_badge}{html.escape(mp.display_name)}</b> - {m_icon} <b>{m_label}</b>")
+                med_team_msg = "👨🏼‍⚕️ <b>Sheriklaringizni eslab qoling! (Tibbiyot)</b>\n\n" + "\n".join(med_lines) + "\n\n<i>💬 Tunda botga xabar yozsangiz, sherigingizga yetkaziladi!</i>"
+                try:
+                    await bot.send_message(
+                        player.telegram_user_id,
+                        med_team_msg,
                         parse_mode="HTML"
                     )
                 except Exception:

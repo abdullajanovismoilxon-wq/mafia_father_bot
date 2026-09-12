@@ -558,10 +558,11 @@ DEFAULT_BOT_TEXTS = [
     {'key': 'hero_group_strike_kill_part2', 'category': 'HERO', 'title': "Geroy zarbasi guruhga (O'ldirganda 2-xabar)", 'content_uz': "☠️ <b>{target_name}</b> Geroy tomonidan o'ldirildi! (U: {role_icon} <b>{role_name}</b> edi)"},
     {'key': 'hero_group_strike_blocked', 'category': 'HERO', 'title': "Geroy zarbasi guruhga (Himoya qaytarganda)", 'content_uz': "💥 Kimdir o'z Geroyidan foydalanib <b>{target_name}</b>ga zarba berdi!\n\n🔰 <b>{target_name}</b> ning <b>Geroydan Himoyasi</b> zarbani to'liq qaytardi va uning hayotini saqlab qoldi!"},
 
-    # NIGHT & MAFIA CHAT / VOTE RELAYS
+    # NIGHT & MAFIA / POLICE / MEDICAL CHAT & VOTE RELAYS
     {'key': 'night_mafia_vote_relay', 'category': 'NIGHT', 'title': "Mafiya sheriklariga nishon tanlanganda xabar", 'content_uz': "🤵🏼 <b>[MAFIYA OV]</b> <b>{actor_name}</b> ({actor_role}) quyidagi o'yinchini nishonga oldi:\n🎯 <b>{target_name}</b>"},
     {'key': 'night_mafia_chat_relay', 'category': 'NIGHT', 'title': "Mafiya tunda o'zaro yozishganda format", 'content_uz': "💬 <b>[MAFIYA CHAT]</b> {role_icon} <b>{sender_name} ({role_label}):</b>\n{text}"},
     {'key': 'night_police_chat_relay', 'category': 'NIGHT', 'title': "Politsiya tunda o'zaro yozishganda format", 'content_uz': "💬 <b>[POLITSIYA CHAT]</b> {role_icon} <b>{sender_name} ({role_label}):</b>\n{text}"},
+    {'key': 'night_medical_chat_relay', 'category': 'NIGHT', 'title': "Tibbiyot tunda o'zaro yozishganda format", 'content_uz': "💬 <b>[TIBBIYOT CHAT]</b> {role_icon} <b>{sender_name} ({role_label}):</b>\n{text}"},
 
     # LOBBY GREETINGS & NOTIFICATIONS
     {'key': 'lobby_pm_start_greeting', 'category': 'LOBBY', 'title': "Bot PM /start salomlashish xabari", 'content_uz': "Salom, <b>{first_name}</b>! 🎭\n\nMen <b>Mafia Bot</b>man. Men guruhlarda do'stlaringiz bilan birga afsonaviy Mafiya o'yinini o'ynash uchun xizmat qilaman!\n\nGuruhda yangi o'yin ochish uchun <code>/game</code> buyrug'ini yuboring.\n\n💬 <i>Savol va takliflaringiz bo'lsa @ismoilo9 ga murojaat qiling.</i>"},

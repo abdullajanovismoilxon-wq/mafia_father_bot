@@ -663,11 +663,12 @@ class GameResolutionService:
                     joker_deliveries.append({'target_user_id': ja.target.telegram_user_id})
 
             # -------------------------------------------------------------
-            # 12. AFK Inactivity Check (Exempt passive roles)
+            # 12. AFK Inactivity Check (Exempt passive roles & Mafia when Don is alive)
             # -------------------------------------------------------------
             PASSIVE_ROLES = {'CITIZEN', 'OMADLI', 'JANOB', 'BORI', 'SEHRGAR', 'ADMIRAL', 'HAMSHIRA', 'SUIDSID'}
             afk_eliminated = []
             acted_actor_ids = {a.actor_id for a in actions}
+            don_alive_in_game = any(p.is_alive and p.role and p.role.name == 'DON' for p in alive_players if p.id not in eliminated_player_ids)
 
             for p in alive_players:
                 if p.id in eliminated_player_ids:
@@ -675,6 +676,10 @@ class GameResolutionService:
                 rname = p.role.name if p.role else 'CITIZEN'
                 if rname in PASSIVE_ROLES:
                     continue  # EXEMPT from AFK penalty
+
+                # Regular MAFIA is exempt from AFK penalty as long as DON is alive
+                if rname == 'MAFIA' and don_alive_in_game:
+                    continue
 
                 if p.id not in acted_actor_ids:
                     if not p.metadata:
