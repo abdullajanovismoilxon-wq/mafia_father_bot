@@ -282,11 +282,11 @@ PASSIVE_NIGHT_ROLES = {
 
 async def _check_and_advance_night_if_ready(game: Game, bot: Bot):
     """
-    Checks if all living players with active night actions have submitted their action
-    for the current round. If so, cancels the night timer and advances to Day/Dawn immediately.
+    Checks game state during Night phase.
+    Preserves strict configured night timer duration (e.g. 45s) so players have the full time window.
+    Only advances early if no active night roles exist at all.
     """
     try:
-        from apps.games.models import NightAction
         game_id = str(game.id)
         current_game = await sync_to_async(Game.objects.select_related('bot').get)(id=game_id)
         if current_game.phase != GamePhase.NIGHT:
@@ -302,39 +302,15 @@ async def _check_and_advance_night_if_ready(game: Game, bot: Bot):
             if p.role and p.role.name not in PASSIVE_NIGHT_ROLES
         ]
 
-        if not active_actors:
-            # If no active night roles exist, advance immediately
+        if not active_actors and len(living_players) > 0:
+            # If no active night roles exist at all in the game, advance to dawn
             logger.info(f"No active night roles living in game {game_id}. Advancing to Dawn.")
             cancel_night_timer(game_id)
             await advance_night_to_day(current_game, bot)
             return
 
-        # Check submitted actions for this round
-        submitted_actor_ids = await sync_to_async(
-            lambda: set(NightAction.objects.filter(
-                game=current_game,
-                round=current_game.round_number
-            ).values_list('actor_id', flat=True))
-        )()
-
-        all_acted = True
-        for actor in active_actors:
-            # If actor is MAFIA and DON is alive, DON makes the primary kill decision so MAFIA is not required to advance
-            if actor.role and actor.role.name == 'MAFIA':
-                don_alive = any(p.role and p.role.name == 'DON' for p in living_players)
-                if don_alive:
-                    continue
-            if actor.id not in submitted_actor_ids:
-                all_acted = False
-                break
-
-        if all_acted:
-            logger.info(f"All {len(active_actors)} active night roles have submitted actions in game {game_id}. Advancing early!")
-            cancel_night_timer(game_id)
-            await advance_night_to_day(current_game, bot)
-
     except Exception as e:
-        logger.warning(f"Error checking early night advance in game {game.id}: {e}")
+        logger.warning(f"Error checking night state in game {game.id}: {e}")
 
 
 # ---------------------------------------------------------------------------

@@ -593,15 +593,20 @@ async def _advance_to_next_night(game: Game, bot: Bot, reason: str = ""):
             for p in living_players
         ])
 
-        from apps.superadmin.services import TextService
+        from apps.superadmin.services import SettingService, TextService
+        bot_id_str = str(game.bot_id) if game and getattr(game, 'bot_id', None) else ''
+        n_dur = await sync_to_async(SettingService.get_group_or_bot_timing)(game.chat_id, bot_id_str, 'night_duration', 60)
+
         night_tpl = await sync_to_async(TextService.get_text)(
             'night_start_announcement',
-            fallback="🌙 <b>Qorong'u va daxshatlarga to'la {round_num}-tun boshlandi.</b>\nKo'chaga yana zulmat tushdi. <b>60 sekund</b> davomida harakatlaringizni bajaring!\n\n👥 <b>Tirik o'yinchilar: ({count} ta)</b>\n{players_list}"
+            fallback="🌙 <b>Qorong'u va daxshatlarga to'la {round_num}-tun boshlandi.</b>\nKo'chaga yana zulmat tushdi. <b>{duration} sekund</b> davomida harakatlaringizni bajaring!\n\n👥 <b>Tirik o'yinchilar: ({count} ta)</b>\n{players_list}"
         )
         night_text = (
             night_tpl.replace('{round_num}', str(round_num))
             .replace('{count}', str(len(living_players)))
             .replace('{players_list}', living_roster)
+            .replace('{duration}', str(n_dur))
+            .replace('60 sekund', f'{n_dur} sekund')
         )
         from bot_runtime.handlers.night import send_dynamic_animation
         try:
@@ -758,9 +763,6 @@ async def _advance_to_next_night(game: Game, bot: Bot, reason: str = ""):
 
         if game.phase == GamePhase.NIGHT and game.status not in ['FINISHED', 'CANCELED']:
             from bot_runtime.handlers.night import start_night_timer
-            from apps.superadmin.services import SettingService
-            bot_id_str = str(game.bot_id) if game and getattr(game, 'bot_id', None) else ''
-            n_dur = await sync_to_async(SettingService.get_bot_timing)(bot_id_str, 'night_duration', 60)
             start_night_timer(game_id, bot, duration=n_dur)
 
     except Exception as e:

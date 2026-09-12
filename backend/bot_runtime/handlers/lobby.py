@@ -702,18 +702,22 @@ async def cmd_start_game(message: types.Message, bot: Bot):
             pass
 
         # Group Message 2 (Night GIF)
+        bot_id_str = str(game.bot_id) if game and getattr(game, 'bot_id', None) else ''
+        n_dur = await sync_to_async(SettingService.get_group_or_bot_timing)(game.chat_id, bot_id_str, 'night_duration', 60)
+
         night_tpl = await sync_to_async(TextService.get_text)(
             'night_start_announcement',
-            fallback="🌙 <b>Qorong'u va daxshatlarga to'la tun boshlandi.</b>\nKo'chaga yana zulmat tushdi. <b>60 sekund</b> davomida harakatlaringizni bajaring!\n\n👥 <b>O'yinchilar: ({count} ta)</b>\n{players_list}"
+            fallback="🌙 <b>Qorong'u va daxshatlarga to'la tun boshlandi.</b>\nKo'chaga yana zulmat tushdi. <b>{duration} sekund</b> davomida harakatlaringizni bajaring!\n\n👥 <b>O'yinchilar: ({count} ta)</b>\n{players_list}"
         )
         try:
-            night_text = night_tpl.format(round_num=1, count=len(living_players), players_list=living_roster)
+            night_text = night_tpl.format(round_num=1, count=len(living_players), players_list=living_roster, duration=n_dur)
         except Exception:
             night_text = (
-                f"🌙 <b>Qorong'u va daxshatlarga to'la tun boshlandi.</b>\n"
-                f"Qo'rqmaslar ko'chaga chiqishga jur'at qilishdi.\n\n"
-                f"👥 <b>O'yinchilar:</b>\n{living_roster}\n\n"
-                f"Tun davomida ⏳ <b>60 sekund</b> vaqt bor."
+                night_tpl.replace('{round_num}', '1')
+                .replace('{count}', str(len(living_players)))
+                .replace('{players_list}', living_roster)
+                .replace('{duration}', str(n_dur))
+                .replace('60 sekund', f'{n_dur} sekund')
             )
         from bot_runtime.handlers.night import send_dynamic_animation
         await send_dynamic_animation(

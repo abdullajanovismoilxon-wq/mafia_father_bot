@@ -886,22 +886,32 @@ def broadcast_clear_all_view(request):
 
 
 def users_view(request):
+    from django.core.paginator import Paginator
     query = request.GET.get('q', '').strip()
+    page_num = request.GET.get('page', 1)
+    per_page = int(request.GET.get('per_page', 50))
     excluded_owner_ids = get_excluded_owner_tg_ids()
 
-    profiles_qs = PlayerProfile.objects.exclude(telegram_id=999999999).select_related('stats').all()
+    profiles_qs = PlayerProfile.objects.exclude(telegram_id=999999999).select_related('stats').order_by('-created_at')
 
     if query:
         if query.isdigit():
-            profiles_qs = profiles_qs.filter(telegram_id=int(query))
+            profiles_qs = profiles_qs.filter(Q(telegram_id=int(query)) | Q(telegram_username__icontains=query) | Q(first_name__icontains=query))
         else:
-            profiles_qs = profiles_qs.filter(Q(telegram_username__icontains=query) | Q(first_name__icontains=query))
+            profiles_qs = profiles_qs.filter(Q(telegram_username__icontains=query) | Q(first_name__icontains=query) | Q(last_name__icontains=query))
 
-    profiles = profiles_qs.order_by('-created_at')[:100]
+    total_count = profiles_qs.count()
+
+    if request.GET.get('show_all') == '1':
+        paginator = Paginator(profiles_qs, max(1, total_count))
+        page_obj = paginator.get_page(1)
+    else:
+        paginator = Paginator(profiles_qs, per_page)
+        page_obj = paginator.get_page(page_num)
 
     user_list = []
     from apps.economy.models import PlayerHero
-    for p in profiles:
+    for p in page_obj:
         is_owner = (p.telegram_id in excluded_owner_ids) or p.is_platform_owner
         wallet = Wallet.objects.filter(telegram_id=p.telegram_id).first()
         inv_data = PlayerInventoryService.get_full_inventory(p.telegram_id)
@@ -920,6 +930,8 @@ def users_view(request):
 
     context = {
         'user_list': user_list,
+        'page_obj': page_obj,
+        'total_count': total_count,
         'query': query,
         'active_tab': 'users',
     }
