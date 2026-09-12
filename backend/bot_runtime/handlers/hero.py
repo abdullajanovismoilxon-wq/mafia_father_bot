@@ -1,3 +1,4 @@
+import asyncio
 import random
 import logging
 from aiogram import Router, types, F, Bot
@@ -438,6 +439,17 @@ async def handle_hero_dawn_target(callback: types.CallbackQuery, bot: Bot):
         except Exception:
             pass
 
+        try:
+            await bot.send_message(
+                target.telegram_user_id,
+                "🔰 <b>Sizga qarshi Geroy zarbasi berildi!</b>\n\n"
+                "🛡 Profilingizdagi <b>Geroydan Himoya</b> qalqoni bu zarbani to'liq qaytardi va hayotingizni saqlab qoldi!\n"
+                "ℹ️ <i>1 ta himoya qalqoningiz sarflandi.</i>",
+                parse_mode="HTML"
+            )
+        except Exception:
+            pass
+
         tpl = await sync_to_async(TextService.get_text)(
             'hero_group_strike_blocked',
             fallback="💥 Kimdir o'z Geroyidan foydalanib <b>{target_name}</b>ga zarba berdi!\n\n🔰 <b>{target_name}</b> ning <b>Geroydan Himoyasi</b> zarbani to'liq qaytardi va uning hayotini saqlab qoldi!"
@@ -462,12 +474,25 @@ async def handle_hero_dawn_target(callback: types.CallbackQuery, bot: Bot):
         except Exception:
             pass
 
+        from bot_runtime.handlers.night import LAST_WORDS_PENDING, _expire_last_words
         try:
             await bot.send_message(
                 target.telegram_user_id,
-                f"💥 <b>Sizga qarshi Geroy zarbasi berildi ({res['damage']}%) va olingan og'ir jarohat tufayli halok bo'ldingiz!</b>",
+                f"💥 <b>Sizga qarshi Geroy zarbasi berildi!</b>\n\n"
+                f"🩸 Yetkazilgan zarar: <b>{res['damage']}%</b>\n"
+                f"❤️ Qolgan joningiz: <b>0%</b>\n\n"
+                f"☠️ <b>Siz olgan og'ir jarohat tufayli halok bo'ldingiz!</b>\n\n"
+                f"🗣 <b>So'ngi so'zingizni aytishingiz uchun 50 sekund vaqt berildi:</b>\n"
+                f"<i>Qisqa so'ngi so'zingizni yozing (guruhga e'lon qilinadi):</i>",
                 parse_mode="HTML"
             )
+            LAST_WORDS_PENDING[target.telegram_user_id] = {
+                'game_id': str(game.id),
+                'chat_id': game.chat_id,
+                'role_name': r_name,
+                'display_name': target.display_name,
+            }
+            asyncio.create_task(_expire_last_words(target.telegram_user_id))
         except Exception:
             pass
 
@@ -524,9 +549,10 @@ async def handle_hero_dawn_target(callback: types.CallbackQuery, bot: Bot):
         try:
             await bot.send_message(
                 target.telegram_user_id,
-                f"💥 <b>Sizga qarshi Geroy zarbasi berildi!</b>\n"
+                f"💥 <b>Sizga qarshi Geroy zarbasi berildi!</b>\n\n"
                 f"🩸 Yetkazilgan zarar: <b>{res['damage']}%</b>\n"
-                f"❤️ Qolgan joningiz: <b>{res['remaining_hp']}%</b>",
+                f"❤️ Qolgan joningiz: <b>{res['remaining_hp']}%</b>\n\n"
+                f"ℹ️ <i>Ehtiyot bo'ling! Guruhdagi o'yinchilar ro'yxatida joningiz holati ({res['remaining_hp']}%) ko'rsatildi.</i>",
                 parse_mode="HTML"
             )
         except Exception:
@@ -671,6 +697,17 @@ async def handle_daytime_hero_shoot(message: types.Message, bot: Bot):
         except Exception:
             pass
 
+        try:
+            await bot.send_message(
+                victim_player.telegram_user_id,
+                "🔰 <b>Sizga qarshi Geroy zarbasi berildi!</b>\n\n"
+                "🛡 Profilingizdagi <b>Geroydan Himoya</b> qalqoni bu zarbani to'liq qaytardi va hayotingizni saqlab qoldi!\n"
+                "ℹ️ <i>1 ta himoya qalqoningiz sarflandi.</i>",
+                parse_mode="HTML"
+            )
+        except Exception:
+            pass
+
         tpl = await sync_to_async(TextService.get_text)(
             'hero_group_strike_blocked',
             fallback="💥 Kimdir o'z Geroyidan foydalanib <b>{target_name}</b>ga zarba berdi!\n\n🔰 <b>{target_name}</b> ning <b>Geroydan Himoyasi</b> zarbani to'liq qaytardi va uning hayotini saqlab qoldi!"
@@ -690,12 +727,25 @@ async def handle_daytime_hero_shoot(message: types.Message, bot: Bot):
         except Exception:
             pass
 
+        from bot_runtime.handlers.night import LAST_WORDS_PENDING, _expire_last_words
         try:
             await bot.send_message(
                 victim_player.telegram_user_id,
-                f"💥 <b>Sizga qarshi Geroy zarbasi berildi ({res['damage']}%) va olingan og'ir jarohat tufayli halok bo'ldingiz!</b>",
+                f"💥 <b>Sizga qarshi Geroy zarbasi berildi!</b>\n\n"
+                f"🩸 Yetkazilgan zarar: <b>{res['damage']}%</b>\n"
+                f"❤️ Qolgan joningiz: <b>0%</b>\n\n"
+                f"☠️ <b>Siz olgan og'ir jarohat tufayli halok bo'ldingiz!</b>\n\n"
+                f"🗣 <b>So'ngi so'zingizni aytishingiz uchun 50 sekund vaqt berildi:</b>\n"
+                f"<i>Qisqa so'ngi so'zingizni yozing (guruhga e'lon qilinadi):</i>",
                 parse_mode="HTML"
             )
+            LAST_WORDS_PENDING[victim_player.telegram_user_id] = {
+                'game_id': str(game.id),
+                'chat_id': game.chat_id,
+                'role_name': r_name,
+                'display_name': victim_player.display_name,
+            }
+            asyncio.create_task(_expire_last_words(victim_player.telegram_user_id))
         except Exception:
             pass
 
@@ -750,9 +800,10 @@ async def handle_daytime_hero_shoot(message: types.Message, bot: Bot):
         try:
             await bot.send_message(
                 victim_player.telegram_user_id,
-                f"💥 <b>Sizga qarshi Geroy zarbasi berildi!</b>\n"
+                f"💥 <b>Sizga qarshi Geroy zarbasi berildi!</b>\n\n"
                 f"🩸 Yetkazilgan zarar: <b>{res['damage']}%</b>\n"
-                f"❤️ Qolgan joningiz: <b>{res['remaining_hp']}%</b>",
+                f"❤️ Qolgan joningiz: <b>{res['remaining_hp']}%</b>\n\n"
+                f"ℹ️ <i>Ehtiyot bo'ling! Guruhdagi o'yinchilar ro'yxatida joningiz holati ({res['remaining_hp']}%) ko'rsatildi.</i>",
                 parse_mode="HTML"
             )
         except Exception:
