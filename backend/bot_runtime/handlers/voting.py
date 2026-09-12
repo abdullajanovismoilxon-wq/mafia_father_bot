@@ -518,7 +518,8 @@ async def resolve_hanging(game: Game, bot: Bot, original_msg=None):
         if winner:
             await sync_to_async(GameService.finish_game)(game, winner)
             from bot_runtime.handlers.night import _announce_game_winner
-            await _announce_game_winner(game, winner, bot, story_lines=[result_text])
+            v_story = [f"⚖️ {suspect_mention} shahar qarori bilan osildi! (U: {icon} {label} edi)"] if will_kill else ["⚖️ Aholi ayblanuvchini afv etdi. Hech kim osilmadi."]
+            await _announce_game_winner(game, winner, bot, story_lines=v_story)
         else:
             await _advance_to_next_night(game, bot, reason="hanging_done")
 

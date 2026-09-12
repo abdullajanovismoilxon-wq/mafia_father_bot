@@ -1064,19 +1064,46 @@ async def advance_night_to_day(game: Game, bot: Bot):
 
 async def _announce_game_winner(game: Game, winner: str, bot: Bot, story_lines: list = None):
     from bot_runtime.manager import BotRuntimeManager
+    from apps.superadmin.services import SettingService
+    from bot_runtime.keyboards.inline import _player_team_badge
+
     bot = BotRuntimeManager.get_bot_for_game(game, bot)
+
+    all_players = await sync_to_async(
+        lambda: list(game.players.all().select_related('role'))
+    )()
+
+    # If story_lines is not provided, compile fallback recent elimination story
+    if not story_lines:
+        dead_players = [p for p in all_players if not p.is_alive]
+        if dead_players:
+            story_lines = []
+            for dp in dead_players:
+                rname = dp.role.name if dp.role else "CITIZEN"
+                icon = role_icon(rname)
+                label = role_label(rname)
+                team_badge = _player_team_badge(dp)
+                m = f'{team_badge}<a href="tg://user?id={dp.telegram_user_id}">{html.escape(dp.display_name)}</a>'
+                reason = getattr(dp, 'eliminated_reason', '') or ''
+                if 'LEFT' in reason:
+                    story_lines.append(f"🚪 {m} o'yinni tark etdi. (U: {icon} {label} edi)")
+                elif 'AFK' in reason:
+                    story_lines.append(f"💤 {m} AFK tufayli chetlatildi. (U: {icon} {label} edi)")
+                elif 'VOTE' in reason or 'HANG' in reason:
+                    story_lines.append(f"⚖️ {m} osildi. (U: {icon} {label} edi)")
+                elif 'HERO' in reason or 'hero' in reason:
+                    story_lines.append(f"🥷 {m} Geroy zarbasidan halok bo'ldi. (U: {icon} {label} edi)")
+                else:
+                    story_lines.append(f"💀 {m} halok bo'ldi. (U: {icon} {label} edi)")
+
     # 1. Send "So'ngi voqealar:" as a separate message first
     if story_lines:
         story_text = "📖 <b>So'ngi voqealar:</b>\n" + "\n".join(story_lines)
         try:
             await bot.send_message(game.chat_id, story_text, parse_mode="HTML")
-            await asyncio.sleep(1.5)
+            await asyncio.sleep(1.2)
         except Exception:
             pass
-
-    all_players = await sync_to_async(
-        lambda: list(game.players.all().select_related('role'))
-    )()
 
     winners = []
     others = []
@@ -1106,8 +1133,6 @@ async def _announce_game_winner(game: Game, winner: str, bot: Bot, story_lines: 
             else:
                 others.append(p)
 
-    from apps.superadmin.services import SettingService
-    from bot_runtime.keyboards.inline import _player_team_badge
     win_diamonds = await sync_to_async(SettingService.get_int)('victory_reward_diamonds', await sync_to_async(SettingService.get_int)('reward_win_diamonds', 0))
     part_coins = await sync_to_async(SettingService.get_int)('participation_reward_coins', await sync_to_async(SettingService.get_int)('reward_participation_coins', 15))
     part_diamonds = await sync_to_async(SettingService.get_int)('participation_reward_diamonds', await sync_to_async(SettingService.get_int)('reward_participation_diamonds', 0))
@@ -1117,26 +1142,30 @@ async def _announce_game_winner(game: Game, winner: str, bot: Bot, story_lines: 
 
     part_reward_str = f"+{part_coins} 💶" + (f", +{win_diamonds} 💎" if win_diamonds > 0 else "")
 
+    lines = []
+    if story_lines:
+        lines.append("📖 <b>So'ngi voqealar:</b>\n" + "\n".join(story_lines) + "\n")
+
     if getattr(game, 'mode', 'CLASSIC') == 'TEAM':
         if winner == 'TEAM_RED':
-            lines = ["🏆 🔴 <b>QIZIL JAMOA G'ALABA QOZONDI!</b>\n"]
+            lines.append("🏆 🔴 <b>QIZIL JAMOA G'ALABA QOZONDI!</b>\n")
         elif winner == 'TEAM_BLUE':
-            lines = ["🏆 🔵 <b>KO'K JAMOA G'ALABA QOZONDI!</b>\n"]
+            lines.append("🏆 🔵 <b>KO'K JAMOA G'ALABA QOZONDI!</b>\n")
         else:
-            lines = ["💀 <b>O'YIN YAKUNLANDI!</b>\n\nBarcha o'yinchilar halok bo'ldi. Hech kim g'alaba qozonmadi.\n"]
+            lines.append("💀 <b>O'YIN YAKUNLANDI!</b>\n\nBarcha o'yinchilar halok bo'ldi. Hech kim g'alaba qozonmadi.\n")
     else:
         if winner in ['ALL_DEAD', 'DRAW', None] or not winners:
-            lines = ["💀 <b>O'YIN YAKUNLANDI!</b>\n\nBarcha o'yinchilar halok bo'ldi. Hech bir jamoa g'alaba qozona olmadi.\n"]
+            lines.append("💀 <b>O'YIN YAKUNLANDI!</b>\n\nBarcha o'yinchilar halok bo'ldi. Hech bir jamoa g'alaba qozona olmadi.\n")
         elif winner in [RoleTeam.CIVILIAN, 'CIVILIAN']:
-            lines = ["🏆 🟢 <b>TINCH AHOLI G'ALABA QOZONDI!</b>\n\nBarcha xavfli dushmanlar yo'q qilindi.\n"]
+            lines.append("🏆 🟢 <b>TINCH AHOLI G'ALABA QOZONDI!</b>\n\nBarcha xavfli dushmanlar yo'q qilindi.\n")
         elif winner in [RoleTeam.MAFIA, 'MAFIA']:
-            lines = ["🏆 🔴 <b>MAFIYA G'ALABA QOZONDI!</b>\n\nShahar butunlay mafiya qo'liga o'tdi.\n"]
+            lines.append("🏆 🔴 <b>MAFIYA G'ALABA QOZONDI!</b>\n\nShahar butunlay mafiya qo'liga o'tdi.\n")
         elif winner in [RoleTeam.ZOMBIE, 'ZOMBIE']:
-            lines = ["🏆 🧟 <b>ZOMBILAR G'ALABA QOZONDI!</b>\n\nBarcha tiriklar zombiga aylandi.\n"]
+            lines.append("🏆 🧟 <b>ZOMBILAR G'ALABA QOZONDI!</b>\n\nBarcha tiriklar zombiga aylandi.\n")
         elif winner in [RoleTeam.SOLO, 'SOLO']:
-            lines = ["🏆 🔪 <b>YAKKA QOTIL G'ALABA QOZONDI!</b>\n\nBarcha raqiblarini yo'q qildi.\n"]
+            lines.append("🏆 🔪 <b>YAKKA QOTIL G'ALABA QOZONDI!</b>\n\nBarcha raqiblarini yo'q qildi.\n")
         else:
-            lines = ["🏆 <b>O'yin tugadi!</b>\n"]
+            lines.append("🏆 <b>O'yin tugadi!</b>\n")
 
     winner_places_map = {}
     if winners:

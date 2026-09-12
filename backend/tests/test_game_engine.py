@@ -515,4 +515,93 @@ class HeroSystemTests(TestCase):
         self.victim_player.refresh_from_db()
         self.assertTrue(self.victim_player.is_alive)
 
+    def test_doctor_and_detective_skip_action_success(self):
+        """Test that submitting SKIP action for Doctor and Detective works without errors."""
+        from apps.games.engine.actions import NightActionService, NightActionType
+        from apps.games.models import Role, RoleType
+        
+        doc_role, _ = Role.objects.get_or_create(
+            name=RoleType.DOCTOR,
+            defaults={'code': 'doc_test', 'team': RoleTeam.CIVILIAN, 'is_system': True}
+        )
+        det_role, _ = Role.objects.get_or_create(
+            name=RoleType.DETECTIVE,
+            defaults={'code': 'det_test', 'team': RoleTeam.CIVILIAN, 'is_system': True}
+        )
+        
+        self.game.phase = GamePhase.NIGHT
+        self.game.save(update_fields=['phase'])
+        
+        self.victim_player.role = doc_role
+        self.victim_player.save(update_fields=['role'])
+        self.citizen_player.role = det_role
+        self.citizen_player.save(update_fields=['role'])
+        
+        act1 = NightActionService.submit_action(self.game, self.victim_player, None, NightActionType.SKIP)
+        self.assertEqual(act1.action_type, NightActionType.SKIP)
+        
+        act2 = NightActionService.submit_action(self.game, self.citizen_player, None, NightActionType.SKIP)
+        self.assertEqual(act2.action_type, NightActionType.SKIP)
+
+    def test_win_conditions_don_komissar_doctor_alive(self):
+        """Test that 1 Don + 1 Komissar + 1 Doctor does not trigger premature win."""
+        from apps.games.engine.win_conditions import WinConditionService
+        from apps.games.models import Role, RoleType
+        
+        doc_role, _ = Role.objects.get_or_create(
+            name=RoleType.DOCTOR,
+            defaults={'code': 'doc_win_test', 'team': RoleTeam.CIVILIAN, 'is_system': True}
+        )
+        det_role, _ = Role.objects.get_or_create(
+            name=RoleType.DETECTIVE,
+            defaults={'code': 'det_win_test', 'team': RoleTeam.CIVILIAN, 'is_system': True}
+        )
+        
+        self.don_player.is_alive = True
+        self.don_player.role = self.don_role
+        self.don_player.save()
+        
+        self.victim_player.is_alive = True
+        self.victim_player.role = doc_role
+        self.victim_player.save()
+        
+        self.citizen_player.is_alive = True
+        self.citizen_player.role = det_role
+        self.citizen_player.save()
+        
+        winner = WinConditionService.check_win_condition(self.game)
+        self.assertIsNone(winner)
+
+    def test_win_conditions_don_vs_komissar_duel(self):
+        """Test that 1 Don vs 1 Komissar (Town lethal shooter) does not auto-win for Mafia."""
+        from apps.games.engine.win_conditions import WinConditionService
+        from apps.games.models import Role, RoleType
+        
+        det_role, _ = Role.objects.get_or_create(
+            name=RoleType.DETECTIVE,
+            defaults={'code': 'det_duel_test', 'team': RoleTeam.CIVILIAN, 'is_system': True}
+        )
+        
+        self.don_player.is_alive = True
+        self.don_player.role = self.don_role
+        self.don_player.save()
+        
+        self.citizen_player.is_alive = True
+        self.citizen_player.role = det_role
+        self.citizen_player.save()
+        
+        self.victim_player.is_alive = False
+        self.victim_player.save()
+        
+        # 1v1 Don vs Komissar -> None (shootout at night)
+        winner = WinConditionService.check_win_condition(self.game)
+        self.assertIsNone(winner)
+        
+        # 1v1 Don vs Citizen (no gun) -> Mafia wins
+        self.citizen_player.role = self.citizen_role
+        self.citizen_player.save()
+        winner_citizen = WinConditionService.check_win_condition(self.game)
+        self.assertEqual(winner_citizen, RoleTeam.MAFIA)
+
+
 

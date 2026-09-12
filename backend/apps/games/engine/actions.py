@@ -98,15 +98,14 @@ class NightActionService:
             if not actor.role:
                 raise ActionValidationError("Actor has no assigned role.")
 
+            is_detective = actor.role and actor.role.name in [RoleType.DETECTIVE, 'KOMISSAR', 'SHERIFF']
+            is_doctor = actor.role and actor.role.name in [RoleType.DOCTOR, 'SHIFOKOR']
+
             # Validate role capability
             if action_type == NightActionType.SKIP:
                 pass  # Any active role can choose to skip/pass their night action
             else:
                 allowed_action = _get_allowed_action_for_role(actor.role)
-
-                is_detective = actor.role.name in [RoleType.DETECTIVE, 'KOMISSAR', 'SHERIFF']
-                is_doctor = actor.role.name in [RoleType.DOCTOR, 'SHIFOKOR']
-                
                 if is_detective and action_type in [NightActionType.DETECTIVE_INVESTIGATE, NightActionType.DETECTIVE_SHOOT]:
                     pass  # Allowed
                 elif is_doctor and action_type == NightActionType.DOCTOR_PROTECT:
@@ -117,7 +116,7 @@ class NightActionService:
                     )
 
             # Doctor can only protect self once per game
-            if is_doctor and target and target.id == actor.id:
+            if is_doctor and target and target.id == actor.id and action_type != NightActionType.SKIP:
                 previous_self_protects = NightAction.objects.filter(
                     game=game,
                     actor=actor,
