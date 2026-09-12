@@ -462,6 +462,15 @@ async def handle_hero_dawn_target(callback: types.CallbackQuery, bot: Bot):
         except Exception:
             pass
 
+        try:
+            await bot.send_message(
+                target.telegram_user_id,
+                f"💥 <b>Sizga qarshi Geroy zarbasi berildi ({res['damage']}%) va olingan og'ir jarohat tufayli halok bo'ldingiz!</b>",
+                parse_mode="HTML"
+            )
+        except Exception:
+            pass
+
         if res.get('leveled_up'):
             try:
                 await bot.send_message(
@@ -497,15 +506,27 @@ async def handle_hero_dawn_target(callback: types.CallbackQuery, bot: Bot):
         from apps.games.engine.game_service import GameService
         winner = await sync_to_async(WinConditionService.check_win_condition)(game)
         if winner:
+            await asyncio.sleep(2.0)
             await sync_to_async(GameService.end_game)(game, winner)
             from bot_runtime.handlers.night import _announce_game_winner
-            await _announce_game_winner(game, winner, bot, story_lines=[f"💥 Geroy zarbasi natijasida o'yin yakunlandi!"])
+            await _announce_game_winner(game, winner, bot)
     else:
         try:
             await callback.message.edit_text(
                 f"💥 <b>{target_name}</b> ga {res['damage']}% shikast yetkazildi!\n"
                 f"🩸 Qolgan joni: <b>{res['remaining_hp']}% ❤️</b>\n"
                 f"🩸 Qolgan zaryad: {res['charges_left']} ta.",
+                parse_mode="HTML"
+            )
+        except Exception:
+            pass
+
+        try:
+            await bot.send_message(
+                target.telegram_user_id,
+                f"💥 <b>Sizga qarshi Geroy zarbasi berildi!</b>\n"
+                f"🩸 Yetkazilgan zarar: <b>{res['damage']}%</b>\n"
+                f"❤️ Qolgan joningiz: <b>{res['remaining_hp']}%</b>",
                 parse_mode="HTML"
             )
         except Exception:
@@ -669,6 +690,15 @@ async def handle_daytime_hero_shoot(message: types.Message, bot: Bot):
         except Exception:
             pass
 
+        try:
+            await bot.send_message(
+                victim_player.telegram_user_id,
+                f"💥 <b>Sizga qarshi Geroy zarbasi berildi ({res['damage']}%) va olingan og'ir jarohat tufayli halok bo'ldingiz!</b>",
+                parse_mode="HTML"
+            )
+        except Exception:
+            pass
+
         tpl1 = await sync_to_async(TextService.get_text)(
             'hero_group_strike_kill_part1',
             fallback="💥 Kimdir o'z Geroyidan foydalanib <b>{target_name}</b>ga {damage}% shikast yetkazdi!"
@@ -701,9 +731,10 @@ async def handle_daytime_hero_shoot(message: types.Message, bot: Bot):
         from apps.games.engine.game_service import GameService
         winner = await sync_to_async(WinConditionService.check_win_condition)(game)
         if winner:
+            await asyncio.sleep(2.0)
             await sync_to_async(GameService.end_game)(game, winner)
             from bot_runtime.handlers.night import _announce_game_winner
-            await _announce_game_winner(game, winner, bot, story_lines=[f"💥 Geroy zarbasi natijasida o'yin yakunlandi!"])
+            await _announce_game_winner(game, winner, bot)
     else:
         try:
             await bot.send_message(
@@ -711,6 +742,17 @@ async def handle_daytime_hero_shoot(message: types.Message, bot: Bot):
                 f"💥 <b>{victim_name}</b> ga {res['damage']}% shikast yetkazildi!\n"
                 f"🩸 Qolgan joni: <b>{res['remaining_hp']}% ❤️</b>\n"
                 f"🩸 Qolgan zaryad: {res['charges_left']} ta.",
+                parse_mode="HTML"
+            )
+        except Exception:
+            pass
+
+        try:
+            await bot.send_message(
+                victim_player.telegram_user_id,
+                f"💥 <b>Sizga qarshi Geroy zarbasi berildi!</b>\n"
+                f"🩸 Yetkazilgan zarar: <b>{res['damage']}%</b>\n"
+                f"❤️ Qolgan joningiz: <b>{res['remaining_hp']}%</b>",
                 parse_mode="HTML"
             )
         except Exception:

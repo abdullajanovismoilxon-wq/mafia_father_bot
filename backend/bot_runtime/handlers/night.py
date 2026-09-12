@@ -487,39 +487,6 @@ async def advance_night_to_day(game: Game, bot: Bot):
         eliminated_list = night_result.get('eliminated_players', [])
         afk_list = night_result.get('afk_eliminated_players', [])
 
-        death_lines = []
-        for el in eliminated_list:
-            p = el['player'] if isinstance(el, dict) else el
-            rname = el['role_name'] if isinstance(el, dict) else (p.role.name if p.role else 'CITIZEN')
-            ktype = el.get('killer_type', 'mafia') if isinstance(el, dict) else 'mafia'
-            icon = role_icon(rname)
-            label = role_label(rname)
-            target_mention = f'<a href="tg://user?id={p.telegram_user_id}">{html.escape(p.display_name)}</a>'
-
-            if ktype == 'tuzoqchi':
-                death_lines.append(f"🕸 {target_mention} tuzoqqa ilinib halok bo'ldi! (U: {icon} {label} edi)")
-            elif ktype == 'afsungar':
-                death_lines.append(f"🧙🏼 Afsungarga hujum qilgan {target_mention} o'z la'nati qurboni bo'ldi! (U: {icon} {label} edi)")
-            elif ktype == 'komissar_retaliate':
-                death_lines.append(f"🥷 Komissarga suiqasd qilmoqchi bo'lgan Ubiytsa {target_mention} otib o'ldirildi! (U: {icon} {label} edi)")
-            elif ktype == 'kimyogar_poison':
-                death_lines.append(f"🧪 {target_mention} Kimyogarning zaharli eliksiridan halok bo'ldi! (U: {icon} {label} edi)")
-            elif ktype == 'axmoq_headbutt':
-                death_lines.append(f"🤪 {target_mention} Axmoqning kalla zarbasidan halok bo'ldi! (U: {icon} {label} edi)")
-            elif ktype == 'qotil':
-                death_lines.append(f"🔪 {target_mention} shafqatsiz Qotil tomonidan o'ldirildi. (U: {icon} {label} edi)")
-            elif ktype == 'komissar':
-                death_lines.append(f"🔫 {target_mention} Komissar tomonidan otib o'ldirildi. (U: {icon} {label} edi)")
-            else:
-                death_lines.append(f"🩸 {target_mention} Mafiyalar tomonidan vahshiylarcha o'ldirildi. (U: {icon} {label} edi)")
-
-        # 3. Check for Win Condition
-        winner = await sync_to_async(WinConditionService.check_win_condition)(game)
-        if winner:
-            await sync_to_async(GameService.end_game)(game, winner)
-            await _announce_game_winner(game, winner, bot, story_lines=death_lines)
-            return
-
         # --- Dawn Announcement Msg 1 (with dynamic Dawn GIF) ---
         try:
             dawn_msg1 = await sync_to_async(TextService.get_text)(
@@ -954,16 +921,36 @@ async def advance_night_to_day(game: Game, bot: Bot):
             except Exception:
                 pass
 
-        # --- Prompt Last Words (50s) to killed players ---
+        # --- Prompt Last Words (50s) to killed players with exact death cause in PM ---
+        def _get_night_death_pm_text(ktype: str) -> str:
+            if ktype == 'tuzoqchi':
+                return "🕸 <b>Tunda Tuzoqchining xavfli tuzog'iga tushib halok bo'ldingiz!</b>"
+            elif ktype == 'afsungar':
+                return "🧙🏼 <b>Tunda Afsungarga hujum qildingiz va uning la'nati o'zingizga qaytib halok bo'ldingiz!</b>"
+            elif ktype == 'komissar_retaliate':
+                return "🥷 <b>Komissarga suiqasd qilmoqchi bo'ldingiz, ammo Komissar hushyorlik bilan sizni otib o'ldirdi!</b>"
+            elif ktype in ['kimyogar_poison', 'kimyogar']:
+                return "🧪 <b>Tunda Kimyogar sizga zaharli eliksir ichirib zaharladi va siz halok bo'ldingiz!</b>"
+            elif ktype in ['axmoq_headbutt', 'axmoq']:
+                return "🤪 <b>Tunda Axmoq sizga qattiq kalla zarbasi berdi va siz halok bo'ldingiz!</b>"
+            elif ktype == 'qotil':
+                return "🔪 <b>Tunda shafqatsiz Qotil sizni pichoqlab o'ldirdi! Siz halok bo'ldingiz.</b>"
+            elif ktype == 'komissar':
+                return "🔫 <b>Tunda Komissar sizni shubhali deb hisoblab, otib o'ldirdi! Siz halok bo'ldingiz.</b>"
+            else:
+                return "🩸 <b>Tunda Mafiyalar sizni vahshiylarcha o'ldirishdi! Siz halok bo'ldingiz.</b>"
+
         for el in eliminated_list:
             p = el['player'] if isinstance(el, dict) else el
             rname = el['role_name'] if isinstance(el, dict) else (p.role.name if p.role else 'CITIZEN')
+            ktype = el.get('killer_type', 'mafia') if isinstance(el, dict) else 'mafia'
+            death_pm_reason = _get_night_death_pm_text(ktype)
             try:
                 await bot.send_message(
                     p.telegram_user_id,
-                    "🩸 <b>Tunda siz halok bo'ldingiz.</b>\n\n"
-                    "🗣 <b>So'ngi so'zingizni aytishingiz uchun 50 sekund vaqt berildi:</b>\n"
-                    "<i>Qisqa so'ngi so'zingizni yozing (guruhga e'lon qilinadi):</i>",
+                    f"{death_pm_reason}\n\n"
+                    f"🗣 <b>So'ngi so'zingizni aytishingiz uchun 50 sekund vaqt berildi:</b>\n"
+                    f"<i>Qisqa so'ngi so'zingizni yozing (guruhga e'lon qilinadi):</i>",
                     parse_mode="HTML"
                 )
                 LAST_WORDS_PENDING[p.telegram_user_id] = {
@@ -975,6 +962,14 @@ async def advance_night_to_day(game: Game, bot: Bot):
                 asyncio.create_task(_expire_last_words(p.telegram_user_id))
             except Exception:
                 pass
+
+        # --- Check Win Condition after Dawn announcements & PM notifications ---
+        winner = await sync_to_async(WinConditionService.check_win_condition)(game)
+        if winner:
+            await asyncio.sleep(2.5)
+            await sync_to_async(GameService.finish_game)(game, winner)
+            await _announce_game_winner(game, winner, bot)
+            return
 
         await asyncio.sleep(2)
 
@@ -1275,38 +1270,6 @@ async def _announce_game_winner(game: Game, winner: str, bot: Bot, story_lines: 
         lambda: list(game.players.all().select_related('role'))
     )()
 
-    # If story_lines is not provided, compile fallback recent elimination story
-    if not story_lines:
-        dead_players = [p for p in all_players if not p.is_alive]
-        if dead_players:
-            story_lines = []
-            for dp in dead_players:
-                rname = dp.role.name if dp.role else "CITIZEN"
-                icon = role_icon(rname)
-                label = role_label(rname)
-                team_badge = _player_team_badge(dp)
-                m = f'{team_badge}<a href="tg://user?id={dp.telegram_user_id}">{html.escape(dp.display_name)}</a>'
-                reason = getattr(dp, 'eliminated_reason', '') or ''
-                if 'LEFT' in reason:
-                    story_lines.append(f"🚪 {m} o'yinni tark etdi. (U: {icon} {label} edi)")
-                elif 'AFK' in reason:
-                    story_lines.append(f"💤 {m} AFK tufayli chetlatildi. (U: {icon} {label} edi)")
-                elif 'VOTE' in reason or 'HANG' in reason:
-                    story_lines.append(f"⚖️ {m} osildi. (U: {icon} {label} edi)")
-                elif 'HERO' in reason or 'hero' in reason:
-                    story_lines.append(f"🥷 {m} Geroy zarbasidan halok bo'ldi. (U: {icon} {label} edi)")
-                else:
-                    story_lines.append(f"💀 {m} halok bo'ldi. (U: {icon} {label} edi)")
-
-    # 1. Send "So'ngi voqealar:" as a separate message first
-    if story_lines:
-        story_text = "📖 <b>So'ngi voqealar:</b>\n" + "\n".join(story_lines)
-        try:
-            await bot.send_message(game.chat_id, story_text, parse_mode="HTML")
-            await asyncio.sleep(1.2)
-        except Exception:
-            pass
-
     winners = []
     others = []
     for p in all_players:
@@ -1359,9 +1322,6 @@ async def _announce_game_winner(game: Game, winner: str, bot: Bot, story_lines: 
     part_reward_str = f"+{part_coins} 💶" + (f", +{win_diamonds} 💎" if win_diamonds > 0 else "")
 
     lines = []
-    if story_lines:
-        lines.append("📖 <b>So'ngi voqealar:</b>\n" + "\n".join(story_lines) + "\n")
-
     if getattr(game, 'mode', 'CLASSIC') == 'TEAM':
         if winner == 'TEAM_RED':
             lines.append("🏆 🔴 <b>QIZIL JAMOA G'ALABA QOZONDI!</b>\n")

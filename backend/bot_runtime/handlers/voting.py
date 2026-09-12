@@ -461,6 +461,17 @@ async def resolve_hanging(game: Game, bot: Bot, original_msg=None):
                     .replace('{role_name}', label)
                 )
 
+                # Send PM notification to hanged suspect
+                try:
+                    await bot.send_message(
+                        suspect.telegram_user_id,
+                        "⚖️ <b>Kunduzgi ovoz berishda aholi sizga qarshi ovoz berdi va siz dorga osildingiz!</b>\n"
+                        "<i>Siz o'yindan chetlatildingiz. O'yinni kuzatishda davom etishingiz mumkin.</i>",
+                        parse_mode="HTML"
+                    )
+                except Exception:
+                    pass
+
                 # Suidsid mark if hanged
                 if rname in ["SUIDSID", "SUITSID"]:
                     if not suspect.metadata:
@@ -524,10 +535,10 @@ async def resolve_hanging(game: Game, bot: Bot, original_msg=None):
         winner = await sync_to_async(WinConditionService.check_win_condition)(game)
 
         if winner:
+            await asyncio.sleep(2.0)
             await sync_to_async(GameService.finish_game)(game, winner)
             from bot_runtime.handlers.night import _announce_game_winner
-            v_story = [f"⚖️ {suspect_mention} shahar qarori bilan osildi! (U: {icon} {label} edi)"] if will_kill else ["⚖️ Aholi ayblanuvchini afv etdi. Hech kim osilmadi."]
-            await _announce_game_winner(game, winner, bot, story_lines=v_story)
+            await _announce_game_winner(game, winner, bot)
         else:
             await _advance_to_next_night(game, bot, reason="hanging_done")
 
