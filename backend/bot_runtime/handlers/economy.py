@@ -1250,6 +1250,15 @@ async def handle_para_text_commands(message: types.Message, bot: Bot):
     cmd = first_word.lstrip('/!').split('@')[0]
     bot_info = await bot.get_me()
 
+    async def _safe_reply(text_content: str, reply_markup=None):
+        try:
+            return await message.reply(text_content, reply_markup=reply_markup, parse_mode="HTML")
+        except Exception:
+            try:
+                return await message.answer(text_content, reply_markup=reply_markup, parse_mode="HTML")
+            except Exception:
+                return await bot.send_message(message.chat.id, text_content, reply_markup=reply_markup, parse_mode="HTML")
+
     # --- 1. /mypara (Calling partner in group) ---
     if cmd.startswith('mypara'):
         partner = await sync_to_async(CoupleService.get_partner_info)(message.from_user.id)
@@ -1260,17 +1269,17 @@ async def handle_para_text_commands(message: types.Message, bot: Bot):
             p_link = f'<a href="tg://user?id={partner["partner_id"]}">{p_name}</a>'
             
             resp = f"💍 {u_link} o'zining parasi {p_link} ni chaqirmoqda! ❤️"
-            await message.reply(resp, parse_mode="HTML")
+            await _safe_reply(resp)
         else:
             tpl = TextService.get_text('para_no_partner_text', fallback="💔 Sizda hozircha para yo'q.\nBiror foydalanuvchining xabariga reply qilib <code>/para</code> deb yozing!")
-            await message.reply(tpl, parse_mode="HTML")
+            await _safe_reply(tpl)
         return
 
     # --- 2. /dpara (Breaking up / Divorce) ---
     if cmd == 'dpara':
         partner = await sync_to_async(CoupleService.get_partner_info)(message.from_user.id)
         if not partner:
-            await message.reply("❌ Siz hozircha hech kim bilan para emassiz.", parse_mode="HTML")
+            await _safe_reply("❌ Siz hozircha hech kim bilan para emassiz.")
             return
 
         await sync_to_async(CoupleService.break_couple)(message.from_user.id)
@@ -1281,7 +1290,7 @@ async def handle_para_text_commands(message: types.Message, bot: Bot):
         
         tpl = TextService.get_text('para_divorce_text', fallback="💔 {user_name} va {partner_name} endi para emaslar. Ular ajrashishdi!")
         resp = tpl.replace('{user_name}', u_link).replace('{partner_name}', p_link)
-        await message.reply(resp, parse_mode="HTML")
+        await _safe_reply(resp)
 
         # Also notify partner in PM if possible
         try:
@@ -1293,21 +1302,18 @@ async def handle_para_text_commands(message: types.Message, bot: Bot):
     # --- 3. /para (Proposal sent directly to Recipient's PM) ---
     if cmd == 'para':
         if not message.reply_to_message or not message.reply_to_message.from_user:
-            await message.reply(
-                "ℹ️ Para bo'lish uchun biror foydalanuvchining xabariga reply qilib <code>/para</code> deb yozing.",
-                parse_mode="HTML"
-            )
+            await _safe_reply("ℹ️ Para bo'lish uchun biror foydalanuvchining xabariga reply qilib <code>/para</code> deb yozing.")
             return
 
         sender = message.from_user
         recipient = message.reply_to_message.from_user
 
         if sender.id == recipient.id:
-            await message.reply("❌ O'zingiz bilan para bo'la olmaysiz.", parse_mode="HTML")
+            await _safe_reply("❌ O'zingiz bilan para bo'la olmaysiz.")
             return
 
         if recipient.is_bot:
-            await message.reply("❌ Botlar bilan para bo'la olmaysiz.", parse_mode="HTML")
+            await _safe_reply("❌ Botlar bilan para bo'la olmaysiz.")
             return
 
         # Check if sender already has a partner
@@ -1315,10 +1321,7 @@ async def handle_para_text_commands(message: types.Message, bot: Bot):
         if s_partner:
             p_name = html.escape(s_partner['partner_name'])
             p_link = f'<a href="tg://user?id={s_partner["partner_id"]}">{p_name}</a>'
-            await message.reply(
-                f"❌ Siz allaqachon {p_link} bilan parasiz!\nBoshqa kimdir bilan para bo'lish uchun avval <code>/dpara</code> qiling.",
-                parse_mode="HTML"
-            )
+            await _safe_reply(f"❌ Siz allaqachon {p_link} bilan parasiz!\nBoshqa kimdir bilan para bo'lish uchun avval <code>/dpara</code> qiling.")
             return
 
         # Check if recipient already has a partner
@@ -1326,10 +1329,7 @@ async def handle_para_text_commands(message: types.Message, bot: Bot):
         if r_partner:
             r_name = html.escape(recipient.first_name or "Foydalanuvchi")
             r_link = f'<a href="tg://user?id={recipient.id}">{r_name}</a>'
-            await message.reply(
-                f"❌ {r_link} allaqachon boshqa kimdir bilan para bo'lgan!",
-                parse_mode="HTML"
-            )
+            await _safe_reply(f"❌ {r_link} allaqachon boshqa kimdir bilan para bo'lgan!")
             return
 
         s_name = html.escape(sender.first_name or "O'yinchi")
@@ -1356,16 +1356,14 @@ async def handle_para_text_commands(message: types.Message, bot: Bot):
         # Try sending to recipient's PM
         try:
             await bot.send_message(recipient.id, pm_text, reply_markup=kb, parse_mode="HTML")
-            await message.reply(
+            await _safe_reply(
                 f"💍 <b>{s_name}</b> <b>{r_name}</b> ga para bo'lish taklifini yubordi!\n"
-                f"💌 <i>Taklif uning shaxsiy chatiga (lichkasiga) yuborildi.</i>",
-                parse_mode="HTML"
+                f"💌 <i>Taklif uning shaxsiy chatiga (lichkasiga) yuborildi.</i>"
             )
         except Exception as pm_err:
-            await message.reply(
+            await _safe_reply(
                 f"⚠️ <b>{r_name}</b> hali botga shaxsiy chatda start bosmagan.\n"
-                f"Unga taklif yetib borishi uchun u avval @{bot_info.username} ga kirib <b>/start</b> bosishi kerak!",
-                parse_mode="HTML"
+                f"Unga taklif yetib borishi uchun u avval @{bot_info.username} ga kirib <b>/start</b> bosishi kerak!"
             )
         return
 
