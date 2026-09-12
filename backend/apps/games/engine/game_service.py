@@ -370,28 +370,6 @@ class GameService:
         except Exception as e:
             logger.warning(f"Could not update phase_ends_at for Game #{game.id}: {e}")
 
-        game_id_str = str(game.id)
-        round_num = game.round_number
-
-        def _fire_task():
-            try:
-                import os
-                from django.conf import settings
-                broker = getattr(settings, 'CELERY_BROKER_URL', '')
-                if broker and broker.startswith('redis') and not os.environ.get('DISABLE_CELERY'):
-                    from apps.games.tasks import auto_advance_phase_task
-                    auto_advance_phase_task.apply_async(
-                        args=[game_id_str, phase, round_num],
-                        countdown=duration_seconds,
-                        retry=False,
-                        ignore_result=True
-                    )
-            except Exception:
-                pass
-
-        t = threading.Thread(target=_fire_task, daemon=True)
-        t.start()
-
     @classmethod
     def _get_phase_duration(cls, game: Game, phase: str) -> int:
         """Returns duration (seconds) for a phase from snapshot or sane defaults."""

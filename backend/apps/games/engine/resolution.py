@@ -247,13 +247,14 @@ class GameResolutionService:
                         and target_p.id not in advokat_protected_ids
                         and not has_fake_doc
                     )
+                    role_to_show = 'CITIZEN' if (has_fake_doc or target_p.id in advokat_protected_ids) else (target_p.role.name if target_p.role else 'CITIZEN')
                     investigation_results.append({
                         'actor_id': dc.actor_id,
                         'detective_user_id': dc.actor.telegram_user_id,
                         'target_id': target_p.id,
                         'target_display_name': target_p.display_name,
                         'is_mafia': is_mafia_role,
-                        'role_name': target_p.role.name if target_p.role and not has_fake_doc else 'CITIZEN',
+                        'role_name': role_to_show,
                     })
 
             # -------------------------------------------------------------

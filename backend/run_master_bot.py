@@ -24,12 +24,51 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(level
 logger = logging.getLogger(__name__)
 
 
+async def resume_active_games_on_startup(master_bot: Bot):
+    """
+    Resumes active in-flight games on bot startup so games seamlessly continue without freezing.
+    """
+    from apps.games.models import Game, GamePhase
+    from bot_runtime.handlers.night import start_night_timer, advance_night_to_day
+    from bot_runtime.handlers.voting import auto_close_voting
+
+    try:
+        active_games = await sync_to_async(lambda: list(
+            Game.objects.filter(
+                phase__in=[GamePhase.NIGHT, GamePhase.DAY, GamePhase.DISCUSSION, GamePhase.VOTING]
+            ).select_related('bot', 'bot__credential')
+        ))()
+
+        for g in active_games:
+            try:
+                game_bot = BotRuntimeManager.get_bot_for_game(g, master_bot)
+                gid = str(g.id)
+                if g.phase == GamePhase.NIGHT:
+                    logger.info(f"🔄 Resuming NIGHT phase for Game {gid} in Chat {g.chat_id}")
+                    start_night_timer(gid, game_bot)
+                elif g.phase in [GamePhase.DAY, GamePhase.DISCUSSION]:
+                    logger.info(f"🔄 Resuming DAY phase for Game {gid} in Chat {g.chat_id}")
+                    asyncio.create_task(advance_night_to_day(g, game_bot))
+                elif g.phase == GamePhase.VOTING:
+                    logger.info(f"🔄 Resuming VOTING phase for Game {gid} in Chat {g.chat_id}")
+                    async def _delayed_close(game_obj, b_obj):
+                        await asyncio.sleep(10)
+                        await auto_close_voting(game_obj, b_obj)
+                    asyncio.create_task(_delayed_close(g, game_bot))
+            except Exception as res_err:
+                logger.warning(f"Error resuming Game {g.id}: {res_err}")
+
+    except Exception as e:
+        logger.warning(f"Error in resume_active_games_on_startup: {e}")
+
+
 async def periodic_game_watchdog(master_bot: Bot):
     """
     Continuous self-healing watchdog:
     1. Auto-cancels expired WAITING lobbies.
     2. Auto-advances genuinely stuck NIGHT games that exceed timeout without interfering with active games.
-    3. Auto-closes genuinely stuck VOTING games that exceed timeout without interfering with active games.
+    3. Auto-advances genuinely stuck DAY / DISCUSSION games.
+    4. Auto-closes genuinely stuck VOTING games that exceed timeout without interfering with active games.
     """
     from apps.games.models import Game, GamePhase
     from django.utils import timezone
@@ -74,11 +113,27 @@ async def periodic_game_watchdog(master_bot: Bot):
                 except Exception as ne:
                     logger.exception(f"Watchdog night advance error for game {g.id}: {ne}")
 
-            # 3. Recover genuinely stuck VOTING games (updated_at > 100s ago and not currently closing)
+            # 3. Recover genuinely stuck DAY / DISCUSSION games (updated_at > 60s ago)
+            stuck_day_games = await sync_to_async(lambda: list(
+                Game.objects.filter(
+                    phase__in=[GamePhase.DAY, GamePhase.DISCUSSION],
+                    updated_at__lt=now - timedelta(seconds=60)
+                ).select_related('bot', 'bot__credential')
+            ))()
+            for g in stuck_day_games:
+                gid = str(g.id)
+                logger.warning(f"Watchdog detected stuck DAY/DISCUSSION in game {g.id}. Advancing...")
+                try:
+                    game_bot = BotRuntimeManager.get_bot_for_game(g, master_bot)
+                    await advance_night_to_day(g, game_bot)
+                except Exception as de:
+                    logger.exception(f"Watchdog day advance error for game {g.id}: {de}")
+
+            # 4. Recover genuinely stuck VOTING games (updated_at > 60s ago and not currently closing)
             stuck_voting_games = await sync_to_async(lambda: list(
                 Game.objects.filter(
                     phase=GamePhase.VOTING,
-                    updated_at__lt=now - timedelta(seconds=100)
+                    updated_at__lt=now - timedelta(seconds=60)
                 ).select_related('bot', 'bot__credential')
             ))()
             for g in stuck_voting_games:
@@ -159,6 +214,9 @@ async def main():
         return
 
     dp = create_master_dispatcher()
+
+    # Resume all active games so existing games seamlessly continue from where they left off
+    await resume_active_games_on_startup(bot)
 
     # Start background watchdog & dynamic bot synchronization tasks
     asyncio.create_task(periodic_game_watchdog(bot))

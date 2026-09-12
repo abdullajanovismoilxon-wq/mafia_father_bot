@@ -38,11 +38,13 @@ from bot_runtime.keyboards.inline import (
 logger = logging.getLogger(__name__)
 router = Router(name="voting_router")
 
-# In-memory hanging confirmation
+# In-memory hanging confirmation and idempotency tracking
 # HANGING_VOTES[game_id] = {kill, save, voters, target, message}
 HANGING_VOTES: dict = {}
 HANGING_TASKS: dict = {}
 CLOSING_VOTING_GAMES: set = set()
+CLOSED_VOTING_ROUNDS: set = set()
+RESOLVED_HANGING_ROUNDS: set = set()
 
 
 # ---------------------------------------------------------------------------
@@ -260,9 +262,13 @@ async def handle_hanging_callback(callback: CallbackQuery, bot: Bot):
 async def auto_close_voting(game: Game, bot: Bot):
     """Tallies votes, announces result, starts hanging confirmation."""
     game_id = str(game.id)
-    if game_id in CLOSING_VOTING_GAMES or game_id in HANGING_VOTES:
-        logger.info(f"Game {game_id} is already closing voting or hanging prompt is active.")
+    round_num = game.round_number
+    round_key = (game_id, round_num)
+
+    if round_key in CLOSED_VOTING_ROUNDS or game_id in CLOSING_VOTING_GAMES or game_id in HANGING_VOTES:
+        logger.info(f"Game {game_id} round {round_num} is already closing voting or hanging prompt is active.")
         return
+    CLOSED_VOTING_ROUNDS.add(round_key)
     CLOSING_VOTING_GAMES.add(game_id)
     try:
         from bot_runtime.manager import BotRuntimeManager
@@ -392,11 +398,23 @@ async def _hanging_timer(game_id: str, bot: Bot, original_msg=None):
 async def resolve_hanging(game: Game, bot: Bot, original_msg=None):
     """Resolves hanging: eliminates or saves, then win-check → next night."""
     game_id = str(game.id)
+    round_num = game.round_number
+    round_key = (game_id, round_num)
+
+    if round_key in RESOLVED_HANGING_ROUNDS:
+        logger.info(f"Hanging for game {game_id} round {round_num} already resolved.")
+        return
+    RESOLVED_HANGING_ROUNDS.add(round_key)
+
     try:
         from bot_runtime.manager import BotRuntimeManager
         bot = BotRuntimeManager.get_bot_for_game(game, bot)
 
         h_data = HANGING_VOTES.pop(game_id, None)
+        task = HANGING_TASKS.pop(game_id, None)
+        if task and not task.done():
+            task.cancel()
+
         if not h_data:
             return
 
@@ -571,9 +589,10 @@ async def _advance_to_next_night(game: Game, bot: Bot, reason: str = ""):
         game = await sync_to_async(Game.objects.select_related('bot').get)(id=game.id)
 
         game.phase = GamePhase.NIGHT
+        game.status = GamePhase.NIGHT
         game.round_number += 1
         game.updated_at = timezone.now()
-        await sync_to_async(game.save)(update_fields=['phase', 'round_number', 'updated_at'])
+        await sync_to_async(game.save)(update_fields=['phase', 'status', 'round_number', 'updated_at'])
 
         round_num = game.round_number
         bot_username = "mafia_bot"
@@ -621,6 +640,10 @@ async def _advance_to_next_night(game: Game, bot: Bot, reason: str = ""):
             )
         except Exception as na_err:
             logger.warning(f"Night animation error: {na_err}")
+
+        # Start next night timer immediately
+        from bot_runtime.handlers.night import start_night_timer
+        start_night_timer(game_id, bot, duration=n_dur)
 
         living_players = await sync_to_async(
             lambda: list(game.players.filter(is_alive=True).select_related('role'))
@@ -760,10 +783,6 @@ async def _advance_to_next_night(game: Game, bot: Bot, reason: str = ""):
                 logger.warning(f"Night PM to {player.telegram_user_id} failed: {pm_err}")
 
         await asyncio.gather(*[_send_next_night_prompt(p) for p in living_players], return_exceptions=True)
-
-        if game.phase == GamePhase.NIGHT and game.status not in ['FINISHED', 'CANCELED']:
-            from bot_runtime.handlers.night import start_night_timer
-            start_night_timer(game_id, bot, duration=n_dur)
 
     except Exception as e:
         logger.exception(f"Error in _advance_to_next_night: {e}")

@@ -228,15 +228,29 @@ async def _expire_last_words(user_id: int):
 # ---------------------------------------------------------------------------
 
 async def run_night_timer(game_id: str, bot: Any, night_duration: int = 60):
-    """Waits night_duration seconds then advances Night → Dawn."""
+    """Waits night_duration seconds (respecting custom GroupCabinet setting) then advances Night → Dawn."""
     try:
+        # Dynamically fetch group-level custom duration if game exists
+        try:
+            g = await sync_to_async(lambda: Game.objects.select_related('bot').filter(id=game_id).first())()
+            if g:
+                from apps.superadmin.services import SettingService
+                bot_id_str = str(g.bot_id) if getattr(g, 'bot_id', None) else ''
+                night_duration = await sync_to_async(SettingService.get_group_or_bot_timing)(
+                    g.chat_id, bot_id_str, 'night_duration', int(night_duration) if night_duration else 60
+                )
+        except Exception:
+            pass
+
         if not isinstance(night_duration, (int, float)):
             try:
                 night_duration = int(night_duration)
             except Exception:
                 night_duration = 60
 
+        logger.info(f"⏳ Running night timer for game {game_id}: {night_duration}s")
         await asyncio.sleep(night_duration)
+
         game = await sync_to_async(
             lambda: Game.objects.select_related('bot').get(id=game_id)
         )()
@@ -1073,11 +1087,15 @@ async def advance_night_to_day(game: Game, bot: Bot):
                         target_name = tp.display_name
                 target_name = target_name or "Gumonlanuvchi"
 
-                faction = "🔴 MAFIA" if inv.get('is_mafia') else "🟢 Tinch aholi"
+                rname = inv.get('role_name', 'CITIZEN')
+                r_icon = role_icon(rname)
+                r_label = role_label(rname)
+                role_display = f"{r_icon} {r_label}".strip() if r_icon else r_label
+
                 inv_text = (
                     f"🕵🏻‍♂️ <b>Tekshiruv natijasi:</b>\n\n"
                     f"Tekshirilgan: <b>{html.escape(target_name)}</b>\n"
-                    f"Jamoa: <b>{faction}</b>"
+                    f"Roli: <b>{html.escape(role_display)}</b>"
                 )
                 if det_uid:
                     await bot.send_message(det_uid, inv_text, parse_mode="HTML")
@@ -1095,7 +1113,7 @@ async def advance_night_to_day(game: Game, bot: Bot):
                         serj_text = (
                             f"👮🏼‍♂️ <b>Komissar tekshiruvi natijasi:</b>\n\n"
                             f"Tekshirilgan: <b>{html.escape(target_name)}</b>\n"
-                            f"Jamoa: <b>{faction}</b>"
+                            f"Roli: <b>{html.escape(role_display)}</b>"
                         )
                         await bot.send_message(sp.telegram_user_id, serj_text, parse_mode="HTML")
                     except Exception:
@@ -1147,7 +1165,7 @@ async def advance_night_to_day(game: Game, bot: Bot):
 
         # --- Wait configured seconds then start voting ---
         bot_id_str = str(game.bot_id) if game and getattr(game, 'bot_id', None) else ''
-        dawn_wait = await sync_to_async(SettingService.get_bot_timing)(bot_id_str, 'dawn_wait_duration', 15)
+        dawn_wait = await sync_to_async(SettingService.get_group_or_bot_timing)(game.chat_id, bot_id_str, 'dawn_wait_duration', 15)
         await asyncio.sleep(dawn_wait)
 
         # Refresh game state after dawn wait
@@ -1173,7 +1191,7 @@ async def advance_night_to_day(game: Game, bot: Bot):
 
         game = await sync_to_async(Game.objects.select_related('bot').get)(id=game_id)
 
-        voting_duration = await sync_to_async(SettingService.get_bot_timing)(bot_id_str, 'voting_duration', 20)
+        voting_duration = await sync_to_async(SettingService.get_group_or_bot_timing)(game.chat_id, bot_id_str, 'voting_duration', 20)
         try:
             await bot.send_message(
                 game.chat_id,
