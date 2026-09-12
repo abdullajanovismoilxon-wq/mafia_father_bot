@@ -650,6 +650,15 @@ class GameResolutionService:
                 'robbery_logs': robbery_logs,
                 'afk_eliminated_players': afk_eliminated,
                 'afk_eliminated': afk_eliminated,
+                'doctor_actions_results': [
+                    {
+                        'doctor_user_id': a.actor.telegram_user_id,
+                        'target_id': a.target_id,
+                        'target_name': a.target.display_name if a.target else "O'yinchi",
+                        'is_saved': a.target_id in protected_hits_set
+                    }
+                    for a in doctor_protects if a.actor and a.target
+                ],
             }
 
     @classmethod

@@ -50,9 +50,10 @@ LAST_WORDS_PENDING: dict = {}
 GAME_ID_MAP: dict = {}
 PLAYER_ID_MAP: dict = {}
 JOKER_TEMP_BOXES: dict = {}  # {game_id: {user_id: [1, 2]}}
+VOTING_TASKS: dict = {}
 
 ROLE_ICONS = {
-    "DON": "👨‍💼",
+    "DON": "🤵🏻",
     "MAFIA": "👨‍🦱",
     "DOCTOR": "👨‍⚕️",
     "SHIFOKOR": "👨‍⚕️",
@@ -791,14 +792,28 @@ async def advance_night_to_day(game: Game, bot: Bot):
         living_players = [p for p in all_players if p.is_alive]
         _register_ids(game_id, living_players)
 
+        if len(living_players) == 0:
+            logger.info(f"All players eliminated at night in game {game_id}.")
+            try:
+                await bot.send_message(
+                    game.chat_id,
+                    "💀 <b>O'yin yakunlandi!</b>\n\nBarcha o'yinchilar halok bo'ldi. Hech kim g'alaba qozonmadi.",
+                    parse_mode="HTML"
+                )
+            except Exception:
+                pass
+            await sync_to_async(GameService.finish_game)(game, winner=None)
+            return
+
         living_lines = "\n".join([
             f'{all_players.index(p) + 1}. {_player_team_badge(p)}<a href="tg://user?id={p.telegram_user_id}">{html.escape(p.display_name)}</a>'
             for p in living_players
         ])
 
-        civilians_roles = []
-        mafias_roles = []
-        solos_roles = []
+        from collections import Counter
+        civilians_roles = Counter()
+        mafias_roles = Counter()
+        solos_roles = Counter()
 
         for p in living_players:
             if p.role:
@@ -809,27 +824,37 @@ async def advance_night_to_day(game: Game, bot: Bot):
                 role_str = f"{r_icon} {r_name}"
 
                 if r_team == 'MAFIA' or r_code in ['don', 'mafia', 'advokat', 'ubiytsa', 'jurnalist', 'aygoqchi', 'laborant']:
-                    mafias_roles.append(role_str)
+                    mafias_roles[role_str] += 1
                 elif r_team in ['SOLO', 'NEUTRAL', 'ZOMBIE'] or r_code in [
                     'qotil', 'kimyogar', 'rais', 'bori', 'aferist', 'gazabkor', 'sehrgar',
                     'konchi', 'qaroqchi', 'qorbobo', 'oshpaz', 'afsungar', 'tuzoqchi',
                     'axmoq', 'buqalamun', 'joker', 'suidsid', 'suitsid', 'zombi', 'maniak', 'koldun'
                 ]:
-                    solos_roles.append(role_str)
+                    solos_roles[role_str] += 1
                 else:
-                    civilians_roles.append(role_str)
+                    civilians_roles[role_str] += 1
             else:
-                civilians_roles.append("👨🏼 Tinch aholi")
+                civilians_roles["👨🏼 Tinch aholi"] += 1
+
+        def _format_faction_line(faction_title: str, role_counter: Counter) -> str:
+            total = sum(role_counter.values())
+            items = []
+            for r_str, cnt in role_counter.items():
+                if cnt > 1:
+                    items.append(f"{r_str} ({cnt})")
+                else:
+                    items.append(f"{r_str}")
+            return f"{faction_title} ({total}): {', '.join(items)}"
 
         group_parts = []
         if civilians_roles:
-            group_parts.append(f"🟢 <b>Tinch aholi:</b> {', '.join(civilians_roles)}")
+            group_parts.append(_format_faction_line("🟢 Tinch aholi", civilians_roles))
         if mafias_roles:
-            group_parts.append(f"🔴 <b>Mafia:</b> {', '.join(mafias_roles)}")
+            group_parts.append(_format_faction_line("🔴 Mafia", mafias_roles))
         if solos_roles:
-            group_parts.append(f"🟡 <b>Yakkalar:</b> {', '.join(solos_roles)}")
+            group_parts.append(_format_faction_line("🟡 Yakkalar", solos_roles))
 
-        living_roles_str = "\n".join(group_parts) if group_parts else "Yo'q"
+        living_roles_str = "\n\n".join(group_parts) if group_parts else "Yo'q"
 
         bot_username = "mafia_bot"
         try:
@@ -895,6 +920,21 @@ async def advance_night_to_day(game: Game, bot: Bot):
                     )
             except Exception as inv_err:
                 logger.warning(f"Investigation result delivery error: {inv_err}")
+
+        # --- Send Doctor Healing Results ---
+        doc_results = night_result.get('doctor_actions_results', [])
+        for doc in doc_results:
+            try:
+                doc_uid = doc.get('doctor_user_id')
+                t_name = html.escape(doc.get('target_name', "O'yinchi"))
+                if doc_uid:
+                    if doc.get('is_saved'):
+                        doc_text = f"✅ Siz <b>{t_name}</b> ni o'limdan qutqarib qoldingiz!"
+                    else:
+                        doc_text = f"ℹ️ Siz <b>{t_name}</b> ni qutqarib qola olmadingiz."
+                    await bot.send_message(doc_uid, doc_text, parse_mode="HTML")
+            except Exception as doc_err:
+                logger.warning(f"Doctor result delivery error: {doc_err}")
 
         # --- Send Dawn Hero Prompts (Don / Komissar with active Hero) ---
         from apps.economy.models import PlayerHero
@@ -999,7 +1039,7 @@ async def advance_night_to_day(game: Game, bot: Bot):
             except Exception as v_err:
                 logger.warning(f"Voting auto-close error: {v_err}")
 
-        asyncio.create_task(_voting_countdown())
+        VOTING_TASKS[game_id] = asyncio.create_task(_voting_countdown())
 
     except Exception as e:
         logger.exception(f"Error in advance_night_to_day for game {game_id}: {e}")
@@ -1068,9 +1108,20 @@ async def _announce_game_winner(game: Game, winner: str, bot: Bot, story_lines: 
         elif winner == 'TEAM_BLUE':
             lines = ["🏆 🔵 <b>KO'K JAMOA G'ALABA QOZONDI!</b>\n"]
         else:
-            lines = ["🏆 <b>O'yin tugadi!</b>\n"]
+            lines = ["💀 <b>O'YIN YAKUNLANDI!</b>\n\nBarcha o'yinchilar halok bo'ldi. Hech kim g'alaba qozonmadi.\n"]
     else:
-        lines = ["🏆 <b>O'yin tugadi!</b>\n"]
+        if winner in ['ALL_DEAD', 'DRAW', None] or not winners:
+            lines = ["💀 <b>O'YIN YAKUNLANDI!</b>\n\nBarcha o'yinchilar halok bo'ldi. Hech bir jamoa g'alaba qozona olmadi.\n"]
+        elif winner in [RoleTeam.CIVILIAN, 'CIVILIAN']:
+            lines = ["🏆 🟢 <b>TINCH AHOLI G'ALABA QOZONDI!</b>\n\nBarcha xavfli dushmanlar yo'q qilindi.\n"]
+        elif winner in [RoleTeam.MAFIA, 'MAFIA']:
+            lines = ["🏆 🔴 <b>MAFIYA G'ALABA QOZONDI!</b>\n\nShahar butunlay mafiya qo'liga o'tdi.\n"]
+        elif winner in [RoleTeam.ZOMBIE, 'ZOMBIE']:
+            lines = ["🏆 🧟 <b>ZOMBILAR G'ALABA QOZONDI!</b>\n\nBarcha tiriklar zombiga aylandi.\n"]
+        elif winner in [RoleTeam.SOLO, 'SOLO']:
+            lines = ["🏆 🔪 <b>YAKKA QOTIL G'ALABA QOZONDI!</b>\n\nBarcha raqiblarini yo'q qildi.\n"]
+        else:
+            lines = ["🏆 <b>O'yin tugadi!</b>\n"]
 
     winner_places_map = {}
     if winners:

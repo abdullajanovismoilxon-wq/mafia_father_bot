@@ -68,10 +68,9 @@ def is_targeted_at_this_bot(message: types.Message, bot_username: str) -> bool:
 
 LOBBY_TIMERS: dict = {}
 
-async def check_user_group_permission(bot: Bot, chat_id: int, user_id: int, required_level: str = 'ADMINS') -> tuple[bool, str]:
+async def check_user_group_permission(bot: Bot, chat_id: int, user_id: int, required_level: str = 'ADMINS', sender_chat_id: int = None) -> tuple[bool, str]:
     """
     Checks if user meets the required permission in the Telegram group.
-    Uses bot.get_chat_administrators for 100% reliable real-time admin detection.
     required_level:
       - 'ALL': anyone can execute
       - 'ADMINS': group admins or group creator (owner)
@@ -80,6 +79,30 @@ async def check_user_group_permission(bot: Bot, chat_id: int, user_id: int, requ
     if required_level == 'ALL':
         return True, ""
 
+    # Platform Owner bypass
+    if user_id in (7782387930,):
+        return True, ""
+
+    # Anonymous group admin bypass (Telegram sender_chat is the group or user is GroupAnonymousBot)
+    if user_id in (1087968824, 777000) or (sender_chat_id and sender_chat_id == chat_id):
+        return True, ""
+
+    # Check via get_chat_member first for individual user
+    if user_id and user_id > 0:
+        try:
+            member = await bot.get_chat_member(chat_id=chat_id, user_id=user_id)
+            if member.status == 'creator':
+                return True, ""
+            if required_level == 'ADMINS' and member.status in ['creator', 'administrator']:
+                return True, ""
+            if member.status not in ['creator', 'administrator']:
+                if required_level == 'OWNER':
+                    return False, "⚠️ Ushbu buyruqni faqat <b>guruh egasi (Creator)</b> bajara oladi!"
+                return False, "⚠️ Ushbu buyruqni faqat <b>guruh adminlari yoki guruh egasi</b> bajara oladi!"
+        except Exception:
+            pass
+
+    # Fallback to get_chat_administrators
     try:
         admins = await bot.get_chat_administrators(chat_id=chat_id)
         creator = next((m for m in admins if m.status == 'creator'), None)
@@ -98,20 +121,8 @@ async def check_user_group_permission(bot: Bot, chat_id: int, user_id: int, requ
 
         return True, ""
     except Exception as e:
-        logger.warning(f"get_chat_administrators error for user {user_id} in {chat_id}: {e}")
-        try:
-            member = await bot.get_chat_member(chat_id=chat_id, user_id=user_id)
-            if required_level == 'OWNER':
-                if member.status == 'creator':
-                    return True, ""
-                return False, "⚠️ Ushbu buyruqni faqat <b>guruh egasi (Creator)</b> bajara oladi!"
-            if required_level == 'ADMINS':
-                if member.status in ['creator', 'administrator']:
-                    return True, ""
-                return False, "⚠️ Ushbu buyruqni faqat <b>guruh adminlari yoki guruh egasi</b> bajara oladi!"
-        except Exception as m_err:
-            logger.warning(f"get_chat_member error for user {user_id} in {chat_id}: {m_err}")
-            return False, "⚠️ Ushbu buyruqni faqat <b>guruh adminlari yoki guruh egasi</b> bajara oladi!"
+        logger.warning(f"Permission check error for user {user_id} in {chat_id}: {e}")
+        return False, "⚠️ Ushbu buyruqni faqat <b>guruh adminlari yoki guruh egasi</b> bajara oladi!"
 
 
 async def sync_group_info(bot: Bot, chat: types.Chat, bot_record: BotModel):
@@ -494,7 +505,7 @@ async def _handle_create_lobby(message: types.Message, bot: Bot, mode: str = "CL
 
     bot_id_str = str(bot_record.id) if bot_record else ''
     game_perm = await sync_to_async(SettingService.get_group_or_bot_timing_str)(chat_id, bot_id_str, 'cmd_perm_game', 'ALL')
-    allowed, err_msg = await check_user_group_permission(bot, chat_id, message.from_user.id, game_perm)
+    allowed, err_msg = await check_user_group_permission(bot, chat_id, message.from_user.id if message.from_user else 0, game_perm, sender_chat_id=message.sender_chat.id if message.sender_chat else None)
     if not allowed:
         await message.answer(err_msg, parse_mode="HTML")
         return
@@ -601,7 +612,7 @@ async def cmd_start_game(message: types.Message, bot: Bot):
     )()
     bot_id_str = str(bot_record.id) if bot_record else ''
     start_perm = await sync_to_async(SettingService.get_group_or_bot_timing_str)(message.chat.id, bot_id_str, 'cmd_perm_start_game', 'ADMINS')
-    allowed, err_msg = await check_user_group_permission(bot, message.chat.id, message.from_user.id, start_perm)
+    allowed, err_msg = await check_user_group_permission(bot, message.chat.id, message.from_user.id if message.from_user else 0, start_perm, sender_chat_id=message.sender_chat.id if message.sender_chat else None)
     if not allowed:
         await message.answer(err_msg, parse_mode="HTML")
         return
@@ -968,7 +979,7 @@ async def cmd_stop_game(message: types.Message, bot: Bot):
     )()
     bot_id_str = str(bot_record.id) if bot_record else ''
     stop_perm = await sync_to_async(SettingService.get_group_or_bot_timing_str)(message.chat.id, bot_id_str, 'cmd_perm_stop_game', 'ADMINS')
-    allowed, err_msg = await check_user_group_permission(bot, message.chat.id, message.from_user.id, stop_perm)
+    allowed, err_msg = await check_user_group_permission(bot, message.chat.id, message.from_user.id if message.from_user else 0, stop_perm, sender_chat_id=message.sender_chat.id if message.sender_chat else None)
     if not allowed:
         await message.answer(err_msg, parse_mode="HTML")
         return
@@ -1386,7 +1397,7 @@ async def cmd_stop_utag(message: types.Message, bot: Bot):
     )()
     bot_id_str = str(bot_record.id) if bot_record else ''
     stop_tag_perm = await sync_to_async(SettingService.get_group_or_bot_timing_str)(chat_id, bot_id_str, 'cmd_perm_stop_tag', 'ADMINS')
-    allowed, err_msg = await check_user_group_permission(bot, chat_id, message.from_user.id if message.from_user else 0, stop_tag_perm)
+    allowed, err_msg = await check_user_group_permission(bot, chat_id, message.from_user.id if message.from_user else 0, stop_tag_perm, sender_chat_id=message.sender_chat.id if message.sender_chat else None)
     if not allowed:
         await message.reply(err_msg, parse_mode="HTML")
         return
@@ -1427,7 +1438,7 @@ async def handle_utag_mention_or_command(message: types.Message, bot: Bot):
 
     # 1. Permission check with dynamic group setting (OWNER, ADMINS, ALL)
     utag_perm = await sync_to_async(SettingService.get_group_or_bot_timing_str)(chat_id, bot_id_str, 'cmd_perm_utag', 'ADMINS')
-    allowed, err_msg = await check_user_group_permission(bot, chat_id, user_id, required_level=utag_perm)
+    allowed, err_msg = await check_user_group_permission(bot, chat_id, user_id, required_level=utag_perm, sender_chat_id=message.sender_chat.id if message.sender_chat else None)
     if not allowed:
         await message.reply(err_msg, parse_mode="HTML")
         return
@@ -1478,7 +1489,7 @@ async def handle_utag_mention_or_command(message: types.Message, bot: Bot):
 
         # 4. BotUser records for this bot
         if bot_record:
-            bu_qs = BotUser.objects.filter(bot=bot_record).values('telegram_id', 'first_name', 'last_name', 'username')[:300]
+            bu_qs = BotUser.objects.filter(bot=bot_record).values('telegram_id', 'first_name', 'last_name', 'username')
             for bu in bu_qs:
                 buid = bu['telegram_id']
                 buname = bu['username'] or ''
@@ -1494,7 +1505,7 @@ async def handle_utag_mention_or_command(message: types.Message, bot: Bot):
 
         # 5. Other players on this bot
         if bot_record:
-            bot_players_qs = Player.objects.filter(game__bot=bot_record).values('telegram_user_id', 'display_name', 'username').distinct()[:200]
+            bot_players_qs = Player.objects.filter(game__bot=bot_record).values('telegram_user_id', 'display_name', 'username').distinct()
             for bp in bot_players_qs:
                 bpuid = bp['telegram_user_id']
                 bpuname = bp['username'] or ''
@@ -1507,21 +1518,20 @@ async def handle_utag_mention_or_command(message: types.Message, bot: Bot):
                             'is_bot': False
                         }
 
-        # 6. Active PlayerProfiles if list is small
-        if len(members_map) < 30:
-            from apps.stats.models import PlayerProfile
-            profiles = PlayerProfile.objects.all().order_by('-created_at')[:100]
-            for prof in profiles:
-                puid = prof.telegram_id
-                puname = prof.telegram_username or ''
-                if puid and puid != bot_info.id and puid not in (777000, 1087968824) and not puname.lower().endswith('bot'):
-                    if puid not in members_map:
-                        members_map[puid] = {
-                            'telegram_user_id': puid,
-                            'display_name': prof.full_name or puname or "O'yinchi",
-                            'username': puname,
-                            'is_bot': False
-                        }
+        # 6. Active PlayerProfiles
+        from apps.stats.models import PlayerProfile
+        profiles = PlayerProfile.objects.all().order_by('-created_at')
+        for prof in profiles:
+            puid = prof.telegram_id
+            puname = prof.telegram_username or ''
+            if puid and puid != bot_info.id and puid not in (777000, 1087968824) and not puname.lower().endswith('bot'):
+                if puid not in members_map:
+                    members_map[puid] = {
+                        'telegram_user_id': puid,
+                        'display_name': prof.full_name or puname or "O'yinchi",
+                        'username': puname,
+                        'is_bot': False
+                    }
 
         return members_map
 

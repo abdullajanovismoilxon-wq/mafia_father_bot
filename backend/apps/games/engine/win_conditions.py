@@ -19,6 +19,8 @@ class WinConditionService:
         alive_players = list(Player.objects.filter(game=game, is_alive=True).select_related('role'))
 
         if not alive_players:
+            if Player.objects.filter(game=game).exists():
+                return 'ALL_DEAD'
             return None
 
         # TEAM Mode Win Condition: Last surviving team (RED vs BLUE) wins!

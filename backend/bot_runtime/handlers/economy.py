@@ -986,28 +986,38 @@ async def handle_child_back_to_start(callback: types.CallbackQuery):
 # ---------------------------------------------------------------------------
 
 @router.message(Command("money"))
-async def cmd_transfer_money(message: types.Message):
+async def cmd_transfer_money(message: types.Message, bot: Bot = None):
     """Transfers virtual dollars between players in group (reply). 3% fee (0% for VIP)."""
     import html
     from apps.superadmin.services import TextService
+    bot_inst = bot or message.bot
     args = message.text.split()
     if len(args) < 2 or not message.reply_to_message:
         usage_msg = TextService.get_text(
             'transfer_money_usage',
             fallback="ℹ️ O'tkazmoqchi bo'lgan o'yinchining xabariga reply qilib <code>/money &lt;summa&gt;</code> yozing."
         )
-        await message.reply(usage_msg, parse_mode="HTML")
+        try:
+            await bot_inst.send_message(message.chat.id, usage_msg, parse_mode="HTML")
+        except Exception:
+            pass
         return
 
     try:
         gross_amount = int(args[1])
         if gross_amount <= 0:
             invalid_msg = TextService.get_text('transfer_invalid_amount', fallback="❌ O'tkazma summasi 0 dan katta bo'lishi kerak.")
-            await message.reply(invalid_msg, parse_mode="HTML")
+            try:
+                await bot_inst.send_message(message.chat.id, invalid_msg, parse_mode="HTML")
+            except Exception:
+                pass
             return
     except Exception:
         invalid_msg = TextService.get_text('transfer_invalid_amount', fallback="❌ Noto'g'ri summa kiritildi.")
-        await message.reply(invalid_msg, parse_mode="HTML")
+        try:
+            await bot_inst.send_message(message.chat.id, invalid_msg, parse_mode="HTML")
+        except Exception:
+            pass
         return
 
     recipient = message.reply_to_message.from_user
@@ -1015,7 +1025,10 @@ async def cmd_transfer_money(message: types.Message):
 
     if recipient.id == sender.id:
         self_err = TextService.get_text('transfer_self_error', fallback="❌ O'z-o'zingizga pul o'tkaza olmaysiz.")
-        await message.reply(self_err, parse_mode="HTML")
+        try:
+            await bot_inst.send_message(message.chat.id, self_err, parse_mode="HTML")
+        except Exception:
+            pass
         return
 
     sender_wallet = await sync_to_async(EconomyService.get_or_create_wallet)(telegram_id=sender.id)
@@ -1025,7 +1038,10 @@ async def cmd_transfer_money(message: types.Message):
     is_owner = sender_profile.is_platform_owner
     if not is_owner and sender_wallet.coins < gross_amount:
         no_funds = TextService.get_text('transfer_insufficient_funds', fallback="❌ Hisobingizda mablag' yetarli emas.")
-        await message.reply(no_funds, parse_mode="HTML")
+        try:
+            await bot_inst.send_message(message.chat.id, no_funds, parse_mode="HTML")
+        except Exception:
+            pass
         return
 
     # Check VIP for commission
@@ -1064,32 +1080,57 @@ async def cmd_transfer_money(message: types.Message):
         '{amount}', str(gross_amount)
     )
 
-    await message.reply(result_text, parse_mode="HTML")
+    reply_target_id = message.reply_to_message.message_id if message.reply_to_message else None
+    try:
+        if reply_target_id:
+            await bot_inst.send_message(
+                message.chat.id,
+                result_text,
+                parse_mode="HTML",
+                reply_parameters=types.ReplyParameters(message_id=reply_target_id)
+            )
+        else:
+            await bot_inst.send_message(message.chat.id, result_text, parse_mode="HTML")
+    except Exception:
+        try:
+            await bot_inst.send_message(message.chat.id, result_text, parse_mode="HTML")
+        except Exception as e:
+            logger.warning(f"Error sending /money transfer message: {e}")
 
 
 @router.message(Command("give"))
-async def cmd_transfer_diamonds(message: types.Message):
+async def cmd_transfer_diamonds(message: types.Message, bot: Bot = None):
     """Transfers diamonds between players in group (reply). 3% fee (0% for VIP)."""
     import html
     from apps.superadmin.services import TextService
+    bot_inst = bot or message.bot
     args = message.text.split()
     if len(args) < 2 or not message.reply_to_message:
         usage_msg = TextService.get_text(
             'transfer_diamond_usage',
             fallback="ℹ️ O'tkazmoqchi bo'lgan o'yinchining xabariga reply qilib <code>/give &lt;olmos_soni&gt;</code> yozing."
         )
-        await message.reply(usage_msg, parse_mode="HTML")
+        try:
+            await bot_inst.send_message(message.chat.id, usage_msg, parse_mode="HTML")
+        except Exception:
+            pass
         return
 
     try:
         gross_amount = int(args[1])
         if gross_amount <= 0:
             invalid_msg = TextService.get_text('transfer_invalid_amount', fallback="❌ Olmos miqdori 0 dan katta bo'lishi kerak.")
-            await message.reply(invalid_msg, parse_mode="HTML")
+            try:
+                await bot_inst.send_message(message.chat.id, invalid_msg, parse_mode="HTML")
+            except Exception:
+                pass
             return
     except Exception:
         invalid_msg = TextService.get_text('transfer_invalid_amount', fallback="❌ Noto'g'ri olmos miqdori kiritildi.")
-        await message.reply(invalid_msg, parse_mode="HTML")
+        try:
+            await bot_inst.send_message(message.chat.id, invalid_msg, parse_mode="HTML")
+        except Exception:
+            pass
         return
 
     recipient = message.reply_to_message.from_user
@@ -1097,7 +1138,10 @@ async def cmd_transfer_diamonds(message: types.Message):
 
     if recipient.id == sender.id:
         self_err = TextService.get_text('transfer_self_error', fallback="❌ O'z-o'zingizga olmos o'tkaza olmaysiz.")
-        await message.reply(self_err, parse_mode="HTML")
+        try:
+            await bot_inst.send_message(message.chat.id, self_err, parse_mode="HTML")
+        except Exception:
+            pass
         return
 
     sender_wallet = await sync_to_async(EconomyService.get_or_create_wallet)(telegram_id=sender.id)
@@ -1107,7 +1151,10 @@ async def cmd_transfer_diamonds(message: types.Message):
     is_owner = sender_profile.is_platform_owner
     if not is_owner and sender_wallet.diamonds < gross_amount:
         no_funds = TextService.get_text('transfer_insufficient_funds', fallback="❌ Hisobingizda olmoslar yetarli emas.")
-        await message.reply(no_funds, parse_mode="HTML")
+        try:
+            await bot_inst.send_message(message.chat.id, no_funds, parse_mode="HTML")
+        except Exception:
+            pass
         return
 
     has_vip = await sync_to_async(
@@ -1145,7 +1192,22 @@ async def cmd_transfer_diamonds(message: types.Message):
         '{amount}', str(gross_amount)
     )
 
-    await message.reply(result_text, parse_mode="HTML")
+    reply_target_id = message.reply_to_message.message_id if message.reply_to_message else None
+    try:
+        if reply_target_id:
+            await bot_inst.send_message(
+                message.chat.id,
+                result_text,
+                parse_mode="HTML",
+                reply_parameters=types.ReplyParameters(message_id=reply_target_id)
+            )
+        else:
+            await bot_inst.send_message(message.chat.id, result_text, parse_mode="HTML")
+    except Exception:
+        try:
+            await bot_inst.send_message(message.chat.id, result_text, parse_mode="HTML")
+        except Exception as e:
+            logger.warning(f"Error sending /give transfer message: {e}")
 
 
 @router.message(Command("promo"))

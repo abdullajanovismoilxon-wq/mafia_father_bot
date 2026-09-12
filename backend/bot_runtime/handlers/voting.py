@@ -39,6 +39,7 @@ router = Router(name="voting_router")
 # HANGING_VOTES[game_id] = {kill, save, voters, target, message}
 HANGING_VOTES: dict = {}
 HANGING_TASKS: dict = {}
+CLOSING_VOTING_GAMES: set = set()
 
 
 # ---------------------------------------------------------------------------
@@ -145,7 +146,8 @@ async def handle_vote_callback(callback: CallbackQuery, bot: Bot):
 
         if cast_count >= living_count:
             logger.info(f"All {living_count} voted in game {game.id}. Closing early.")
-            task = HANGING_TASKS.pop(f"vote_{game.id}", None)
+            from bot_runtime.handlers.night import VOTING_TASKS
+            task = VOTING_TASKS.pop(str(game.id), None) or HANGING_TASKS.pop(f"vote_{game.id}", None)
             if task and not task.done():
                 task.cancel()
             await auto_close_voting(game, bot)
@@ -185,6 +187,11 @@ async def handle_hanging_callback(callback: CallbackQuery, bot: Bot):
         return
 
     voter_id = callback.from_user.id
+    suspect = h_data['target']
+
+    if voter_id == suspect.telegram_user_id:
+        await callback.answer("❌ Siz o'zingizni osish bo'yicha ovoz bera olmaysiz!", show_alert=True)
+        return
 
     try:
         voter = await sync_to_async(
@@ -208,7 +215,6 @@ async def handle_hanging_callback(callback: CallbackQuery, bot: Bot):
 
     kill_c = h_data['kill']
     save_c = h_data['save']
-    suspect = h_data['target']
     suspect_mention = f'{_player_team_badge(suspect)}<a href="tg://user?id={suspect.telegram_user_id}">{html.escape(suspect.display_name)}</a>'
 
     try:
@@ -250,7 +256,16 @@ async def handle_hanging_callback(callback: CallbackQuery, bot: Bot):
 async def auto_close_voting(game: Game, bot: Bot):
     """Tallies votes, announces result, starts hanging confirmation."""
     game_id = str(game.id)
+    if game_id in CLOSING_VOTING_GAMES or game_id in HANGING_VOTES:
+        logger.info(f"Game {game_id} is already closing voting or hanging prompt is active.")
+        return
+    CLOSING_VOTING_GAMES.add(game_id)
     try:
+        from bot_runtime.handlers.night import VOTING_TASKS
+        task = VOTING_TASKS.pop(game_id, None) or HANGING_TASKS.pop(f"vote_{game.id}", None)
+        if task and not task.done():
+            task.cancel()
+
         game = await sync_to_async(Game.objects.select_related('bot').get)(id=game.id)
         if game.phase != GamePhase.VOTING:
             return
@@ -340,6 +355,8 @@ async def auto_close_voting(game: Game, bot: Bot):
                 await _advance_to_next_night(g, bot, reason="auto_close_error_fallback")
         except Exception as fb_err:
             logger.error(f"Fallback advance to next night failed: {fb_err}")
+    finally:
+        CLOSING_VOTING_GAMES.discard(game_id)
 
 
 async def _hanging_timer(game_id: str, bot: Bot, original_msg=None):

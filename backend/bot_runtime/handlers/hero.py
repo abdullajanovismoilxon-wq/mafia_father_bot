@@ -573,11 +573,15 @@ async def handle_daytime_hero_shoot(message: types.Message, bot: Bot):
                     return None
                 target_tg_id = await sync_to_async(_get_by_num)(game, num)
             elif arg.startswith('@'):
-                u_clean = arg.replace('@', '')
-                def _get_by_un(u_name):
-                    u = User.objects.filter(username__iexact=u_name).first()
-                    return u.telegram_id if u else None
-                target_tg_id = await sync_to_async(_get_by_un)(u_clean)
+                u_clean = arg.replace('@', '').strip()
+                def _get_by_un(g_obj, u_name):
+                    p = Player.objects.filter(game=g_obj, is_alive=True, username__iexact=u_name).first()
+                    if p:
+                        return p.telegram_user_id
+                    from apps.stats.models import PlayerProfile
+                    prof = PlayerProfile.objects.filter(telegram_username__iexact=u_name).first()
+                    return prof.telegram_id if prof else None
+                target_tg_id = await sync_to_async(_get_by_un)(game, u_clean)
 
     if not target_tg_id or target_tg_id == shooter_tg_id:
         await _send_private_error("⚠️ Iltimos, nishonga olingan o'yinchining xabariga reply qilib yoki <code>/shoot @username</code> yuboring!")

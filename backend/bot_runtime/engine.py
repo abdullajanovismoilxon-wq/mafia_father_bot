@@ -55,6 +55,7 @@ def create_bot_dispatcher() -> Dispatcher:
     """Dispatcher for spawned Child Mafia Game Bot instances."""
     dp = Dispatcher()
     dp.message.outer_middleware(CommandAutoDeleteMiddleware())
+    dp.message.outer_middleware(lobby.GroupUserTrackingMiddleware())
     dp.include_router(lobby.router)
     dp.include_router(hero.router)
     dp.include_router(giveaway.router)
