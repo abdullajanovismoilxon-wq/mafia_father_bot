@@ -33,7 +33,7 @@ class TestGiveawayService(TestCase):
         self.assertEqual(fee, 3)
 
         fee_small = GiveawayService.calculate_commission(10, CurrencyType.DIAMONDS)
-        self.assertEqual(fee_small, 1)
+        self.assertEqual(fee_small, 0)
 
     def test_create_giveaway_drop_success(self):
         success, msg, drop = GiveawayService.create_drop(
@@ -255,5 +255,29 @@ class TestTeamGameMode(TestCase):
         self.assertEqual(_player_health_badge(p_full), "")
         self.assertEqual(_player_health_badge(p_damaged), " (❤️ 45%)")
 
+    def test_transfer_payload_parsing_with_comment(self):
+        from unittest.mock import MagicMock
+        from bot_runtime.handlers.economy import _parse_transfer_payload
 
+        # Mock reply message: /give 100 sen uchun
+        msg_reply = MagicMock()
+        msg_reply.text = "/give 100 sen uchun"
+        msg_reply.reply_to_message = MagicMock()
+        msg_reply.reply_to_message.from_user = MagicMock(id=999888, first_name="Paxan")
 
+        uid, name, amount, comment = _parse_transfer_payload(msg_reply)
+        self.assertEqual(uid, 999888)
+        self.assertEqual(name, "Paxan")
+        self.assertEqual(amount, 100)
+        self.assertEqual(comment, "sen uchun")
+
+        # Mock reply message without comment: /money 50
+        msg_no_comment = MagicMock()
+        msg_no_comment.text = "/money 50"
+        msg_no_comment.reply_to_message = MagicMock()
+        msg_no_comment.reply_to_message.from_user = MagicMock(id=777666, first_name="Dot")
+
+        uid2, name2, amount2, comment2 = _parse_transfer_payload(msg_no_comment)
+        self.assertEqual(uid2, 777666)
+        self.assertEqual(amount2, 50)
+        self.assertEqual(comment2, "")

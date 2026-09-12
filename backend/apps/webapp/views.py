@@ -517,6 +517,9 @@ def transfer_funds_api(request):
         sender_profile = PlayerProfile.objects.filter(telegram_id=sender_tg_id).first()
         is_owner = sender_profile and sender_profile.is_platform_owner
 
+        commission = 0 if is_owner else int(amount * 0.03)
+        net_amount = max(0, amount - commission)
+
         if currency == 'MONEY':
             cur_money = max(sender_wallet.coins, int(sender_wallet.money))
             if not is_owner and cur_money < amount:
@@ -527,8 +530,8 @@ def transfer_funds_api(request):
                 sender_wallet.money = max(Decimal('0.00'), sender_wallet.money - Decimal(str(amount)))
                 sender_wallet.save(update_fields=['coins', 'money'])
 
-            recipient_wallet.coins += amount
-            recipient_wallet.money += Decimal(str(amount))
+            recipient_wallet.coins += net_amount
+            recipient_wallet.money += Decimal(str(net_amount))
             recipient_wallet.save(update_fields=['coins', 'money'])
 
             unit = "💶"
@@ -540,7 +543,7 @@ def transfer_funds_api(request):
                 sender_wallet.diamonds -= amount
                 sender_wallet.save(update_fields=['diamonds'])
 
-            recipient_wallet.diamonds += amount
+            recipient_wallet.diamonds += net_amount
             recipient_wallet.save(update_fields=['diamonds'])
 
             unit = "💎"
@@ -559,7 +562,7 @@ def transfer_funds_api(request):
             
             rec_text = (
                 f"🎁 <b>Hisobingiz to'ldirildi!</b>\n\n"
-                f"Sizga <b>{sender_name}</b> tomonidan <b>{amount} {unit}</b> o'tkazildi!\n"
+                f"Sizga <b>{sender_name}</b> tomonidan <b>{net_amount} {unit}</b> o'tkazildi!\n"
                 f"Yangi balansingiz: 💶 {max(recipient_wallet.coins, int(recipient_wallet.money))} | 💎 {recipient_wallet.diamonds}"
             )
             send_text = (

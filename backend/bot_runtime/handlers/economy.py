@@ -982,20 +982,77 @@ async def handle_child_back_to_start(callback: types.CallbackQuery):
 
 
 # ---------------------------------------------------------------------------
+# ---------------------------------------------------------------------------
 # Group Transfers (/money 1000, /give 2)
 # ---------------------------------------------------------------------------
 
-@router.message(Command("money"))
+def _parse_transfer_payload(message: types.Message) -> tuple[int | None, str | None, int | None, str]:
+    """
+    Parses recipient ID, recipient name, gross amount, and comment (izoh).
+    Supports:
+      - Reply to user: /money 100 [izoh...] or /give 50 [izoh...]
+      - Direct mention: /money @username 100 [izoh...] or /money 100 @username [izoh...]
+    """
+    args = message.text.split()
+    if len(args) < 2:
+        return None, None, None, ""
+
+    # Case 1: Reply
+    if message.reply_to_message and message.reply_to_message.from_user:
+        target = message.reply_to_message.from_user
+        try:
+            amount = int(args[1])
+            comment = " ".join(args[2:]).strip()
+            return target.id, target.first_name, amount, comment
+        except (ValueError, IndexError):
+            return None, None, None, ""
+
+    # Case 2: Mention / User ID in arguments without reply
+    if len(args) >= 3:
+        if args[1].isdigit():
+            # /money 100 @user comment...
+            amount = int(args[1])
+            target_str = args[2]
+            comment = " ".join(args[3:]).strip()
+        elif args[2].isdigit():
+            # /money @user 100 comment...
+            target_str = args[1]
+            amount = int(args[2])
+            comment = " ".join(args[3:]).strip()
+        else:
+            return None, None, None, ""
+
+        clean = target_str.lstrip('@')
+        if clean.isdigit():
+            uid = int(clean)
+            u = User.objects.filter(telegram_id=uid).first()
+            name = u.first_name if u else f"O'yinchi {uid}"
+            return uid, name, amount, comment
+
+        u = User.objects.filter(username__iexact=clean).first()
+        if u and u.telegram_id:
+            return u.telegram_id, u.first_name or f"@{u.username}", amount, comment
+
+        prof = PlayerProfile.objects.filter(telegram_username__iexact=clean).first()
+        if prof and prof.telegram_id:
+            return prof.telegram_id, prof.first_name or prof.full_name or f"@{prof.telegram_username}", amount, comment
+
+    return None, None, None, ""
+
+
+@router.message(Command("money", "pul", "dollar", "dollor", ignore_case=True))
 async def cmd_transfer_money(message: types.Message, bot: Bot = None):
-    """Transfers virtual dollars between players in group (reply). 3% fee (0% for VIP)."""
+    """Transfers virtual dollars between players in group (reply or @username). 3% fee (0% for Owner)."""
     import html
     from apps.superadmin.services import TextService
     bot_inst = bot or message.bot
-    args = message.text.split()
-    if len(args) < 2 or not message.reply_to_message:
+
+    recip_id, recip_name, gross_amount, comment = await sync_to_async(_parse_transfer_payload)(message)
+
+    if not recip_id or gross_amount is None:
         usage_msg = TextService.get_text(
             'transfer_money_usage',
-            fallback="ℹ️ O'tkazmoqchi bo'lgan o'yinchining xabariga reply qilib <code>/money &lt;summa&gt;</code> yozing."
+            fallback="ℹ️ O'tkazmoqchi bo'lgan o'yinchining xabariga reply qilib <code>/money &lt;summa&gt; [izoh]</code> yozing."
         )
         try:
             await bot_inst.send_message(message.chat.id, usage_msg, parse_mode="HTML")
@@ -1003,27 +1060,17 @@ async def cmd_transfer_money(message: types.Message, bot: Bot = None):
             pass
         return
 
-    try:
-        gross_amount = int(args[1])
-        if gross_amount <= 0:
-            invalid_msg = TextService.get_text('transfer_invalid_amount', fallback="❌ O'tkazma summasi 0 dan katta bo'lishi kerak.")
-            try:
-                await bot_inst.send_message(message.chat.id, invalid_msg, parse_mode="HTML")
-            except Exception:
-                pass
-            return
-    except Exception:
-        invalid_msg = TextService.get_text('transfer_invalid_amount', fallback="❌ Noto'g'ri summa kiritildi.")
+    if gross_amount <= 0:
+        invalid_msg = TextService.get_text('transfer_invalid_amount', fallback="❌ O'tkazma summasi 0 dan katta bo'lishi kerak.")
         try:
             await bot_inst.send_message(message.chat.id, invalid_msg, parse_mode="HTML")
         except Exception:
             pass
         return
 
-    recipient = message.reply_to_message.from_user
     sender = message.from_user
 
-    if recipient.id == sender.id:
+    if recip_id == sender.id:
         self_err = TextService.get_text('transfer_self_error', fallback="❌ O'z-o'zingizga pul o'tkaza olmaysiz.")
         try:
             await bot_inst.send_message(message.chat.id, self_err, parse_mode="HTML")
@@ -1032,7 +1079,7 @@ async def cmd_transfer_money(message: types.Message, bot: Bot = None):
         return
 
     sender_wallet = await sync_to_async(EconomyService.get_or_create_wallet)(telegram_id=sender.id)
-    recipient_wallet = await sync_to_async(EconomyService.get_or_create_wallet)(telegram_id=recipient.id)
+    recipient_wallet = await sync_to_async(EconomyService.get_or_create_wallet)(telegram_id=recip_id)
     sender_profile = await sync_to_async(StatsService.get_or_create_profile)(telegram_id=sender.id)
 
     is_owner = sender_profile.is_platform_owner
@@ -1044,12 +1091,8 @@ async def cmd_transfer_money(message: types.Message, bot: Bot = None):
             pass
         return
 
-    # Check VIP for commission
-    has_vip = await sync_to_async(
-        lambda: VIPSubscription.objects.filter(telegram_id=sender.id, is_active=True).exists()
-    )()
-    commission = 0 if (has_vip or is_owner) else int(gross_amount * 0.03)
-    net_amount = gross_amount - commission
+    commission = 0 if is_owner else int(gross_amount * 0.03)
+    net_amount = max(0, gross_amount - commission)
 
     if not is_owner:
         sender_wallet.coins -= gross_amount
@@ -1058,10 +1101,10 @@ async def cmd_transfer_money(message: types.Message, bot: Bot = None):
     recipient_wallet.coins += net_amount
     await sync_to_async(recipient_wallet.save)(update_fields=['coins'])
 
-    s_name = html.escape(sender.first_name)
-    r_name = html.escape(recipient.first_name)
+    s_name = html.escape(sender.first_name or f"O'yinchi {sender.id}")
+    r_name = html.escape(recip_name or f"O'yinchi {recip_id}")
     s_mention = f'<a href="tg://user?id={sender.id}">{s_name}</a>'
-    r_mention = f'<a href="tg://user?id={recipient.id}">{r_name}</a>'
+    r_mention = f'<a href="tg://user?id={recip_id}">{r_name}</a>'
 
     transfer_tpl = TextService.get_text(
         'transfer_money_format',
@@ -1075,10 +1118,13 @@ async def cmd_transfer_money(message: types.Message, bot: Bot = None):
     ).replace(
         '{sender_id}', str(sender.id)
     ).replace(
-        '{recipient_id}', str(recipient.id)
+        '{recipient_id}', str(recip_id)
     ).replace(
         '{amount}', str(gross_amount)
     )
+
+    if comment:
+        result_text += f"\nizoh: {html.escape(comment)}"
 
     reply_target_id = message.reply_to_message.message_id if message.reply_to_message else None
     try:
@@ -1098,17 +1144,19 @@ async def cmd_transfer_money(message: types.Message, bot: Bot = None):
             logger.warning(f"Error sending /money transfer message: {e}")
 
 
-@router.message(Command("give"))
+@router.message(Command("give", "olmos", "diamond", "diamonds", "pay", ignore_case=True))
 async def cmd_transfer_diamonds(message: types.Message, bot: Bot = None):
-    """Transfers diamonds between players in group (reply). 3% fee (0% for VIP)."""
+    """Transfers diamonds between players in group (reply or @username). 3% fee (0% for Owner)."""
     import html
     from apps.superadmin.services import TextService
     bot_inst = bot or message.bot
-    args = message.text.split()
-    if len(args) < 2 or not message.reply_to_message:
+
+    recip_id, recip_name, gross_amount, comment = await sync_to_async(_parse_transfer_payload)(message)
+
+    if not recip_id or gross_amount is None:
         usage_msg = TextService.get_text(
             'transfer_diamond_usage',
-            fallback="ℹ️ O'tkazmoqchi bo'lgan o'yinchining xabariga reply qilib <code>/give &lt;olmos_soni&gt;</code> yozing."
+            fallback="ℹ️ O'tkazmoqchi bo'lgan o'yinchining xabariga reply qilib <code>/give &lt;olmos_soni&gt; [izoh]</code> yozing."
         )
         try:
             await bot_inst.send_message(message.chat.id, usage_msg, parse_mode="HTML")
@@ -1116,27 +1164,17 @@ async def cmd_transfer_diamonds(message: types.Message, bot: Bot = None):
             pass
         return
 
-    try:
-        gross_amount = int(args[1])
-        if gross_amount <= 0:
-            invalid_msg = TextService.get_text('transfer_invalid_amount', fallback="❌ Olmos miqdori 0 dan katta bo'lishi kerak.")
-            try:
-                await bot_inst.send_message(message.chat.id, invalid_msg, parse_mode="HTML")
-            except Exception:
-                pass
-            return
-    except Exception:
-        invalid_msg = TextService.get_text('transfer_invalid_amount', fallback="❌ Noto'g'ri olmos miqdori kiritildi.")
+    if gross_amount <= 0:
+        invalid_msg = TextService.get_text('transfer_invalid_amount', fallback="❌ Olmos miqdori 0 dan katta bo'lishi kerak.")
         try:
             await bot_inst.send_message(message.chat.id, invalid_msg, parse_mode="HTML")
         except Exception:
             pass
         return
 
-    recipient = message.reply_to_message.from_user
     sender = message.from_user
 
-    if recipient.id == sender.id:
+    if recip_id == sender.id:
         self_err = TextService.get_text('transfer_self_error', fallback="❌ O'z-o'zingizga olmos o'tkaza olmaysiz.")
         try:
             await bot_inst.send_message(message.chat.id, self_err, parse_mode="HTML")
@@ -1145,7 +1183,7 @@ async def cmd_transfer_diamonds(message: types.Message, bot: Bot = None):
         return
 
     sender_wallet = await sync_to_async(EconomyService.get_or_create_wallet)(telegram_id=sender.id)
-    recipient_wallet = await sync_to_async(EconomyService.get_or_create_wallet)(telegram_id=recipient.id)
+    recipient_wallet = await sync_to_async(EconomyService.get_or_create_wallet)(telegram_id=recip_id)
     sender_profile = await sync_to_async(StatsService.get_or_create_profile)(telegram_id=sender.id)
 
     is_owner = sender_profile.is_platform_owner
@@ -1157,11 +1195,8 @@ async def cmd_transfer_diamonds(message: types.Message, bot: Bot = None):
             pass
         return
 
-    has_vip = await sync_to_async(
-        lambda: VIPSubscription.objects.filter(telegram_id=sender.id, is_active=True).exists()
-    )()
-    commission = 0 if (has_vip or is_owner) else max(1 if gross_amount >= 30 else 0, int(gross_amount * 0.03))
-    net_amount = max(1, gross_amount - commission)
+    commission = 0 if is_owner else int(gross_amount * 0.03)
+    net_amount = max(0, gross_amount - commission)
 
     if not is_owner:
         sender_wallet.diamonds -= gross_amount
@@ -1170,10 +1205,10 @@ async def cmd_transfer_diamonds(message: types.Message, bot: Bot = None):
     recipient_wallet.diamonds += net_amount
     await sync_to_async(recipient_wallet.save)(update_fields=['diamonds'])
 
-    s_name = html.escape(sender.first_name)
-    r_name = html.escape(recipient.first_name)
+    s_name = html.escape(sender.first_name or f"O'yinchi {sender.id}")
+    r_name = html.escape(recip_name or f"O'yinchi {recip_id}")
     s_mention = f'<a href="tg://user?id={sender.id}">{s_name}</a>'
-    r_mention = f'<a href="tg://user?id={recipient.id}">{r_name}</a>'
+    r_mention = f'<a href="tg://user?id={recip_id}">{r_name}</a>'
 
     transfer_tpl = TextService.get_text(
         'transfer_diamond_format',
@@ -1187,10 +1222,13 @@ async def cmd_transfer_diamonds(message: types.Message, bot: Bot = None):
     ).replace(
         '{sender_id}', str(sender.id)
     ).replace(
-        '{recipient_id}', str(recipient.id)
+        '{recipient_id}', str(recip_id)
     ).replace(
         '{amount}', str(gross_amount)
     )
+
+    if comment:
+        result_text += f"\nizoh: {html.escape(comment)}"
 
     reply_target_id = message.reply_to_message.message_id if message.reply_to_message else None
     try:

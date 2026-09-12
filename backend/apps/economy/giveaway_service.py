@@ -17,14 +17,9 @@ class GiveawayService:
 
     @classmethod
     def calculate_commission(cls, amount: int, currency: str) -> Decimal:
-        """Calculates 3% commission for giveaway drop."""
-        if currency == CurrencyType.DIAMONDS:
-            # Whole integer diamonds (at least 1 diamond if amount >= 1)
-            fee = math.ceil(amount * (cls.COMMISSION_PERCENT / 100.0))
-            return Decimal(fee)
-        else:
-            fee = Decimal(str(amount)) * (Decimal(cls.COMMISSION_PERCENT) / Decimal('100'))
-            return fee.quantize(Decimal('0.01'))
+        """Calculates 3% commission for giveaway drop, discarding fractional parts (whole integer)."""
+        fee = int(amount * (cls.COMMISSION_PERCENT / 100.0))
+        return Decimal(fee)
 
     @classmethod
     def create_drop(
