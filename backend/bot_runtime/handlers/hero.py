@@ -11,6 +11,7 @@ from apps.economy.models import Inventory
 from apps.games.models import Game, Player, GamePhase, RoleTeam
 from apps.users.models import User
 from apps.stats.models import PlayerProfile
+from apps.superadmin.services import TextService, SettingService
 from bot_runtime.keyboards.inline import build_my_hero_keyboard
 
 logger = logging.getLogger(__name__)
