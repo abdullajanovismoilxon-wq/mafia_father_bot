@@ -770,7 +770,9 @@ async def cmd_start_game(message: types.Message, bot: Bot):
             'ZOMBI': "Siz Zombisiz. Har tunda boshqalarni tishlab zombiga aylantirasiz.",
         }
 
-        for player, role in assignments:
+        from bot_runtime.manager import safe_send_message
+
+        async def _dispatch_player_role(player, role):
             rname = role.name
             gid = str(game.id)
             icon = role_icon(rname)
@@ -783,185 +785,155 @@ async def cmd_start_game(message: types.Message, bot: Bot):
                 team_name = "🔴 Qizil" if team_side == 'RED' else "🔵 Ko'k"
                 team_header = f"<b>Siz - {team_name} jamoadasiz!</b>\n"
 
-            # 1. Send Role Card Message (Image 1 top card)
+            # 1. Send Role Card Message
             role_card_text = (
                 f"{team_header}<b>Siz - {icon} {label}siz!</b>\n\n"
                 f"{desc}"
             )
-            try:
-                await bot.send_message(
-                    player.telegram_user_id,
-                    role_card_text,
-                    reply_markup=build_back_to_group_keyboard(chat_id=game.chat_id),
-                    parse_mode="HTML"
-                )
-            except Exception as e:
-                logger.warning(f"Failed to send role card to {player.telegram_user_id}: {e}")
+            await safe_send_message(
+                bot,
+                player.telegram_user_id,
+                role_card_text,
+                reply_markup=build_back_to_group_keyboard(chat_id=game.chat_id),
+                parse_mode="HTML"
+            )
 
-            # 2. Send Teammates Reminder if Mafia / Don (Image 1 middle card)
+            # 2. Send Teammates Reminder if Mafia / Don
             if rname in ["DON", "MAFIA", "ADVOKAT", "UBIYTSA", "JURNALIST", "AYGOQCHI", "LABORANT"] and len(mafia_members) > 1:
-                team_lines = []
-                for mp, mr in mafia_members:
-                    m_icon = role_icon(mr.name)
-                    m_label = role_label(mr.name)
-                    m_badge = _player_team_badge(mp)
-                    m_hp = _player_health_badge(mp)
-                    team_lines.append(f"<b>{m_badge}{html.escape(mp.display_name)}</b>{m_hp} - {m_icon} <b>{m_label}</b>")
+                team_lines = [
+                    f"<b>{_player_team_badge(mp)}{html.escape(mp.display_name)}</b>{_player_health_badge(mp)} - {role_icon(mr.name)} <b>{role_label(mr.name)}</b>"
+                    for mp, mr in mafia_members
+                ]
                 team_msg = "<b>Sheriklaringizni eslab qoling! (Mafiya)</b>\n\n" + "\n".join(team_lines) + "\n\n<i>💬 Tunda botga xabar yozsangiz, sheriklaringizga yetkaziladi!</i>"
-                try:
-                    await bot.send_message(
-                        player.telegram_user_id,
-                        team_msg,
-                        parse_mode="HTML"
-                    )
-                except Exception:
-                    pass
+                await safe_send_message(bot, player.telegram_user_id, team_msg, parse_mode="HTML")
 
-            # 2b. Send Teammates Reminder if Police (Komissar / Serjant / Admiral)
-            if rname in ['DETECTIVE', 'KOMISSAR', 'SHERIFF', 'SERJANT', 'ADMIRAL'] and len(police_members) > 1:
-                pol_lines = []
-                for pp, pr in police_members:
-                    p_icon = role_icon(pr.name)
-                    p_label = role_label(pr.name)
-                    p_badge = _player_team_badge(pp)
-                    p_hp = _player_health_badge(pp)
-                    pol_lines.append(f"<b>{p_badge}{html.escape(pp.display_name)}</b>{p_hp} - {p_icon} <b>{p_label}</b>")
+            # 2b. Send Teammates Reminder if Police
+            elif rname in ['DETECTIVE', 'KOMISSAR', 'SHERIFF', 'SERJANT', 'ADMIRAL'] and len(police_members) > 1:
+                pol_lines = [
+                    f"<b>{_player_team_badge(pp)}{html.escape(pp.display_name)}</b>{_player_health_badge(pp)} - {role_icon(pr.name)} <b>{role_label(pr.name)}</b>"
+                    for pp, pr in police_members
+                ]
                 pol_team_msg = "👮🏼‍♂️ <b>Sheriklaringizni eslab qoling! (Politsiya)</b>\n\n" + "\n".join(pol_lines) + "\n\n<i>💬 Tunda botga xabar yozsangiz, sherigingizga yetkaziladi!</i>"
-                try:
-                    await bot.send_message(
-                        player.telegram_user_id,
-                        pol_team_msg,
-                        parse_mode="HTML"
-                    )
-                except Exception:
-                    pass
+                await safe_send_message(bot, player.telegram_user_id, pol_team_msg, parse_mode="HTML")
 
-            # 2c. Send Teammates Reminder if Medical (Shifokor / Hamshira)
-            if rname in ['DOCTOR', 'SHIFOKOR', 'DOKTOR', 'HAMSHIRA'] and len(medical_members) > 1:
-                med_lines = []
-                for mp, mr in medical_members:
-                    m_icon = role_icon(mr.name)
-                    m_label = role_label(mr.name)
-                    m_badge = _player_team_badge(mp)
-                    m_hp = _player_health_badge(mp)
-                    med_lines.append(f"<b>{m_badge}{html.escape(mp.display_name)}</b>{m_hp} - {m_icon} <b>{m_label}</b>")
+            # 2c. Send Teammates Reminder if Medical
+            elif rname in ['DOCTOR', 'SHIFOKOR', 'DOKTOR', 'HAMSHIRA'] and len(medical_members) > 1:
+                med_lines = [
+                    f"<b>{_player_team_badge(mp)}{html.escape(mp.display_name)}</b>{_player_health_badge(mp)} - {role_icon(mr.name)} <b>{role_label(mr.name)}</b>"
+                    for mp, mr in medical_members
+                ]
                 med_team_msg = "👨🏼‍⚕️ <b>Sheriklaringizni eslab qoling! (Tibbiyot)</b>\n\n" + "\n".join(med_lines) + "\n\n<i>💬 Tunda botga xabar yozsangiz, sherigingizga yetkaziladi!</i>"
-                try:
-                    await bot.send_message(
-                        player.telegram_user_id,
-                        med_team_msg,
-                        parse_mode="HTML"
-                    )
-                except Exception:
-                    pass
+                await safe_send_message(bot, player.telegram_user_id, med_team_msg, parse_mode="HTML")
 
-            # 3. Send Night Action Prompt (Image 1 bottom card)
+            # 3. Send Night Action Prompt
             try:
                 if rname in ["DON", "MAFIA"]:
                     kb = build_night_target_keyboard(gid, "k", living_players, str(player.id))
-                    await bot.send_message(player.telegram_user_id, "<b>Kimni o'ldiramiz?</b>", reply_markup=kb, parse_mode="HTML")
+                    await safe_send_message(bot, player.telegram_user_id, "<b>Kimni o'ldiramiz?</b>", reply_markup=kb, parse_mode="HTML")
 
                 elif rname in ["DOCTOR", "HAMSHIRA"] and rname == "DOCTOR":
                     kb = build_night_target_keyboard(gid, "p", living_players, str(player.id))
-                    await bot.send_message(player.telegram_user_id, "<b>Kimni davolaymiz?</b>", reply_markup=kb, parse_mode="HTML")
+                    await safe_send_message(bot, player.telegram_user_id, "<b>Kimni davolaymiz?</b>", reply_markup=kb, parse_mode="HTML")
 
                 elif rname in ["DETECTIVE", "KOMISSAR", "SHERIFF"]:
                     kb = build_komissar_action_keyboard(gid)
-                    await bot.send_message(player.telegram_user_id, "<b>Harakatingizni tanlang:</b>", reply_markup=kb, parse_mode="HTML")
+                    await safe_send_message(bot, player.telegram_user_id, "<b>Harakatingizni tanlang:</b>", reply_markup=kb, parse_mode="HTML")
 
                 elif rname == "QOTIL":
                     kb = build_night_target_keyboard(gid, "qot", living_players, str(player.id))
-                    await bot.send_message(player.telegram_user_id, "<b>Qurbonni tanlang:</b>", reply_markup=kb, parse_mode="HTML")
+                    await safe_send_message(bot, player.telegram_user_id, "<b>Qurbonni tanlang:</b>", reply_markup=kb, parse_mode="HTML")
 
                 elif rname == "KEZUVCHI":
                     kb = build_night_target_keyboard(gid, "kez", living_players, str(player.id))
-                    await bot.send_message(player.telegram_user_id, "<b>Kimnikiga mehmonga borasiz?</b>", reply_markup=kb, parse_mode="HTML")
+                    await safe_send_message(bot, player.telegram_user_id, "<b>Kimnikiga mehmonga borasiz?</b>", reply_markup=kb, parse_mode="HTML")
 
                 elif rname == "DAYDI":
                     kb = build_night_target_keyboard(gid, "day", living_players, str(player.id))
-                    await bot.send_message(player.telegram_user_id, "<b>Kimnikiga borasiz?</b>", reply_markup=kb, parse_mode="HTML")
+                    await safe_send_message(bot, player.telegram_user_id, "<b>Kimnikiga borasiz?</b>", reply_markup=kb, parse_mode="HTML")
 
                 elif rname == "ADVOKAT":
                     kb = build_night_target_keyboard(gid, "adv", living_players)
-                    await bot.send_message(player.telegram_user_id, "<b>Kimni himoyalaysiz?</b>", reply_markup=kb, parse_mode="HTML")
+                    await safe_send_message(bot, player.telegram_user_id, "<b>Kimni himoyalaysiz?</b>", reply_markup=kb, parse_mode="HTML")
 
                 elif rname == "UBIYTSA":
                     kb = build_night_target_keyboard(gid, "ubi", living_players, str(player.id))
-                    await bot.send_message(player.telegram_user_id, "<b>Kimni o'ldirasiz?</b>", reply_markup=kb, parse_mode="HTML")
+                    await safe_send_message(bot, player.telegram_user_id, "<b>Kimni o'ldirasiz?</b>", reply_markup=kb, parse_mode="HTML")
 
                 elif rname == "TUZOQCHI":
                     kb = build_night_target_keyboard(gid, "tuz", living_players, str(player.id))
-                    await bot.send_message(player.telegram_user_id, "<b>Tuzoqni kimga qo'yasiz?</b>", reply_markup=kb, parse_mode="HTML")
+                    await safe_send_message(bot, player.telegram_user_id, "<b>Tuzoqni kimga qo'yasiz?</b>", reply_markup=kb, parse_mode="HTML")
 
                 elif rname == "ZOMBI":
                     kb = build_night_target_keyboard(gid, "zom", living_players, str(player.id))
-                    await bot.send_message(player.telegram_user_id, "<b>Kimni tishlaysiz?</b>", reply_markup=kb, parse_mode="HTML")
+                    await safe_send_message(bot, player.telegram_user_id, "<b>Kimni tishlaysiz?</b>", reply_markup=kb, parse_mode="HTML")
 
                 elif rname == "KIMYOGAR":
                     kb = build_night_target_keyboard(gid, "kim", living_players, str(player.id))
-                    await bot.send_message(player.telegram_user_id, "<b>Eliksirni kimga berasiz?</b>", reply_markup=kb, parse_mode="HTML")
+                    await safe_send_message(bot, player.telegram_user_id, "<b>Eliksirni kimga berasiz?</b>", reply_markup=kb, parse_mode="HTML")
 
                 elif rname == "RAIS":
                     kb = build_night_target_keyboard(gid, "rai", living_players, str(player.id))
-                    await bot.send_message(player.telegram_user_id, "<b>Sovg'ani kimga berasiz?</b>", reply_markup=kb, parse_mode="HTML")
+                    await safe_send_message(bot, player.telegram_user_id, "<b>Sovg'ani kimga berasiz?</b>", reply_markup=kb, parse_mode="HTML")
 
                 elif rname == "AFERIST":
                     kb = build_night_target_keyboard(gid, "afer", living_players, str(player.id))
-                    await bot.send_message(player.telegram_user_id, "<b>Kimning ovozini o'g'irlamoqchisiz?</b>", reply_markup=kb, parse_mode="HTML")
+                    await safe_send_message(bot, player.telegram_user_id, "<b>Kimning ovozini o'g'irlamoqchisiz?</b>", reply_markup=kb, parse_mode="HTML")
 
                 elif rname == "GAZABKOR":
                     kb = build_night_target_keyboard(gid, "gaz", living_players)
-                    await bot.send_message(player.telegram_user_id, "<b>Kimni belgilamoqchisiz?</b>", reply_markup=kb, parse_mode="HTML")
+                    await safe_send_message(bot, player.telegram_user_id, "<b>Kimni belgilamoqchisiz?</b>", reply_markup=kb, parse_mode="HTML")
 
                 elif rname == "JURNALIST":
                     kb = build_night_target_keyboard(gid, "jurn", living_players, str(player.id))
-                    await bot.send_message(player.telegram_user_id, "<b>Kimnikiga intervyuga borasiz?</b>", reply_markup=kb, parse_mode="HTML")
+                    await safe_send_message(bot, player.telegram_user_id, "<b>Kimnikiga intervyuga borasiz?</b>", reply_markup=kb, parse_mode="HTML")
 
                 elif rname == "SOTQIN":
                     kb = build_night_target_keyboard(gid, "sotq", living_players, str(player.id))
-                    await bot.send_message(player.telegram_user_id, "<b>Kimni tekshirmoqchisiz?</b>", reply_markup=kb, parse_mode="HTML")
+                    await safe_send_message(bot, player.telegram_user_id, "<b>Kimni tekshirmoqchisiz?</b>", reply_markup=kb, parse_mode="HTML")
 
                 elif rname == "ROBINGUD":
                     kb = build_night_target_keyboard(gid, "rob", living_players, str(player.id))
-                    await bot.send_message(player.telegram_user_id, "<b>Kamon o'qi bilan kimni otasiz?</b>", reply_markup=kb, parse_mode="HTML")
+                    await safe_send_message(bot, player.telegram_user_id, "<b>Kamon o'qi bilan kimni otasiz?</b>", reply_markup=kb, parse_mode="HTML")
 
                 elif rname == "AYGOQCHI":
                     kb = build_night_target_keyboard(gid, "ayg", living_players, str(player.id))
-                    await bot.send_message(player.telegram_user_id, "<b>Qaysi o'yinchining rolini bilmoqchisiz?</b>", reply_markup=kb, parse_mode="HTML")
+                    await safe_send_message(bot, player.telegram_user_id, "<b>Qaysi o'yinchining rolini bilmoqchisiz?</b>", reply_markup=kb, parse_mode="HTML")
 
                 elif rname == "KONCHI":
                     kb = build_konchi_mines_keyboard(gid)
-                    await bot.send_message(player.telegram_user_id, "<b>Qaysi konni qazimoqchisiz?</b>", reply_markup=kb, parse_mode="HTML")
+                    await safe_send_message(bot, player.telegram_user_id, "<b>Qaysi konni qazimoqchisiz?</b>", reply_markup=kb, parse_mode="HTML")
 
                 elif rname == "FOTOPARATCHI":
                     kb = build_night_target_keyboard(gid, "foto", living_players, str(player.id))
-                    await bot.send_message(player.telegram_user_id, "<b>Kimni rasmga olmoqchisiz?</b>", reply_markup=kb, parse_mode="HTML")
+                    await safe_send_message(bot, player.telegram_user_id, "<b>Kimni rasmga olmoqchisiz?</b>", reply_markup=kb, parse_mode="HTML")
 
                 elif rname == "QAROQCHI":
                     kb = build_night_target_keyboard(gid, "qar", living_players, str(player.id))
-                    await bot.send_message(player.telegram_user_id, "<b>Kimning pullarini shilmoqchisiz?</b>", reply_markup=kb, parse_mode="HTML")
+                    await safe_send_message(bot, player.telegram_user_id, "<b>Kimning pullarini shilmoqchisiz?</b>", reply_markup=kb, parse_mode="HTML")
 
                 elif rname == "LABORANT":
                     kb = build_night_target_keyboard(gid, "lab", living_players, str(player.id))
-                    await bot.send_message(player.telegram_user_id, "<b>Nishonni tanlang:</b>", reply_markup=kb, parse_mode="HTML")
+                    await safe_send_message(bot, player.telegram_user_id, "<b>Nishonni tanlang:</b>", reply_markup=kb, parse_mode="HTML")
 
                 elif rname == "QORBOBO":
                     kb = build_night_target_keyboard(gid, "qor", living_players, str(player.id))
-                    await bot.send_message(player.telegram_user_id, "<b>Sovg'ani kimga topshirasiz?</b>", reply_markup=kb, parse_mode="HTML")
+                    await safe_send_message(bot, player.telegram_user_id, "<b>Sovg'ani kimga topshirasiz?</b>", reply_markup=kb, parse_mode="HTML")
 
                 elif rname == "OSHPAZ":
                     kb = build_night_target_keyboard(gid, "osh", living_players, str(player.id))
-                    await bot.send_message(player.telegram_user_id, "<b>Maxsus taomingizni kimga yedirasiz?</b>", reply_markup=kb, parse_mode="HTML")
+                    await safe_send_message(bot, player.telegram_user_id, "<b>Maxsus taomingizni kimga yedirasiz?</b>", reply_markup=kb, parse_mode="HTML")
 
                 elif rname == "AXMOQ":
                     kb = build_night_target_keyboard(gid, "axm", living_players, str(player.id))
-                    await bot.send_message(player.telegram_user_id, "<b>Kimni tanlaysiz?</b>", reply_markup=kb, parse_mode="HTML")
+                    await safe_send_message(bot, player.telegram_user_id, "<b>Kimni tanlaysiz?</b>", reply_markup=kb, parse_mode="HTML")
 
                 elif rname == "JOKER":
                     kb = build_joker_boxes_setup_keyboard(gid)
-                    await bot.send_message(player.telegram_user_id, "<b>Bombani qaysi qutilarga joylaysiz?</b>", reply_markup=kb, parse_mode="HTML")
-            except Exception as e:
-                logger.warning(f"Failed to send night prompt to {player.telegram_user_id}: {e}")
+                    await safe_send_message(bot, player.telegram_user_id, "<b>Bombani qaysi qutilarga joylaysiz?</b>", reply_markup=kb, parse_mode="HTML")
+            except Exception as pe:
+                logger.warning(f"Failed to send night prompt to {player.telegram_user_id}: {pe}")
+
+        await asyncio.gather(*[_dispatch_player_role(p, r) for p, r in assignments], return_exceptions=True)
 
         # Start Night Timer with bot timing setting
         bot_id_str = str(game.bot_id) if game and getattr(game, 'bot_id', None) else ''
@@ -1163,6 +1135,12 @@ async def cmd_leave_game(message: types.Message, bot: Bot):
                 await _announce_game_winner(game, winner, bot)
             except Exception as v_err:
                 logger.warning(f"Error announcing victory after leave: {v_err}")
+        elif game.phase == GamePhase.NIGHT:
+            from bot_runtime.handlers.night import _check_and_advance_night_if_ready
+            try:
+                await _check_and_advance_night_if_ready(game, bot)
+            except Exception as na_err:
+                logger.debug(f"Error checking night after leave: {na_err}")
 
 
 @router.callback_query(lambda c: c.data and c.data.startswith("lobby:"))
@@ -1617,10 +1595,12 @@ async def handle_utag_mention_or_command(message: types.Message, bot: Bot):
 
                 phrase = random.choice(UTAG_CREATIVE_PHRASES)
                 user_label = m.get('display_name') or m.get('username') or "O'yinchi"
-                name_esc = html.escape(str(user_label))
+                name_str = str(user_label).strip() or "O'yinchi"
+                name_esc = html.escape(name_str)
+                phrase_esc = html.escape(str(phrase))
                 tag_str = f'<a href="tg://user?id={uid}">{name_esc}</a>'
 
-                text = f"{tag_str} {phrase}"
+                text = f"{tag_str} {phrase_esc}"
 
                 # Robust message sending with Flood Control retry and BadRequest recovery
                 for attempt in range(3):
@@ -1633,12 +1613,23 @@ async def handle_utag_mention_or_command(message: types.Message, bot: Bot):
                         logger.warning(f"Telegram flood control in utag (chat {chat_id}): sleeping {flood.retry_after + 1}s")
                         await asyncio.sleep(flood.retry_after + 1)
                     except TelegramBadRequest as br_err:
-                        logger.debug(f"HTML error in utag, falling back to plain text: {br_err}")
+                        logger.debug(f"HTML error in utag for {uid}, falling back to text_mention entity: {br_err}")
                         try:
-                            plain_tag = f"@{str(m['username']).lstrip('@')}" if m.get('username') else str(user_label)
-                            await bot.send_message(chat_id, f"{plain_tag} {phrase}")
-                        except Exception:
-                            pass
+                            plain_text = f"{name_str} {phrase}"
+                            mention_entity = types.MessageEntity(
+                                type="text_mention",
+                                offset=0,
+                                length=len(name_str),
+                                user=types.User(id=uid, is_bot=False, first_name=name_str[:64])
+                            )
+                            await bot.send_message(chat_id, plain_text, entities=[mention_entity])
+                        except Exception as ent_err:
+                            logger.warning(f"Entity mention fallback failed for user {uid}: {ent_err}")
+                            try:
+                                fallback_plain = f"@{str(m['username']).lstrip('@')}" if m.get('username') else name_str
+                                await bot.send_message(chat_id, f"{fallback_plain} {phrase}")
+                            except Exception:
+                                pass
                         break
                     except TelegramForbiddenError:
                         logger.warning(f"Bot forbidden in chat {chat_id} during utag")

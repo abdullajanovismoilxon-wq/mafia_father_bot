@@ -532,7 +532,7 @@ async def handle_hero_dawn_target(callback: types.CallbackQuery, bot: Bot):
         winner = await sync_to_async(WinConditionService.check_win_condition)(game)
         if winner:
             await asyncio.sleep(2.0)
-            await sync_to_async(GameService.end_game)(game, winner)
+            await sync_to_async(GameService.finish_game)(game, winner)
             from bot_runtime.handlers.night import _announce_game_winner
             await _announce_game_winner(game, winner, bot)
     else:
@@ -782,7 +782,7 @@ async def handle_daytime_hero_shoot(message: types.Message, bot: Bot):
         winner = await sync_to_async(WinConditionService.check_win_condition)(game)
         if winner:
             await asyncio.sleep(2.0)
-            await sync_to_async(GameService.end_game)(game, winner)
+            await sync_to_async(GameService.finish_game)(game, winner)
             from bot_runtime.handlers.night import _announce_game_winner
             await _announce_game_winner(game, winner, bot)
     else:

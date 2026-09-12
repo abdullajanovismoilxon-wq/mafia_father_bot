@@ -157,7 +157,7 @@ class GameService:
                 return False
             game.phase = GamePhase.CANCELED
             game.status = GamePhase.CANCELED
-            game.save(update_fields=['phase', 'status'])
+            game.save(update_fields=['phase', 'status', 'updated_at'])
             GameEventService.log_event(
                 game=game,
                 event_type=GameEventType.GAME_CANCELED,
@@ -335,7 +335,7 @@ class GameService:
             GameStateMachine.transition(game, GamePhase.STARTING)
             game.started_at = timezone.now()
             game.round_number = 1
-            game.save(update_fields=['started_at', 'round_number'])
+            game.save(update_fields=['started_at', 'round_number', 'phase', 'status', 'updated_at'])
 
             GameStateMachine.transition(game, GamePhase.NIGHT)
             GameEventService.log_event(
@@ -425,7 +425,7 @@ class GameService:
             game = Game.objects.select_for_update().get(id=game.id)
             if target_phase:
                 GameStateMachine.transition(game, target_phase)
-                game.save(update_fields=['phase'])
+                game.save(update_fields=['phase', 'status', 'updated_at'])
                 return {'next_phase': target_phase}
 
             current_phase = game.phase
@@ -518,7 +518,7 @@ class GameService:
                     message=f"Round {game.round_number} completed"
                 )
                 game.round_number += 1
-                game.save(update_fields=['round_number'])
+                game.save(update_fields=['round_number', 'updated_at'])
 
                 GameStateMachine.transition(game, GamePhase.NIGHT)
                 GameEventService.log_event(
@@ -539,7 +539,7 @@ class GameService:
         game.status = GamePhase.FINISHED
         game.winner_team = winner_team
         game.finished_at = timezone.now()
-        game.save(update_fields=['phase', 'status', 'winner_team', 'finished_at'])
+        game.save(update_fields=['phase', 'status', 'winner_team', 'finished_at', 'updated_at'])
         logger.info(f"Game #{game.id} finished! Winner: {winner_team}")
 
         GameEventService.log_event(

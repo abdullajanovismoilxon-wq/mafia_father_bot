@@ -2,15 +2,93 @@
 Bot Runtime Manager Abstraction
 Manages lifecycle (start, stop, polling execution) of dynamic Telegram bot instances.
 Uses a single shared Dispatcher for child bots to avoid aiogram 3.x router re-attachment errors.
+Provides resilient, concurrent safe_send_message and safe_send_batch utilities.
 """
 import logging
 import asyncio
-from typing import Dict, Optional, Any
-from aiogram import Bot, Dispatcher
+from typing import Dict, Optional, Any, List, Tuple
+from aiogram import Bot, Dispatcher, types
+from aiogram.exceptions import TelegramRetryAfter, TelegramForbiddenError, TelegramBadRequest, TelegramAPIError
 from asgiref.sync import sync_to_async
 from apps.bots.models import Bot as BotModel, RuntimeStatus, BotStatus
 
 logger = logging.getLogger(__name__)
+
+
+async def safe_send_message(
+    bot: Bot,
+    chat_id: int,
+    text: str,
+    reply_markup: Optional[Any] = None,
+    parse_mode: Optional[str] = "HTML",
+    disable_web_page_preview: bool = True,
+    max_retries: int = 2
+) -> Optional[types.Message]:
+    """
+    Resilient message sender:
+    - Retries automatically on TelegramRetryAfter (FloodWait).
+    - Silently handles user blocks (TelegramForbiddenError) and deleted chats (TelegramBadRequest).
+    - Prevents single-user errors from crashing or delaying game loops.
+    """
+    if not bot or not chat_id:
+        return None
+
+    for attempt in range(max_retries + 1):
+        try:
+            return await bot.send_message(
+                chat_id=chat_id,
+                text=text,
+                reply_markup=reply_markup,
+                parse_mode=parse_mode,
+                disable_web_page_preview=disable_web_page_preview
+            )
+        except TelegramRetryAfter as flood:
+            wait_time = max(1, int(flood.retry_after) + 1)
+            logger.warning(f"Telegram flood limit for chat {chat_id}: sleeping {wait_time}s (attempt {attempt+1}/{max_retries+1})")
+            await asyncio.sleep(wait_time)
+        except (TelegramForbiddenError, TelegramBadRequest) as ignorable:
+            logger.debug(f"Ignorable Telegram error sending to {chat_id}: {ignorable}")
+            return None
+        except Exception as e:
+            logger.warning(f"Error sending message to {chat_id} (attempt {attempt+1}): {e}")
+            if attempt < max_retries:
+                await asyncio.sleep(0.5)
+            else:
+                return None
+    return None
+
+
+async def safe_send_batch(
+    bot: Bot,
+    items: List[Tuple[int, str, Optional[Any], Optional[str]]],
+    max_concurrency: int = 10
+) -> List[Optional[types.Message]]:
+    """
+    Sends messages to multiple users concurrently using an asyncio Semaphore.
+    items: List of (chat_id, text, reply_markup, parse_mode)
+    """
+    sem = asyncio.Semaphore(max_concurrency)
+
+    async def _send_one(chat_id: int, text: str, reply_markup: Optional[Any], parse_mode: Optional[str]):
+        async with sem:
+            return await safe_send_message(
+                bot=bot,
+                chat_id=chat_id,
+                text=text,
+                reply_markup=reply_markup,
+                parse_mode=parse_mode
+            )
+
+    tasks = [
+        _send_one(
+            chat_id=item[0],
+            text=item[1],
+            reply_markup=item[2] if len(item) > 2 else None,
+            parse_mode=item[3] if len(item) > 3 else "HTML"
+        )
+        for item in items
+    ]
+    return await asyncio.gather(*tasks, return_exceptions=True)
 
 
 class BotRuntimeManager:
@@ -61,7 +139,7 @@ class BotRuntimeManager:
 
     @classmethod
     async def start_bot_polling(cls, bot_id: str) -> bool:
-        """Starts polling loop for a bot instance in background task."""
+        """Starts polling loop for a bot instance in background task with conflict-free lifecycle."""
         try:
             def _get_bot_data():
                 bot_obj = BotModel.objects.select_related('credential').filter(id=bot_id).first()
@@ -75,8 +153,8 @@ class BotRuntimeManager:
                 logger.error(f"Cannot start bot {bot_id}: Token decryption failed or missing credential.")
                 return False
 
-            # Stop existing instance if running
-            await cls.stop_bot_polling(bot_id)
+            # Stop existing instance if running (without marking OFFLINE in DB)
+            await cls.stop_bot_polling(bot_id, mark_db=False)
 
             bot = Bot(token=raw_token)
             dp = cls.get_child_dispatcher()
@@ -90,7 +168,6 @@ class BotRuntimeManager:
                     try:
                         from aiogram.types import BotCommand, BotCommandScopeAllPrivateChats, BotCommandScopeAllGroupChats
                         
-                        # 1. PM commands: Strictly 3 (/start, /profile, /roles)
                         pm_commands = [
                             BotCommand(command="start", description="Botni ishga tushirish"),
                             BotCommand(command="profile", description="Shaxsiy profil va do'kon"),
@@ -98,7 +175,6 @@ class BotRuntimeManager:
                         ]
                         await bot.set_my_commands(pm_commands, scope=BotCommandScopeAllPrivateChats())
 
-                        # 2. Group commands (clean menu with game, team, leave, giveaway, geroyinfo, utag)
                         group_commands = [
                             BotCommand(command="game", description="O'yin yaratish"),
                             BotCommand(command="team", description="Jamoaviy o'yin yaratish (Qizil vs Ko'k)"),
@@ -175,12 +251,16 @@ class BotRuntimeManager:
             return False
 
     @classmethod
-    async def stop_bot_polling(cls, bot_id: str) -> bool:
-        """Gracefully cancels polling loop task for a bot instance."""
+    async def stop_bot_polling(cls, bot_id: str, mark_db: bool = True) -> bool:
+        """Gracefully cancels polling loop task for a bot instance and awaits termination."""
         try:
             task = cls._active_tasks.pop(str(bot_id), None)
             if task and not task.done():
                 task.cancel()
+                try:
+                    await asyncio.wait_for(asyncio.shield(task), timeout=2.0)
+                except (asyncio.TimeoutError, asyncio.CancelledError, Exception):
+                    pass
 
             bot = cls._active_bots.pop(str(bot_id), None)
             if bot:
@@ -193,10 +273,11 @@ class BotRuntimeManager:
                 except Exception:
                     pass
 
-            def _mark_offline():
-                BotModel.objects.filter(id=bot_id).update(status=BotStatus.PAUSED, runtime_status=RuntimeStatus.OFFLINE)
+            if mark_db:
+                def _mark_offline():
+                    BotModel.objects.filter(id=bot_id).update(status=BotStatus.PAUSED, runtime_status=RuntimeStatus.OFFLINE)
+                await sync_to_async(_mark_offline)()
 
-            await sync_to_async(_mark_offline)()
             logger.info(f"Bot instance {bot_id} stopped.")
             return True
         except Exception as e:

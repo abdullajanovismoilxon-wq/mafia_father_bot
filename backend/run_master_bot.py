@@ -13,6 +13,7 @@ os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'config.settings')
 os.environ['DJANGO_ALLOW_ASYNC_UNSAFE'] = 'true'
 django.setup()
 
+from django.db import models
 from asgiref.sync import sync_to_async
 from aiogram import Bot
 from apps.bots.models import Bot as BotModel, RuntimeStatus, BotStatus
@@ -27,40 +28,45 @@ async def periodic_game_watchdog(master_bot: Bot):
     """
     Continuous self-healing watchdog:
     1. Auto-cancels expired WAITING lobbies.
-    2. Auto-advances stranded NIGHT games that exceed timeout.
-    3. Auto-closes stranded VOTING games that exceed timeout.
+    2. Auto-advances genuinely stuck NIGHT games that exceed timeout without interfering with active games.
+    3. Auto-closes genuinely stuck VOTING games that exceed timeout without interfering with active games.
     """
     from apps.games.models import Game, GamePhase
     from django.utils import timezone
     from datetime import timedelta
-    from bot_runtime.handlers.night import advance_night_to_day
-    from bot_runtime.handlers.voting import auto_close_voting
+    from bot_runtime.handlers.night import advance_night_to_day, ADVANCING_NIGHT_GAMES
+    from bot_runtime.handlers.voting import auto_close_voting, CLOSING_VOTING_GAMES, HANGING_VOTES
 
     while True:
         try:
             now = timezone.now()
 
-            # 1. Cancel expired waiting lobbies
+            # 1. Cancel expired waiting lobbies (timed out by phase_ends_at or >30 mins old)
             expired_lobbies = await sync_to_async(lambda: list(
                 Game.objects.filter(
-                    phase=GamePhase.WAITING,
-                    phase_ends_at__isnull=False,
-                    phase_ends_at__lt=now
+                    phase=GamePhase.WAITING
+                ).filter(
+                    (models.Q(phase_ends_at__isnull=False) & models.Q(phase_ends_at__lt=now)) |
+                    (models.Q(phase_ends_at__isnull=True) & models.Q(created_at__lt=now - timedelta(minutes=30)))
                 ).select_related('bot', 'bot__credential')
             ))()
             for g in expired_lobbies:
                 g.phase = GamePhase.CANCELED
-                await sync_to_async(g.save)(update_fields=['phase'])
+                g.status = GamePhase.CANCELED
+                await sync_to_async(g.save)(update_fields=['phase', 'status', 'updated_at'])
                 logger.info(f"Watchdog auto-cancelled expired lobby {g.id} in chat {g.chat_id}")
 
-            # 2. Recover stranded NIGHT games (updated_at > 90s ago)
+            # 2. Recover genuinely stuck NIGHT games (updated_at > 120s ago and not currently advancing)
             stuck_night_games = await sync_to_async(lambda: list(
                 Game.objects.filter(
                     phase=GamePhase.NIGHT,
-                    updated_at__lt=now - timedelta(seconds=90)
+                    updated_at__lt=now - timedelta(seconds=120)
                 ).select_related('bot', 'bot__credential')
             ))()
             for g in stuck_night_games:
+                gid = str(g.id)
+                if gid in ADVANCING_NIGHT_GAMES:
+                    continue
                 logger.warning(f"Watchdog detected stuck NIGHT in game {g.id}. Advancing to Day.")
                 try:
                     game_bot = BotRuntimeManager.get_bot_for_game(g, master_bot)
@@ -68,14 +74,17 @@ async def periodic_game_watchdog(master_bot: Bot):
                 except Exception as ne:
                     logger.exception(f"Watchdog night advance error for game {g.id}: {ne}")
 
-            # 3. Recover stranded VOTING games (updated_at > 75s ago)
+            # 3. Recover genuinely stuck VOTING games (updated_at > 100s ago and not currently closing)
             stuck_voting_games = await sync_to_async(lambda: list(
                 Game.objects.filter(
                     phase=GamePhase.VOTING,
-                    updated_at__lt=now - timedelta(seconds=75)
+                    updated_at__lt=now - timedelta(seconds=100)
                 ).select_related('bot', 'bot__credential')
             ))()
             for g in stuck_voting_games:
+                gid = str(g.id)
+                if gid in CLOSING_VOTING_GAMES or gid in HANGING_VOTES:
+                    continue
                 logger.warning(f"Watchdog detected stuck VOTING in game {g.id}. Closing voting.")
                 try:
                     game_bot = BotRuntimeManager.get_bot_for_game(g, master_bot)
@@ -91,27 +100,33 @@ async def periodic_game_watchdog(master_bot: Bot):
 async def periodic_bot_sync_task(master_bot: Bot):
     """
     Periodically synchronizes running child bots with the database:
-    1. If a bot is deleted or status changed to PAUSED/SUSPENDED/DELETED/OFFLINE in admin panel -> stops polling.
-    2. If a bot is created or re-activated in admin panel (status=ACTIVE and runtime_status=RUNNING) -> starts polling.
+    1. If a bot is deleted or status changed to PAUSED/SUSPENDED/DELETED -> stops polling.
+    2. If a bot is active in database (status=ACTIVE) and not yet running -> starts polling.
     """
+    master_bot_id = None
+    try:
+        me = await master_bot.get_me()
+        master_bot_id = me.id
+    except Exception as e:
+        logger.warning(f"Could not get master bot ID for sync: {e}")
+
     while True:
         try:
-            bot_info = await master_bot.get_me()
-            active_db_bots = await sync_to_async(lambda: list(
-                BotModel.objects.exclude(telegram_bot_id=bot_info.id)
-                .filter(status=BotStatus.ACTIVE, runtime_status=RuntimeStatus.RUNNING)
-            ))()
+            db_query = BotModel.objects.filter(status=BotStatus.ACTIVE)
+            if master_bot_id:
+                db_query = db_query.exclude(telegram_bot_id=master_bot_id)
 
+            active_db_bots = await sync_to_async(lambda: list(db_query))()
             active_db_bot_ids = {str(b.id) for b in active_db_bots}
             running_bot_ids = set(BotRuntimeManager._active_tasks.keys())
 
-            # 1. Stop bots that are no longer active/running in DB
+            # 1. Stop bots that are no longer active in DB
             for running_id in running_bot_ids:
                 if running_id not in active_db_bot_ids:
                     logger.info(f"🛑 Stopping deactivated/paused bot {running_id}...")
                     await BotRuntimeManager.stop_bot_polling(running_id)
 
-            # 2. Start bots that are active and running in DB but not yet polled
+            # 2. Start bots that are active in DB but not yet running
             for b in active_db_bots:
                 bid = str(b.id)
                 task = BotRuntimeManager._active_tasks.get(bid)
@@ -122,7 +137,7 @@ async def periodic_bot_sync_task(master_bot: Bot):
         except Exception as e:
             logger.debug(f"Bot sync error: {e}")
 
-        await asyncio.sleep(2)
+        await asyncio.sleep(3)
 
 
 async def main():

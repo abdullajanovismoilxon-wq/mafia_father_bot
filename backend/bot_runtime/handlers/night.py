@@ -405,7 +405,7 @@ async def send_dynamic_animation(
         try:
             headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
             async with aiohttp.ClientSession(headers=headers) as session:
-                async with session.get(media_val, timeout=aiohttp.ClientTimeout(total=8)) as resp:
+                async with session.get(media_val, timeout=aiohttp.ClientTimeout(total=2.5)) as resp:
                     if resp.status == 200:
                         content_bytes = await resp.read()
                         os.makedirs(os.path.dirname(local_gif_path), exist_ok=True)
@@ -414,7 +414,7 @@ async def send_dynamic_animation(
                         target = types.FSInputFile(local_gif_path)
                         return await bot.send_animation(chat_id=chat_id, animation=target, caption=caption, reply_markup=reply_markup, parse_mode=parse_mode)
         except Exception as dl_err:
-            logger.warning(f"Download for {media_key} failed: {dl_err}")
+            logger.debug(f"Download for {media_key} failed or timed out: {dl_err}")
 
         # Try sending URL directly
         try:
@@ -1397,57 +1397,62 @@ async def _announce_game_winner(game: Game, winner: str, bot: Bot, story_lines: 
         parse_mode="HTML"
     )
 
-    # Send personal game conclusion PM with updated profile to EVERY player
-    from apps.stats.services import StatsService
-    from apps.economy.services import EconomyService
-    from bot_runtime.handlers.economy import _sync_get_inventory_state, format_custom_profile_text, check_channel_membership_and_apply_bonus
-    from bot_runtime.keyboards.inline import build_profile_interactive_keyboard
+    # Send personal game conclusion PM with updated profile to EVERY player in background task
+    from bot_runtime.manager import safe_send_message
 
-    for p in all_players:
-        try:
-            profile = await sync_to_async(StatsService.get_or_create_profile)(
-                telegram_id=p.telegram_user_id,
-                username=p.username or '',
-                first_name=p.display_name or ''
-            )
-            stats = await sync_to_async(lambda: getattr(profile, 'stats', None))()
-            wallet = await sync_to_async(EconomyService.get_or_create_wallet)(telegram_id=p.telegram_user_id)
-            inv_state = await sync_to_async(_sync_get_inventory_state)(p.telegram_user_id)
+    async def _deliver_endgame_profiles():
+        from apps.stats.services import StatsService
+        from apps.economy.services import EconomyService
+        from bot_runtime.handlers.economy import _sync_get_inventory_state, format_custom_profile_text, check_channel_membership_and_apply_bonus
+        from bot_runtime.keyboards.inline import build_profile_interactive_keyboard
+        from apps.superadmin.services import TextService
 
-            is_channel_member = await check_channel_membership_and_apply_bonus(bot, profile, wallet)
-            prof_text = format_custom_profile_text(profile, stats, wallet, inv_state, is_channel_member=is_channel_member)
-            is_winner = (p in winners)
-
-            from apps.superadmin.services import TextService
-            if is_winner:
-                place_info, place_coins = winner_places_map.get(p.telegram_user_id, (1, 75))
-                w_reward_str = f"+{place_coins} 💶" + (f", +{win_diamonds} 💎" if win_diamonds > 0 else "")
-                raw_win_hdr = TextService.get_text(
-                    'game_finish_payout_winner_format',
-                    fallback="🎉 <b>O'yin yakunlandi! Siz {place_info}-o'rin bilan g'alaba qozondingiz!</b> 🥳\n🎁 <b>G'alaba mukofoti:</b> <code>{reward_str}</code> hisobingizga qo'shildi!\n\n"
+        for p in all_players:
+            try:
+                profile = await sync_to_async(StatsService.get_or_create_profile)(
+                    telegram_id=p.telegram_user_id,
+                    username=p.username or '',
+                    first_name=p.display_name or ''
                 )
-                header = raw_win_hdr.format(place_info=place_info, reward_str=w_reward_str)
-            else:
-                raw_lose_hdr = TextService.get_text(
-                    'game_finish_payout_loser_format',
-                    fallback="💀 <b>O'yin yakunlandi! Siz mag'lub bo'ldingiz.</b>\n🎁 <b>Ishtirok mukofoti:</b> <code>+{reward_coins} 💶</code> hisobingizga qo'shildi!\n\n"
-                )
-                header = raw_lose_hdr.format(reward_coins=part_coins)
+                stats = await sync_to_async(lambda: getattr(profile, 'stats', None))()
+                wallet = await sync_to_async(EconomyService.get_or_create_wallet)(telegram_id=p.telegram_user_id)
+                inv_state = await sync_to_async(_sync_get_inventory_state)(p.telegram_user_id)
 
-            pm_text = header + prof_text
-            kb = build_profile_interactive_keyboard(
-                himoya_on=inv_state['himoya']['on'],
-                osish_on=inv_state['osish_himoya']['on'],
-                hujjat_on=inv_state['hujjat']['on'],
-                geroy_himoya_on=inv_state['geroy_himoya']['on'],
-                vaksina_on=inv_state['vaksina']['on'],
-                dori_on=inv_state['dori_himoya']['on'],
-                sirpanish_on=inv_state['sirpanish_himoya']['on'],
-                tg_id=p.telegram_user_id
-            )
-            await bot.send_message(p.telegram_user_id, pm_text, reply_markup=kb, parse_mode="HTML")
-        except Exception as pm_err:
-            logger.warning(f"Could not send end-game profile PM to player {p.telegram_user_id}: {pm_err}")
+                is_channel_member = await check_channel_membership_and_apply_bonus(bot, profile, wallet)
+                prof_text = format_custom_profile_text(profile, stats, wallet, inv_state, is_channel_member=is_channel_member)
+                is_winner = (p in winners)
+
+                if is_winner:
+                    place_info, place_coins = winner_places_map.get(p.telegram_user_id, (1, 75))
+                    w_reward_str = f"+{place_coins} 💶" + (f", +{win_diamonds} 💎" if win_diamonds > 0 else "")
+                    raw_win_hdr = await sync_to_async(TextService.get_text)(
+                        'game_finish_payout_winner_format',
+                        fallback="🎉 <b>O'yin yakunlandi! Siz {place_info}-o'rin bilan g'alaba qozondingiz!</b> 🥳\n🎁 <b>G'alaba mukofoti:</b> <code>{reward_str}</code> hisobingizga qo'shildi!\n\n"
+                    )
+                    header = raw_win_hdr.format(place_info=place_info, reward_str=w_reward_str)
+                else:
+                    raw_lose_hdr = await sync_to_async(TextService.get_text)(
+                        'game_finish_payout_loser_format',
+                        fallback="💀 <b>O'yin yakunlandi! Siz mag'lub bo'ldingiz.</b>\n🎁 <b>Ishtirok mukofoti:</b> <code>+{reward_coins} 💶</code> hisobingizga qo'shildi!\n\n"
+                    )
+                    header = raw_lose_hdr.format(reward_coins=part_coins)
+
+                pm_text = header + prof_text
+                kb = build_profile_interactive_keyboard(
+                    himoya_on=inv_state['himoya']['on'],
+                    osish_on=inv_state['osish_himoya']['on'],
+                    hujjat_on=inv_state['hujjat']['on'],
+                    geroy_himoya_on=inv_state['geroy_himoya']['on'],
+                    vaksina_on=inv_state['vaksina']['on'],
+                    dori_on=inv_state['dori_himoya']['on'],
+                    sirpanish_on=inv_state['sirpanish_himoya']['on'],
+                    tg_id=p.telegram_user_id
+                )
+                await safe_send_message(bot, p.telegram_user_id, pm_text, reply_markup=kb, parse_mode="HTML")
+            except Exception as pm_err:
+                logger.warning(f"Could not send end-game profile PM to player {p.telegram_user_id}: {pm_err}")
+
+    asyncio.create_task(_deliver_endgame_profiles())
 
 
 # ---------------------------------------------------------------------------
