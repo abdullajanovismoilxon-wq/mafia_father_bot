@@ -239,7 +239,7 @@ async def handle_hanging_callback(callback: CallbackQuery, bot: Bot):
         total_living = await sync_to_async(
             lambda: Player.objects.filter(game__id=game_id_key, is_alive=True).count()
         )()
-        if len(h_data['voters']) >= total_living:
+        if len(h_data['voters']) >= max(1, total_living - 1):
             task = HANGING_TASKS.pop(game_id_key, None)
             if task and not task.done():
                 task.cancel()
@@ -261,6 +261,9 @@ async def auto_close_voting(game: Game, bot: Bot):
         return
     CLOSING_VOTING_GAMES.add(game_id)
     try:
+        from bot_runtime.manager import BotRuntimeManager
+        bot = BotRuntimeManager.get_bot_for_game(game, bot)
+
         from bot_runtime.handlers.night import VOTING_TASKS
         task = VOTING_TASKS.pop(game_id, None) or HANGING_TASKS.pop(f"vote_{game.id}", None)
         if task and not task.done():
@@ -385,6 +388,9 @@ async def resolve_hanging(game: Game, bot: Bot, original_msg=None):
     """Resolves hanging: eliminates or saves, then win-check → next night."""
     game_id = str(game.id)
     try:
+        from bot_runtime.manager import BotRuntimeManager
+        bot = BotRuntimeManager.get_bot_for_game(game, bot)
+
         h_data = HANGING_VOTES.pop(game_id, None)
         if not h_data:
             return
@@ -535,6 +541,9 @@ async def _advance_to_next_night(game: Game, bot: Bot, reason: str = ""):
     game_id = str(game.id)
     logger.info(f"Advancing game {game_id} to next night. Reason: {reason}")
     try:
+        from bot_runtime.manager import BotRuntimeManager
+        bot = BotRuntimeManager.get_bot_for_game(game, bot)
+
         game = await sync_to_async(Game.objects.select_related('bot').get)(id=game.id)
 
         game.phase = GamePhase.NIGHT
@@ -707,11 +716,12 @@ async def _advance_to_next_night(game: Game, bot: Bot, reason: str = ""):
             except Exception as pm_err:
                 logger.warning(f"Night PM to {player.telegram_user_id} failed: {pm_err}")
 
+        if game.phase == GamePhase.NIGHT and game.status not in ['FINISHED', 'CANCELED']:
+            from bot_runtime.handlers.night import start_night_timer
+            from apps.superadmin.services import SettingService
+            bot_id_str = str(game.bot_id) if game and getattr(game, 'bot_id', None) else ''
+            n_dur = await sync_to_async(SettingService.get_bot_timing)(bot_id_str, 'night_duration', 60)
+            start_night_timer(game_id, bot, duration=n_dur)
+
     except Exception as e:
         logger.exception(f"Error in _advance_to_next_night: {e}")
-    finally:
-        from bot_runtime.handlers.night import start_night_timer
-        from apps.superadmin.services import SettingService
-        bot_id_str = str(game.bot_id) if game and getattr(game, 'bot_id', None) else ''
-        n_dur = await sync_to_async(SettingService.get_bot_timing)(bot_id_str, 'night_duration', 60)
-        start_night_timer(game_id, bot, duration=n_dur)

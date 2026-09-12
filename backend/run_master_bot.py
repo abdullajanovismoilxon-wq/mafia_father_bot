@@ -46,7 +46,7 @@ async def periodic_game_watchdog(master_bot: Bot):
                     phase=GamePhase.WAITING,
                     phase_ends_at__isnull=False,
                     phase_ends_at__lt=now
-                ).select_related('bot')
+                ).select_related('bot', 'bot__credential')
             ))()
             for g in expired_lobbies:
                 g.phase = GamePhase.CANCELED
@@ -58,12 +58,13 @@ async def periodic_game_watchdog(master_bot: Bot):
                 Game.objects.filter(
                     phase=GamePhase.NIGHT,
                     updated_at__lt=now - timedelta(seconds=90)
-                ).select_related('bot')
+                ).select_related('bot', 'bot__credential')
             ))()
             for g in stuck_night_games:
                 logger.warning(f"Watchdog detected stuck NIGHT in game {g.id}. Advancing to Day.")
                 try:
-                    await advance_night_to_day(g, master_bot)
+                    game_bot = BotRuntimeManager.get_bot_for_game(g, master_bot)
+                    await advance_night_to_day(g, game_bot)
                 except Exception as ne:
                     logger.exception(f"Watchdog night advance error for game {g.id}: {ne}")
 
@@ -72,12 +73,13 @@ async def periodic_game_watchdog(master_bot: Bot):
                 Game.objects.filter(
                     phase=GamePhase.VOTING,
                     updated_at__lt=now - timedelta(seconds=75)
-                ).select_related('bot')
+                ).select_related('bot', 'bot__credential')
             ))()
             for g in stuck_voting_games:
                 logger.warning(f"Watchdog detected stuck VOTING in game {g.id}. Closing voting.")
                 try:
-                    await auto_close_voting(g, master_bot)
+                    game_bot = BotRuntimeManager.get_bot_for_game(g, master_bot)
+                    await auto_close_voting(g, game_bot)
                 except Exception as ve:
                     logger.exception(f"Watchdog voting close error for game {g.id}: {ve}")
 

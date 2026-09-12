@@ -51,6 +51,7 @@ GAME_ID_MAP: dict = {}
 PLAYER_ID_MAP: dict = {}
 JOKER_TEMP_BOXES: dict = {}  # {game_id: {user_id: [1, 2]}}
 VOTING_TASKS: dict = {}
+ADVANCING_NIGHT_GAMES: set = set()
 
 ROLE_ICONS = {
     "DON": "🤵🏻",
@@ -439,7 +440,15 @@ async def send_dynamic_animation(
 async def advance_night_to_day(game: Game, bot: Bot):
     """Processes night actions via GameResolutionService and announces dawn results."""
     game_id = str(game.id)
+    if game_id in ADVANCING_NIGHT_GAMES:
+        logger.info(f"Game {game_id} is already advancing night to day. Skipping duplicate call.")
+        return
+    ADVANCING_NIGHT_GAMES.add(game_id)
     try:
+        cancel_night_timer(game_id)
+        from bot_runtime.manager import BotRuntimeManager
+        bot = BotRuntimeManager.get_bot_for_game(game, bot)
+
         game = await sync_to_async(Game.objects.select_related('bot').get)(id=game_id)
         if game.phase != GamePhase.NIGHT:
             return
@@ -1035,7 +1044,9 @@ async def advance_night_to_day(game: Game, bot: Bot):
             try:
                 g = await sync_to_async(Game.objects.select_related('bot').get)(id=game_id)
                 if g.phase == GamePhase.VOTING:
-                    await auto_close_voting(g, bot)
+                    from bot_runtime.manager import BotRuntimeManager
+                    actual_b = BotRuntimeManager.get_bot_for_game(g, bot)
+                    await auto_close_voting(g, actual_b)
             except Exception as v_err:
                 logger.warning(f"Voting auto-close error: {v_err}")
 
@@ -1043,6 +1054,8 @@ async def advance_night_to_day(game: Game, bot: Bot):
 
     except Exception as e:
         logger.exception(f"Error in advance_night_to_day for game {game_id}: {e}")
+    finally:
+        ADVANCING_NIGHT_GAMES.discard(game_id)
 
 
 # ---------------------------------------------------------------------------
@@ -1050,6 +1063,8 @@ async def advance_night_to_day(game: Game, bot: Bot):
 # ---------------------------------------------------------------------------
 
 async def _announce_game_winner(game: Game, winner: str, bot: Bot, story_lines: list = None):
+    from bot_runtime.manager import BotRuntimeManager
+    bot = BotRuntimeManager.get_bot_for_game(game, bot)
     # 1. Send "So'ngi voqealar:" as a separate message first
     if story_lines:
         story_text = "📖 <b>So'ngi voqealar:</b>\n" + "\n".join(story_lines)

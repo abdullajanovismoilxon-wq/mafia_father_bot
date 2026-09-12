@@ -5,7 +5,7 @@ Uses a single shared Dispatcher for child bots to avoid aiogram 3.x router re-at
 """
 import logging
 import asyncio
-from typing import Dict, Optional
+from typing import Dict, Optional, Any
 from aiogram import Bot, Dispatcher
 from asgiref.sync import sync_to_async
 from apps.bots.models import Bot as BotModel, RuntimeStatus, BotStatus
@@ -27,6 +27,37 @@ class BotRuntimeManager:
             from bot_runtime.engine import create_bot_dispatcher
             cls._child_dp = create_bot_dispatcher()
         return cls._child_dp
+
+    @classmethod
+    def get_bot(cls, bot_id: str) -> Optional[Bot]:
+        """Returns the active Bot instance for a bot ID, or retrieves/creates one if credentials exist."""
+        bot_id_str = str(bot_id)
+        if bot_id_str in cls._active_bots:
+            return cls._active_bots[bot_id_str]
+        try:
+            bot_obj = BotModel.objects.select_related('credential').filter(id=bot_id).first()
+            if bot_obj and hasattr(bot_obj, 'credential'):
+                raw_token = bot_obj.credential.get_token()
+                if raw_token:
+                    bot = Bot(token=raw_token)
+                    cls._active_bots[bot_id_str] = bot
+                    return bot
+        except Exception as e:
+            logger.warning(f"Could not retrieve bot for {bot_id}: {e}")
+        return None
+
+    @classmethod
+    def get_bot_for_game(cls, game: Any, fallback_bot: Optional[Bot] = None) -> Bot:
+        """Resolves the exact Telegram Bot instance configured for this game."""
+        try:
+            bot_id = getattr(game, 'bot_id', None)
+            if bot_id:
+                resolved = cls.get_bot(str(bot_id))
+                if resolved:
+                    return resolved
+        except Exception as e:
+            logger.warning(f"Error resolving bot for game: {e}")
+        return fallback_bot
 
     @classmethod
     async def start_bot_polling(cls, bot_id: str) -> bool:

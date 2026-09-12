@@ -29,6 +29,7 @@ class GameResolutionService:
 
             alive_players = list(Player.objects.filter(game=game, is_alive=True).select_related('role'))
             alive_player_map = {p.id: p for p in alive_players}
+            alive_player_map.update({str(p.id): p for p in alive_players})
 
             # -------------------------------------------------------------
             # 1. Blockers & Role Alterations (Kezuvchi, Aferist, Oshpaz)
@@ -475,15 +476,17 @@ class GameResolutionService:
                         })
                     for mid in marks:
                         try:
-                            mid_int = int(mid)
-                            if mid_int in alive_player_map and mid_int not in eliminated_player_ids:
-                                mp = alive_player_map[mid_int]
-                                eliminated_player_ids.add(mid_int)
-                                eliminated_dict_list.append({
-                                    'player': mp,
-                                    'role_name': mp.role.name if mp.role else 'CITIZEN',
-                                    'killer_type': 'gazabkor_chain'
-                                })
+                            mid_key = mid if mid in alive_player_map else str(mid)
+                            if mid_key in alive_player_map:
+                                mp = alive_player_map[mid_key]
+                                if mp.id not in eliminated_player_ids and str(mp.id) not in eliminated_player_ids:
+                                    eliminated_player_ids.add(mp.id)
+                                    eliminated_player_ids.add(str(mp.id))
+                                    eliminated_dict_list.append({
+                                        'player': mp,
+                                        'role_name': mp.role.name if mp.role else 'CITIZEN',
+                                        'killer_type': 'gazabkor_chain'
+                                    })
                         except Exception:
                             pass
 
