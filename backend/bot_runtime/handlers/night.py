@@ -37,6 +37,7 @@ from bot_runtime.keyboards.inline import (
     build_joker_guess_keyboard,
     build_vaksina_prompt_keyboard,
     _player_team_badge,
+    _player_health_badge,
     _short,
 )
 
@@ -998,7 +999,7 @@ async def advance_night_to_day(game: Game, bot: Bot):
             return
 
         living_lines = "\n".join([
-            f'{all_players.index(p) + 1}. {_player_team_badge(p)}<a href="tg://user?id={p.telegram_user_id}">{html.escape(p.display_name)}</a>'
+            f'{all_players.index(p) + 1}. {_player_team_badge(p)}<a href="tg://user?id={p.telegram_user_id}">{html.escape(p.display_name)}</a>{_player_health_badge(p)}'
             for p in living_players
         ])
 

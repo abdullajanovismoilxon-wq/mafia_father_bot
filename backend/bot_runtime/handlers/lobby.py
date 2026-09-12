@@ -32,6 +32,7 @@ from bot_runtime.keyboards.inline import (
     build_group_lobby_keyboard,
     build_team_lobby_keyboard,
     _player_team_badge,
+    _player_health_badge,
     build_back_to_group_keyboard,
     build_night_target_keyboard,
     build_komissar_action_keyboard,
@@ -678,7 +679,7 @@ async def cmd_start_game(message: types.Message, bot: Bot):
         _register_ids(str(game.id), living_players)
 
         living_roster = "\n".join([
-            f'{i+1}. {_player_team_badge(p)}<a href="tg://user?id={p.telegram_user_id}">{html.escape(p.display_name)}</a>'
+            f'{i+1}. {_player_team_badge(p)}<a href="tg://user?id={p.telegram_user_id}">{html.escape(p.display_name)}</a>{_player_health_badge(p)}'
             for i, p in enumerate(living_players)
         ])
 
@@ -804,7 +805,8 @@ async def cmd_start_game(message: types.Message, bot: Bot):
                     m_icon = role_icon(mr.name)
                     m_label = role_label(mr.name)
                     m_badge = _player_team_badge(mp)
-                    team_lines.append(f"<b>{m_badge}{html.escape(mp.display_name)}</b> - {m_icon} <b>{m_label}</b>")
+                    m_hp = _player_health_badge(mp)
+                    team_lines.append(f"<b>{m_badge}{html.escape(mp.display_name)}</b>{m_hp} - {m_icon} <b>{m_label}</b>")
                 team_msg = "<b>Sheriklaringizni eslab qoling! (Mafiya)</b>\n\n" + "\n".join(team_lines) + "\n\n<i>💬 Tunda botga xabar yozsangiz, sheriklaringizga yetkaziladi!</i>"
                 try:
                     await bot.send_message(
@@ -822,7 +824,8 @@ async def cmd_start_game(message: types.Message, bot: Bot):
                     p_icon = role_icon(pr.name)
                     p_label = role_label(pr.name)
                     p_badge = _player_team_badge(pp)
-                    pol_lines.append(f"<b>{p_badge}{html.escape(pp.display_name)}</b> - {p_icon} <b>{p_label}</b>")
+                    p_hp = _player_health_badge(pp)
+                    pol_lines.append(f"<b>{p_badge}{html.escape(pp.display_name)}</b>{p_hp} - {p_icon} <b>{p_label}</b>")
                 pol_team_msg = "👮🏼‍♂️ <b>Sheriklaringizni eslab qoling! (Politsiya)</b>\n\n" + "\n".join(pol_lines) + "\n\n<i>💬 Tunda botga xabar yozsangiz, sherigingizga yetkaziladi!</i>"
                 try:
                     await bot.send_message(
@@ -840,7 +843,8 @@ async def cmd_start_game(message: types.Message, bot: Bot):
                     m_icon = role_icon(mr.name)
                     m_label = role_label(mr.name)
                     m_badge = _player_team_badge(mp)
-                    med_lines.append(f"<b>{m_badge}{html.escape(mp.display_name)}</b> - {m_icon} <b>{m_label}</b>")
+                    m_hp = _player_health_badge(mp)
+                    med_lines.append(f"<b>{m_badge}{html.escape(mp.display_name)}</b>{m_hp} - {m_icon} <b>{m_label}</b>")
                 med_team_msg = "👨🏼‍⚕️ <b>Sheriklaringizni eslab qoling! (Tibbiyot)</b>\n\n" + "\n".join(med_lines) + "\n\n<i>💬 Tunda botga xabar yozsangiz, sherigingizga yetkaziladi!</i>"
                 try:
                     await bot.send_message(

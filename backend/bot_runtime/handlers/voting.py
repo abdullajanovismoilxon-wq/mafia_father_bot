@@ -29,6 +29,7 @@ from bot_runtime.keyboards.inline import (
     build_bot_pm_keyboard,
     build_komissar_action_keyboard,
     _player_team_badge,
+    _player_health_badge,
     _short,
 )
 
@@ -108,8 +109,8 @@ async def handle_vote_callback(callback: CallbackQuery, bot: Bot):
 
         await sync_to_async(VotingService.submit_vote)(game, voter, actual_target)
 
-        voter_mention = f'{_player_team_badge(voter)}<a href="tg://user?id={voter.telegram_user_id}">{html.escape(voter.display_name)}</a>'
-        target_mention = f'{_player_team_badge(actual_target)}<a href="tg://user?id={actual_target.telegram_user_id}">{html.escape(actual_target.display_name)}</a>'
+        voter_mention = f'{_player_team_badge(voter)}<a href="tg://user?id={voter.telegram_user_id}">{html.escape(voter.display_name)}</a>{_player_health_badge(voter)}'
+        target_mention = f'{_player_team_badge(actual_target)}<a href="tg://user?id={actual_target.telegram_user_id}">{html.escape(actual_target.display_name)}</a>{_player_health_badge(actual_target)}'
 
         if is_dizzy:
             await callback.answer("😵 Boshingiz aylanib, boshqa odamga ovoz ketdi!", show_alert=True)
@@ -285,7 +286,7 @@ async def auto_close_voting(game: Game, bot: Bot):
             target_map[tid] = v.target
 
         tally_lines = [
-            f'• {_player_team_badge(target_map[tid])}<a href="tg://user?id={target_map[tid].telegram_user_id}">{html.escape(target_map[tid].display_name)}</a> — {count} ovoz'
+            f'• {_player_team_badge(target_map[tid])}<a href="tg://user?id={target_map[tid].telegram_user_id}">{html.escape(target_map[tid].display_name)}</a>{_player_health_badge(target_map[tid])} — {count} ovoz'
             for tid, count in sorted(counts.items(), key=lambda x: -x[1])
         ]
         tally_text = "\n".join(tally_lines) if tally_lines else "<i>Hech kim ovoz bermadi</i>"
@@ -314,7 +315,7 @@ async def auto_close_voting(game: Game, bot: Bot):
 
         # Single top target → hanging confirmation
         suspect = target_map[top_targets[0]]
-        suspect_mention = f'{_player_team_badge(suspect)}<a href="tg://user?id={suspect.telegram_user_id}">{html.escape(suspect.display_name)}</a>'
+        suspect_mention = f'{_player_team_badge(suspect)}<a href="tg://user?id={suspect.telegram_user_id}">{html.escape(suspect.display_name)}</a>{_player_health_badge(suspect)}'
 
         HANGING_VOTES[game_id] = {
             'kill': 0, 'save': 0, 'voters': set(), 'target': suspect, 'message': None
@@ -398,7 +399,7 @@ async def resolve_hanging(game: Game, bot: Bot, original_msg=None):
         suspect = h_data['target']
         kill_votes = h_data['kill']
         save_votes = h_data['save']
-        suspect_mention = f'{_player_team_badge(suspect)}<a href="tg://user?id={suspect.telegram_user_id}">{html.escape(suspect.display_name)}</a>'
+        suspect_mention = f'{_player_team_badge(suspect)}<a href="tg://user?id={suspect.telegram_user_id}">{html.escape(suspect.display_name)}</a>{_player_health_badge(suspect)}'
 
         if kill_votes > save_votes:
             # Check osish_himoya inventory shield (STRICT: MAX 1 PER GAME)
@@ -480,7 +481,7 @@ async def resolve_hanging(game: Game, bot: Bot, original_msg=None):
                         if don_role:
                             await sync_to_async(lambda: Player.objects.filter(id=new_don.id).update(role=don_role))()
                         try:
-                            new_don_mention = f'{_player_team_badge(new_don)}<a href="tg://user?id={new_don.telegram_user_id}">{html.escape(new_don.display_name)}</a>'
+                            new_don_mention = f'{_player_team_badge(new_don)}<a href="tg://user?id={new_don.telegram_user_id}">{html.escape(new_don.display_name)}</a>{_player_health_badge(new_don)}'
                             await bot.send_message(
                                 game.chat_id,
                                 f"🤵🏻 {new_don_mention} <b>Don bo'ldi!</b>\nO'yin davom etadi...",
@@ -572,7 +573,7 @@ async def _advance_to_next_night(game: Game, bot: Bot, reason: str = ""):
         living_players = [p for p in all_players if p.is_alive]
 
         living_roster = "\n".join([
-            f' {all_players.index(p) + 1}. {_player_team_badge(p)}<a href="tg://user?id={p.telegram_user_id}">{html.escape(p.display_name)}</a>'
+            f' {all_players.index(p) + 1}. {_player_team_badge(p)}<a href="tg://user?id={p.telegram_user_id}">{html.escape(p.display_name)}</a>{_player_health_badge(p)}'
             for p in living_players
         ])
 

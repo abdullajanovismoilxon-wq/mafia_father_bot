@@ -240,4 +240,20 @@ class TestTeamGameMode(TestCase):
         self.assertEqual(s_red_dead.games_won, 1)
         self.assertEqual(s_blue_dead.games_won, 0)
 
+    def test_player_health_badge_display(self):
+        from bot_runtime.keyboards.inline import _player_health_badge
+        game = GameService.create_game(
+            bot=self.bot,
+            chat_id=-100987654321,
+            mode="CLASSIC"
+        )
+        p_full, _ = GameService.join_lobby(game, 501, "full_hp", "Full HP Player")
+        p_damaged, _ = GameService.join_lobby(game, 502, "damaged_hp", "Damaged Player")
+        p_damaged.health = 45
+        p_damaged.save()
+
+        self.assertEqual(_player_health_badge(p_full), "")
+        self.assertEqual(_player_health_badge(p_damaged), " (❤️ 45%)")
+
+
 

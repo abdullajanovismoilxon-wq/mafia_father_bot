@@ -172,6 +172,19 @@ def _player_team_badge(player) -> str:
     return ''
 
 
+def _player_health_badge(player) -> str:
+    """Returns ' (❤️ 45%)' if player has taken damage and health is below 100%."""
+    if player and hasattr(player, 'health') and player.health is not None:
+        try:
+            hp = int(player.health)
+            if 0 < hp < 100:
+                return f" (❤️ {hp}%)"
+        except (ValueError, TypeError):
+            pass
+    return ''
+
+
+
 def build_team_lobby_keyboard(bot_username: str, game_id: str, red_count: int = 0, blue_count: int = 0) -> InlineKeyboardMarkup:
     """Builds group /team lobby keyboard with Red and Blue team deep links."""
     from apps.superadmin.services import TextService
@@ -302,12 +315,34 @@ def build_night_target_keyboard(
         if not targets:
             targets = list(living_players)
 
+    actor = next((p for p in living_players if str(p.id) == str(current_player_id)), None)
+    actor_rname = actor.role.name if actor and actor.role else None
+
+    is_actor_mafia = bool(actor_rname and actor_rname in ["DON", "MAFIA", "ADVOKAT", "UBIYTSA", "JURNALIST", "AYGOQCHI", "LABORANT"])
+    is_actor_police = bool(actor_rname and actor_rname in ["DETECTIVE", "KOMISSAR", "SHERIFF", "SERJANT", "ADMIRAL"])
+    is_actor_medical = bool(actor_rname and actor_rname in ["DOCTOR", "SHIFOKOR", "DOKTOR", "HAMSHIRA"])
+
     for idx, player in enumerate(targets, 1):
-        display = (player.display_name or player.username or "O'yinchi")[:22]
+        display = (player.display_name or player.username or "O'yinchi")[:20]
         team_badge = _player_team_badge(player)
+        hp_badge = _player_health_badge(player)
         pid = _short(str(player.id))
+
+        p_rname = player.role.name if player.role else None
+        role_hint = ""
+        if p_rname:
+            if is_actor_mafia and p_rname in ["DON", "MAFIA", "ADVOKAT", "UBIYTSA", "JURNALIST", "AYGOQCHI", "LABORANT"]:
+                from bot_runtime.handlers.night import role_icon
+                role_hint = f" {role_icon(p_rname)}"
+            elif is_actor_police and p_rname in ["DETECTIVE", "KOMISSAR", "SHERIFF", "SERJANT", "ADMIRAL"]:
+                from bot_runtime.handlers.night import role_icon
+                role_hint = f" {role_icon(p_rname)}"
+            elif is_actor_medical and p_rname in ["DOCTOR", "SHIFOKOR", "DOKTOR", "HAMSHIRA"]:
+                from bot_runtime.handlers.night import role_icon
+                role_hint = f" {role_icon(p_rname)}"
+
         builder.button(
-            text=f"{team_badge}{idx}. {display}",
+            text=f"{team_badge}{idx}. {display}{role_hint}{hp_badge}",
             callback_data=f"n:{gid}:{act}:{pid}"
         )
     builder.adjust(1)
@@ -337,9 +372,10 @@ def build_voting_keyboard(
     for idx, player in enumerate(targets, 1):
         display = (player.display_name or player.username or "O'yinchi")[:22]
         team_badge = _player_team_badge(player)
+        hp_badge = _player_health_badge(player)
         pid = _short(str(player.id))
         builder.button(
-            text=f"{team_badge}{idx}. {display}",
+            text=f"{team_badge}{idx}. {display}{hp_badge}",
             callback_data=f"v:{gid}:{pid}"
         )
     builder.adjust(1)
