@@ -683,6 +683,7 @@ async def cmd_start_game(message: types.Message, bot: Bot):
         ])
 
         mafia_members = [(p, r) for p, r in assignments if r.name in ["DON", "MAFIA", "ADVOKAT", "UBIYTSA", "JURNALIST", "AYGOQCHI", "LABORANT"]]
+        police_members = [(p, r) for p, r in assignments if r.name in ['DETECTIVE', 'KOMISSAR', 'SHERIFF', 'SERJANT', 'ADMIRAL']]
 
         # Group Message 1
         try:
@@ -803,11 +804,29 @@ async def cmd_start_game(message: types.Message, bot: Bot):
                     m_label = role_label(mr.name)
                     m_badge = _player_team_badge(mp)
                     team_lines.append(f"<b>{m_badge}{html.escape(mp.display_name)}</b> - {m_icon} <b>{m_label}</b>")
-                team_msg = "<b>Sheriklaringizni eslab qoling!</b>\n\n" + "\n".join(team_lines)
+                team_msg = "<b>Sheriklaringizni eslab qoling! (Mafiya)</b>\n\n" + "\n".join(team_lines) + "\n\n<i>💬 Tunda botga xabar yozsangiz, sheriklaringizga yetkaziladi!</i>"
                 try:
                     await bot.send_message(
                         player.telegram_user_id,
                         team_msg,
+                        parse_mode="HTML"
+                    )
+                except Exception:
+                    pass
+
+            # 2b. Send Teammates Reminder if Police (Komissar / Serjant / Admiral)
+            if rname in ['DETECTIVE', 'KOMISSAR', 'SHERIFF', 'SERJANT', 'ADMIRAL'] and len(police_members) > 1:
+                pol_lines = []
+                for pp, pr in police_members:
+                    p_icon = role_icon(pr.name)
+                    p_label = role_label(pr.name)
+                    p_badge = _player_team_badge(pp)
+                    pol_lines.append(f"<b>{p_badge}{html.escape(pp.display_name)}</b> - {p_icon} <b>{p_label}</b>")
+                pol_team_msg = "👮🏼‍♂️ <b>Sheriklaringizni eslab qoling! (Politsiya)</b>\n\n" + "\n".join(pol_lines) + "\n\n<i>💬 Tunda botga xabar yozsangiz, sherigingizga yetkaziladi!</i>"
+                try:
+                    await bot.send_message(
+                        player.telegram_user_id,
+                        pol_team_msg,
                         parse_mode="HTML"
                     )
                 except Exception:

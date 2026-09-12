@@ -7,15 +7,24 @@ class WinConditionService:
     Evaluates living player factions to determine if game has reached a terminal win state.
     """
 
+    LETHAL_SOLO_ROLES = {
+        'QOTIL', 'TUZOQCHI', 'JOKER', 'KIMYOGAR', 'AFSUNGAR', 'GAZABKOR', 'SEHRGAR', 'MANIAK'
+    }
+
+    BENIGN_SOLO_ROLES = {
+        'RAIS', 'QORBOBO', 'OSHPAZ', 'KONCHI', 'AFERIST', 'BUQALAMUN', 'SUIDSID', 'SUITSID', 'BORI', "BO'RI", 'AXMOQ', 'QAROQCHI'
+    }
+
     @classmethod
     def check_win_condition(cls, game: Game) -> Optional[str]:
         """
         Evaluates living players across all teams:
         1. Zombie Win: All living players are Zombies.
-        2. Solo Killer Win: Qotil / Tuzoqchi / Joker / Kimyogar is last survivor or 1v1 with civilian.
-        3. Mafia Win: Living Mafia >= Living Non-Mafia and no living Solo killers.
-           Note: If 1 Mafia vs 1 lethal Civilian (Komissar/Sheriff/Robin Gud), Mafia doesn't win immediately; night duel plays out.
-        4. Civilian Win: All hostile threats (Mafia, Qotil, Tuzoqchi, Joker, Ubiytsa, Kimyogar, Afsungar, Gazabkor, Zombi) are eliminated!
+        2. Solo Killer Win: Single lethal killer (Qotil, Tuzoqchi, Joker, Kimyogar, Afsungar, Gazabkor, Sehrgar)
+           is the last survivor or in 1v1 against an unarmed civilian.
+        3. Mafia Win: Living Mafia > Living Non-Mafia (or 1v1 without town shooter) and no lethal solo killers or zombies.
+        4. Civilian Win: All hostile threats (Mafia, Zombies, Lethal Solo Killers) are eliminated!
+           Living benign solo roles (Rais, Qorbobo, Oshpaz, Konchi, Aferist, etc.) share victory with Civilians.
         """
         alive_players = list(Player.objects.filter(game=game, is_alive=True).select_related('role'))
 
@@ -41,23 +50,25 @@ class WinConditionService:
         total_alive = len(alive_players)
 
         # 1. Check Zombie Victory: All living players are Zombies
-        zombie_count = sum(1 for p in alive_players if p.role and str(p.role.team).upper() in ['ZOMBIE', RoleTeam.ZOMBIE])
-        if zombie_count == total_alive and total_alive > 0:
+        zombie_players = [p for p in alive_players if p.role and str(p.role.team).upper() in ['ZOMBIE', RoleTeam.ZOMBIE]]
+        if len(zombie_players) == total_alive and total_alive > 0:
             return RoleTeam.ZOMBIE
 
         # Count factions
-        mafia_count = sum(1 for p in alive_players if p.role and str(p.role.team).upper() in ['MAFIA', RoleTeam.MAFIA])
-        solo_killer_roles = {'QOTIL', 'TUZOQCHI', 'JOKER', 'KIMYOGAR', 'AFSUNGAR', 'GAZABKOR'}
-        solo_killers = [
+        mafia_players = [
             p for p in alive_players
             if p.role and (
-                p.role.name in solo_killer_roles or
-                str(p.role.team).upper() in ['SOLO', RoleTeam.SOLO]
+                str(p.role.team).upper() in ['MAFIA', RoleTeam.MAFIA] or
+                p.role.name in ['DON', 'MAFIA', 'ADVOKAT', 'UBIYTSA', 'JURNALIST', 'AYGOQCHI', 'LABORANT']
             )
         ]
-        solo_killer_count = len(solo_killers)
+        mafia_count = len(mafia_players)
 
-        civilian_count = sum(1 for p in alive_players if p.role and str(p.role.team).upper() in ['CIVILIAN', RoleTeam.CIVILIAN])
+        lethal_solo_players = [
+            p for p in alive_players
+            if p.role and p.role.name in cls.LETHAL_SOLO_ROLES
+        ]
+        lethal_solo_count = len(lethal_solo_players)
 
         # Town lethal roles that can shoot hostile targets at night
         town_shooters = [
@@ -65,14 +76,21 @@ class WinConditionService:
             if p.role and p.role.name in ['DETECTIVE', 'KOMISSAR', 'SHERIFF', 'ROBINGUD']
         ]
 
-        # 2. Solo Killer Victory: Single solo killer remains alone or in 1v1 with a civilian without shooting power
-        if solo_killer_count == 1 and total_alive <= 2 and mafia_count == 0 and zombie_count == 0:
-            if total_alive == 2 and len(town_shooters) > 0:
+        # 2. Solo Killer Victory: Single lethal solo killer remains alone or in 1v1 with a civilian without shooting power
+        if lethal_solo_count == 1 and mafia_count == 0 and len(zombie_players) == 0:
+            if total_alive == 1:
+                return RoleTeam.SOLO
+            elif total_alive == 2:
+                if len(town_shooters) == 0:
+                    return RoleTeam.SOLO
                 return None  # Let night duel play out
-            return RoleTeam.SOLO
 
-        # 3. Mafia Victory
-        if mafia_count > 0 and solo_killer_count == 0 and zombie_count == 0:
+        # If multiple lethal killers are alive, or 1 killer with 2+ citizens, continue playing
+        if lethal_solo_count > 0:
+            return None
+
+        # 3. Mafia Victory: Living Mafia >= Living Non-Mafia and no lethal solo killers or zombies
+        if mafia_count > 0 and lethal_solo_count == 0 and len(zombie_players) == 0:
             non_mafia_count = total_alive - mafia_count
             if mafia_count > non_mafia_count:
                 return RoleTeam.MAFIA
@@ -80,9 +98,10 @@ class WinConditionService:
                 # If 1v1 with a town shooter (Komissar/Sheriff/RobinGud), allow night shootout!
                 if len(town_shooters) == 0:
                     return RoleTeam.MAFIA
+                return None
 
-        # 4. Civilian Victory: All hostile threats eliminated
-        if mafia_count == 0 and solo_killer_count == 0 and zombie_count == 0:
+        # 4. Civilian Victory: All hostile threats (Mafia, Zombies, Lethal Solo Killers) eliminated!
+        if mafia_count == 0 and lethal_solo_count == 0 and len(zombie_players) == 0:
             return RoleTeam.CIVILIAN
 
         return None

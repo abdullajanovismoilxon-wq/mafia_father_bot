@@ -55,88 +55,113 @@ ADVANCING_NIGHT_GAMES: set = set()
 
 ROLE_ICONS = {
     "DON": "🤵🏻",
-    "MAFIA": "👨‍🦱",
-    "DOCTOR": "👨‍⚕️",
-    "SHIFOKOR": "👨‍⚕️",
-    "DOKTOR": "👨‍⚕️",
-    "DETECTIVE": "🕵️",
-    "KOMISSAR": "🕵️",
+    "MAFIA": "🤵🏼",
+    "DOCTOR": "👨🏼‍⚕️",
+    "SHIFOKOR": "👨🏼‍⚕️",
+    "DOKTOR": "👨🏼‍⚕️",
+    "DETECTIVE": "🕵🏻‍♂️",
+    "KOMISSAR": "🕵🏻‍♂️",
+    "SHERIFF": "🕵🏻‍♂️",
     "CITIZEN": "👨🏼",
     "TINCH AHOLI": "👨🏼",
     "FUQARO": "👨🏼",
-    "QAROQCHI": "⚔️",
-    "KOLDUN": "⚡",
-    "JANOB": "🎖",
-    "ROBIN GUD": "🏹",
-    "ROBINGUD": "🏹",
-    "BO'RI": "🐺",
-    "BORI": "🐺",
-    "OSHPAZ": "👨‍🍳",
-    "KONCHI": "👷",
-    "AFSUNGAR": "💣",
-    "SOTQIN": "🤓",
-    "JOKER": "🤡",
-    "YOLLANMA QOTIL": "🥷",
-    "QOTIL": "🔪",
-    "UBIYTSA": "🥷",
-    "ADMIRAL": "👨‍✈️",
-    "SEHRGAR": "🧙",
-    "KEZUVCHI": "💃",
     "SERJANT": "👮🏼‍♂️",
+    "HAMSHIRA": "👩🏼‍⚕️",
+    "OMADLI": "🤞🏼",
+    "JANOB": "🎖",
+    "SOTQIN": "🤓",
+    "ADMIRAL": "🧑🏻‍✈️",
+    "ROBINGUD": "🏹",
+    "ROBIN GUD": "🏹",
+    "FOTOPARATCHI": "📸",
     "DAYDI": "🍾",
+    "KEZUVCHI": "💃",
     "ADVOKAT": "💼",
-    "SUIDSID": "🤡",
-    "SUITSID": "🤡",
-    "TUZOQCHI": "🕸",
-    "ZOMBI": "🧟",
+    "UBIYTSA": "🥷",
+    "YOLLANMA QOTIL": "🥷",
+    "JURNALIST": "👩🏼‍💻",
+    "AYGOQCHI": "🦇",
+    "LABORANT": "👩‍🔬",
     "KIMYOGAR": "🧪",
+    "RAIS": "💰",
+    "MER": "💰",
+    "BORI": "🐺",
+    "BO'RI": "🐺",
+    "AFERIST": "🤹🏻",
+    "GAZABKOR": "🧌",
+    "SEHRGAR": "🧙‍♂️",
+    "QOTIL": "🔪",
+    "MANIAK": "🔪",
+    "KONCHI": "⛏",
+    "QAROQCHI": "🏴‍☠️",
+    "QORBOBO": "🎅🏻",
+    "OSHPAZ": "👨🏼‍🍳",
+    "AFSUNGAR": "🔮",
+    "TUZOQCHI": "🕸",
     "AXMOQ": "🤪",
     "BUQALAMUN": "🦎",
-    "RAIS": "🏛",
-    "MER": "🏛",
-    "HAMSHIRA": "👩🏼‍⚕️",
-    "MANIAK": "🔪",
+    "JOKER": "🃏",
+    "SUIDSID": "🤡",
+    "SUITSID": "🤡",
+    "ZOMBI": "🧟",
     "KUPIDON": "💘",
     "KAMIKADZE": "🧨",
     "LIDER": "👑",
+    "KOLDUN": "⚡",
 }
 
 ROLE_LABELS = {
     "DON": "Don",
     "MAFIA": "Mafia",
-    "DOCTOR": "Doktor",
+    "DOCTOR": "Shifokor",
     "SHIFOKOR": "Shifokor",
+    "DOKTOR": "Shifokor",
     "DETECTIVE": "Komissar",
     "KOMISSAR": "Komissar",
+    "SHERIFF": "Komissar",
     "CITIZEN": "Tinch aholi",
     "TINCH AHOLI": "Tinch aholi",
-    "QAROQCHI": "Qaroqchi",
-    "KOLDUN": "Koldun",
-    "JANOB": "Janob",
-    "ROBIN GUD": "Robin Gud",
-    "BO'RI": "Bo'ri",
-    "OSHPAZ": "Oshpaz",
-    "KONCHI": "Konchi",
-    "AFSUNGAR": "Afsungar",
-    "SOTQIN": "Sotqin",
-    "QOTIL": "Qotil",
-    "KEZUVCHI": "Kezuvchi",
+    "FUQARO": "Tinch aholi",
     "SERJANT": "Serjant",
-    "DAYDI": "Daydi",
-    "ADVOKAT": "Advokat",
-    "SUIDSID": "Suidsid",
-    "UBIYTSA": "Ubiytsa",
-    "YOLLANMA QOTIL": "Yollanma qotil",
+    "HAMSHIRA": "Hamshira",
+    "OMADLI": "Omadli",
+    "JANOB": "Janob",
+    "SOTQIN": "Sotqin",
     "ADMIRAL": "Admiral",
-    "SEHRGAR": "Sehrgar",
-    "TUZOQCHI": "Tuzoqchi",
-    "ZOMBI": "Zombi",
+    "ROBINGUD": "Robin Gud",
+    "ROBIN GUD": "Robin Gud",
+    "FOTOPARATCHI": "Fotoparatchi",
+    "DAYDI": "Daydi",
+    "KEZUVCHI": "Kezuvchi",
+    "ADVOKAT": "Advokat",
+    "UBIYTSA": "Ubiytsa",
+    "YOLLANMA QOTIL": "Ubiytsa",
+    "JURNALIST": "Jurnalist",
+    "AYGOQCHI": "Ayg'oqchi",
+    "LABORANT": "Laborant",
     "KIMYOGAR": "Kimyogar",
+    "RAIS": "Rais",
+    "MER": "Rais",
+    "BORI": "Bo'ri",
+    "BO'RI": "Bo'ri",
+    "AFERIST": "Aferist",
+    "GAZABKOR": "G'azabkor",
+    "SEHRGAR": "Sehrgar",
+    "QOTIL": "Qotil",
+    "MANIAK": "Qotil",
+    "KONCHI": "Konchi",
+    "QAROQCHI": "Qaroqchi",
+    "QORBOBO": "Qorbobo",
+    "OSHPAZ": "Oshpaz",
+    "AFSUNGAR": "Afsungar",
+    "TUZOQCHI": "Tuzoqchi",
     "AXMOQ": "Axmoq",
     "BUQALAMUN": "Buqalamun",
-    "RAIS": "Rais",
     "HAMSHIRA": "Hamshira",
     "JOKER": "Joker",
+    "SUIDSID": "Suidsid",
+    "SUITSID": "Suidsid",
+    "ZOMBI": "Zombi",
 }
 
 
@@ -687,16 +712,176 @@ async def advance_night_to_day(game: Game, bot: Bot):
             except Exception:
                 pass
 
-        # --- Rais Gift Delivery ---
+        # --- Sotqin Snitches (Group Anonymous Broadcast) ---
+        sotqin_snitches = night_result.get('sotqin_snitches', [])
+        for snitched_p in sotqin_snitches:
+            try:
+                snitch_mention = f'<a href="tg://user?id={snitched_p.telegram_user_id}">{html.escape(snitched_p.display_name)}</a>'
+                await bot.send_message(
+                    game.chat_id,
+                    f"🤓 <b>Sotqin shaharga xabar tarqatdi!</b>\n\n"
+                    f"«Aholiga ma'lum bo'lishicha, {snitch_mention} shubhali qora niyatli kimsalar (Mafiya/Qotil) bilan aloqador!»",
+                    parse_mode="HTML"
+                )
+            except Exception:
+                pass
+
+        # --- Fotoparatchi Snaps (Group Anonymous Broadcast) ---
+        fotoparatchi_snaps = night_result.get('fotoparatchi_snaps', [])
+        for snap in fotoparatchi_snaps:
+            try:
+                p_visitor, p_host = snap
+                v_mention = f'<a href="tg://user?id={p_visitor.telegram_user_id}">{html.escape(p_visitor.display_name)}</a>'
+                h_mention = f'<a href="tg://user?id={p_host.telegram_user_id}">{html.escape(p_host.display_name)}</a>'
+                await bot.send_message(
+                    game.chat_id,
+                    f"📸 <b>Fotoparatchi tunda shov-shuvli suratga oldi!</b>\n\n"
+                    f"Suratda ko'rinishicha, {v_mention} tunda {h_mention} ning xonadoniga mehmonga borgan!",
+                    parse_mode="HTML"
+                )
+            except Exception:
+                pass
+
+        # --- Qorbobo Gifts (PM + Group Announcement) ---
+        qorbobo_gifts = night_result.get('qorbobo_gifts', [])
+        for qg in qorbobo_gifts:
+            try:
+                await bot.send_message(
+                    qg['target_user_id'],
+                    f"🎅🏻 <b>Qorbobo sizga maxsus sovg'a ulashdi!</b>\n\n"
+                    f"🎁 Inventaringizga <b>{qg['item_name']}</b> qo'shildi!",
+                    parse_mode="HTML"
+                )
+            except Exception:
+                pass
+        if qorbobo_gifts:
+            try:
+                await bot.send_message(
+                    game.chat_id,
+                    "🎅🏻 <b>Qorbobo qorong'u tunda bir fuqaroning eshigi tagiga ajoyib sovg'a qoldirib ketdi! 🎁</b>",
+                    parse_mode="HTML"
+                )
+            except Exception:
+                pass
+
+        # --- Rais Gift Delivery (PM + Group Announcement) ---
         rais_gifts = night_result.get('rais_gifts', [])
         for rg in rais_gifts:
             try:
-                dia_text = f" va <b>{rg['diamonds']} 💎 Olmos</b>" if rg['diamonds'] > 0 else ""
+                dia_text = f" va <b>{rg['diamonds']} 💎 Olmos</b>" if rg.get('diamonds', 0) > 0 else ""
                 await bot.send_message(
                     rg['target_user_id'],
-                    f"🏛 <b>Rais sizga sovg'a ulashdi!</b>\nHisobingizga <b>{rg['coins']} 💶 Dollar</b>{dia_text} o'tkazildi!",
+                    f"💰 <b>Rais sizga sovg'a ulashdi!</b>\nHisobingizga <b>+{rg['coins']} 💶 Dollar</b>{dia_text} o'tkazildi!",
                     parse_mode="HTML"
                 )
+            except Exception:
+                pass
+        if rais_gifts:
+            try:
+                await bot.send_message(
+                    game.chat_id,
+                    "💰 <b>Saxiy Rais shahar aholisidan biriga xazinadan pul ulashdi! 💵</b>",
+                    parse_mode="HTML"
+                )
+            except Exception:
+                pass
+
+        # --- Qaroqchi Robbery Logs (Group Broadcast) ---
+        robbery_logs = night_result.get('robbery_logs', [])
+        for rlog in robbery_logs:
+            try:
+                await bot.send_message(game.chat_id, rlog, parse_mode="HTML")
+            except Exception:
+                pass
+
+        # --- Konchi Mining Results (PM + Group) ---
+        konchi_results = night_result.get('konchi_results', [])
+        for kr in konchi_results:
+            try:
+                if kr['status'] == 'diamond':
+                    await bot.send_message(
+                        kr['user_id'],
+                        f"⛏ <b>Tabriklaymiz!</b> Siz {kr['mine']}-kondan <b>1 💎 Olmos</b> qazib oldingiz!",
+                        parse_mode="HTML"
+                    )
+                    await bot.send_message(
+                        game.chat_id,
+                        "⛏ <b>Konchi qorong'u konda yaraqlagan qimmatbaho olmos 💎 topib oldi!</b>",
+                        parse_mode="HTML"
+                    )
+                elif kr['status'] == 'money':
+                    await bot.send_message(
+                        kr['user_id'],
+                        f"⛏ <b>Konda omadingiz keldi!</b> Siz {kr['mine']}-kondan <b>+{kr['coins']} 💶 Dollar</b> topdingiz!",
+                        parse_mode="HTML"
+                    )
+                elif kr['status'] == 'saved_by_slip_shield':
+                    await bot.send_message(
+                        kr['user_id'],
+                        f"🛡 <b>Sirpanishdan himoya qalqoni ishga tushdi!</b>\nSiz {kr['mine']}-konda halokatga uchradingiz, ammo himoya qalqoni sizni omon saqlab qoldi!",
+                        parse_mode="HTML"
+                    )
+                elif kr['status'] == 'died':
+                    await bot.send_message(
+                        kr['user_id'],
+                        f"💀 <b>Halokat!</b> Siz {kr['mine']}-konda chuqur jarlikka qulab halok bo'ldingiz!",
+                        parse_mode="HTML"
+                    )
+            except Exception:
+                pass
+
+        # --- Oshpaz Dizzy Meals (PM) ---
+        oshpaz_feed_players = night_result.get('oshpaz_feed_players', [])
+        for op in oshpaz_feed_players:
+            if op.is_alive:
+                try:
+                    await bot.send_message(
+                        op.telegram_user_id,
+                        "👨🏼‍🍳 <b>Tunda Oshpaz sizga juda mazali, ammo bosh aylantiruvchi taom berib ketdi!</b>\n\n"
+                        "Kunduzgi ovoz berishda boshingiz aylanib, ovozingiz tasodifiy boshqa o'yinchiga ketib qolishi mumkin!",
+                        parse_mode="HTML"
+                    )
+                except Exception:
+                    pass
+
+        # --- Aferist Vote Steal (PM) ---
+        aferist_stolen_players = night_result.get('aferist_stolen_players', [])
+        for ap in aferist_stolen_players:
+            if ap.is_alive:
+                try:
+                    await bot.send_message(
+                        ap.telegram_user_id,
+                        "🤹🏻 <b>Tunda Aferist sizning ovozingizni o'g'irlab ketdi!</b>\n\n"
+                        "Bugun kunduzgi yig'ilishda siz ovoz bera olmaysiz. Sizning nomingizdan Aferist ovoz beradi!",
+                        parse_mode="HTML"
+                    )
+                except Exception:
+                    pass
+
+        # --- Aygoqchi Spy Reports (PM) ---
+        aygoqchi_spies = night_result.get('aygoqchi_spies', [])
+        for a_spy in aygoqchi_spies:
+            tgt_name = html.escape(a_spy['target_name'])
+            r_ic = role_icon(a_spy['role_name'])
+            r_lb = role_label(a_spy['role_name'])
+            spy_msg = f"🦇 <b>Ayg'oqchi ma'lumoti:</b>\n{tgt_name} ning shaxsi fosh bo'ldi — u <b>{r_ic} {r_lb}</b>!"
+            try:
+                await bot.send_message(a_spy['actor_user_id'], spy_msg, parse_mode="HTML")
+            except Exception:
+                pass
+
+        # --- Jurnalist Reports (PM) ---
+        jurnalist_reports = night_result.get('jurnalist_reports', [])
+        for jr in jurnalist_reports:
+            tgt_name = html.escape(jr['target_name'])
+            visitors = jr.get('visitors', [])
+            if visitors:
+                v_names = ", ".join([html.escape(v.display_name) for v in visitors])
+                j_msg = f"👩🏼‍💻 <b>Jurnalist hisoboti:</b>\nTunda {tgt_name} ning xonadoniga mehmonlar kelgani kuzatildi: <b>{v_names}</b>!"
+            else:
+                j_msg = f"👩🏼‍💻 <b>Jurnalist hisoboti:</b>\nTunda {tgt_name} ning xonadoniga hech kim kelmadi, tinchlik hukm surdi."
+            try:
+                await bot.send_message(jr['actor_user_id'], j_msg, parse_mode="HTML")
             except Exception:
                 pass
 
@@ -901,7 +1086,7 @@ async def advance_night_to_day(game: Game, bot: Bot):
         except Exception as e:
             logger.warning(f"Dawn msg 3 failed: {e}")
 
-        # --- Send Detective Investigation Results ---
+        # --- Send Detective Investigation Results (to Detective AND Serjant/Admiral) ---
         inv_results = night_result.get('investigation_results', [])
         for inv in inv_results:
             try:
@@ -919,14 +1104,32 @@ async def advance_night_to_day(game: Game, bot: Bot):
                 target_name = target_name or "Gumonlanuvchi"
 
                 faction = "🔴 MAFIA" if inv.get('is_mafia') else "🟢 Tinch aholi"
+                inv_text = (
+                    f"🕵🏻‍♂️ <b>Tekshiruv natijasi:</b>\n\n"
+                    f"Tekshirilgan: <b>{html.escape(target_name)}</b>\n"
+                    f"Jamoa: <b>{faction}</b>"
+                )
                 if det_uid:
-                    await bot.send_message(
-                        det_uid,
-                        f"🕵🏻‍♂️ <b>Tekshiruv natijasi:</b>\n\n"
-                        f"Tekshirilgan: <b>{html.escape(target_name)}</b>\n"
-                        f"Jamoa: <b>{faction}</b>",
-                        parse_mode="HTML"
+                    await bot.send_message(det_uid, inv_text, parse_mode="HTML")
+
+                # Also send to living Serjant / Admiral police partners
+                serjant_players = await sync_to_async(
+                    lambda: list(
+                        Player.objects.filter(
+                            game=game, is_alive=True, role__name__in=['SERJANT', 'ADMIRAL']
+                        ).exclude(telegram_user_id=det_uid)
                     )
+                )()
+                for sp in serjant_players:
+                    try:
+                        serj_text = (
+                            f"👮🏼‍♂️ <b>Komissar tekshiruvi natijasi:</b>\n\n"
+                            f"Tekshirilgan: <b>{html.escape(target_name)}</b>\n"
+                            f"Jamoa: <b>{faction}</b>"
+                        )
+                        await bot.send_message(sp.telegram_user_id, serj_text, parse_mode="HTML")
+                    except Exception:
+                        pass
             except Exception as inv_err:
                 logger.warning(f"Investigation result delivery error: {inv_err}")
 
@@ -1119,11 +1322,22 @@ async def _announce_game_winner(game: Game, winner: str, bot: Bot, story_lines: 
                 others.append(p)
         else:
             team = p.role.team if p.role else RoleTeam.CIVILIAN
-            team_won = (team == winner or
-                        (winner in [RoleTeam.CIVILIAN, 'CIVILIAN'] and team == RoleTeam.CIVILIAN) or
-                        (winner in [RoleTeam.MAFIA, 'MAFIA'] and team == RoleTeam.MAFIA) or
-                        (winner in [RoleTeam.ZOMBIE, 'ZOMBIE'] and team == RoleTeam.ZOMBIE) or
-                        (winner in [RoleTeam.SOLO, 'SOLO'] and team == RoleTeam.SOLO))
+            rname = p.role.name if p.role else 'CITIZEN'
+            benign_solo_roles = {
+                'RAIS', 'QORBOBO', 'OSHPAZ', 'KONCHI', 'AFERIST', 'BUQALAMUN', 'SUIDSID', 'SUITSID', 'BORI', "BO'RI", 'AXMOQ', 'QAROQCHI'
+            }
+
+            if winner in [RoleTeam.CIVILIAN, 'CIVILIAN']:
+                team_won = (team == RoleTeam.CIVILIAN or rname in benign_solo_roles)
+            elif winner in [RoleTeam.MAFIA, 'MAFIA']:
+                team_won = (team == RoleTeam.MAFIA)
+            elif winner in [RoleTeam.ZOMBIE, 'ZOMBIE']:
+                team_won = (team == RoleTeam.ZOMBIE)
+            elif winner in [RoleTeam.SOLO, 'SOLO']:
+                team_won = (team == RoleTeam.SOLO and rname not in benign_solo_roles)
+            else:
+                team_won = (team == winner)
+
             if p.role and p.role.name == 'AXMOQ' and p.is_alive:
                 team_won = True
 
@@ -1478,25 +1692,65 @@ async def handle_night_action_callback(callback: CallbackQuery, bot: Bot):
 
         target_name = target.display_name or target.username or "O'yinchi"
 
-        # Determine question header matching Image 1
+        # Determine question header matching role theme
         prompt_header = "<b>Kimni tanladingiz?</b>"
         rname = actor.role.name if actor.role else ''
-        if rname in ["DON", "MAFIA", "UBIYTSA"]:
+        if rname in ["DON", "MAFIA"]:
             prompt_header = "<b>Kimni o'ldiramiz?</b>"
+        elif rname == "UBIYTSA":
+            prompt_header = "<b>Suiqasd uchun nishonni tanlang:</b>"
         elif rname in ["DOCTOR", "HAMSHIRA"]:
             prompt_header = "<b>Kimni davolaymiz?</b>"
         elif rname in ["DETECTIVE", "KOMISSAR", "SHERIFF"]:
             prompt_header = "<b>Kimni otamiz?</b>" if act_code == "sht" else "<b>Kimni tekshiramiz?</b>"
+        elif rname == "SERJANT":
+            prompt_header = "<b>Tungi tekshiruv uchun nishonni tanlang:</b>"
         elif rname == "QOTIL":
-            prompt_header = "<b>Qurbonni tanlang:</b>"
+            prompt_header = "<b>Qonli qurbonni tanlang:</b>"
         elif rname == "KEZUVCHI":
             prompt_header = "<b>Kimnikiga mehmonga borasiz?</b>"
         elif rname == "DAYDI":
             prompt_header = "<b>Kimnikiga borasiz?</b>"
+        elif rname == "ADVOKAT":
+            prompt_header = "<b>Kimni himoya qilasiz?</b>"
         elif rname == "TUZOQCHI":
             prompt_header = "<b>Tuzoqni kimga qo'yasiz?</b>"
         elif rname == "ZOMBI":
             prompt_header = "<b>Kimni tishlaysiz?</b>"
+        elif rname == "KIMYOGAR":
+            prompt_header = "<b>Kimga eliksir ishlatasiz?</b>"
+        elif rname == "AXMOQ":
+            prompt_header = "<b>Kimnikiga tashrif buyurasiz?</b>"
+        elif rname == "BUQALAMUN":
+            prompt_header = "<b>Kimning qiyofasiga kirmoqchisiz?</b>"
+        elif rname == "RAIS":
+            prompt_header = "<b>Kimga dollar ulashmoqchisiz?</b>"
+        elif rname == "JOKER":
+            prompt_header = "<b>Qaysi o'yinchiga quti yuborasiz?</b>"
+        elif rname == "QORBOBO":
+            prompt_header = "<b>Kimgadir sovg'a ulashmoqchimisiz?</b>"
+        elif rname == "OSHPAZ":
+            prompt_header = "<b>Kimga taom tayyorlaysiz?</b>"
+        elif rname == "QAROQCHI":
+            prompt_header = "<b>Kimni tunamoqchisiz?</b>"
+        elif rname == "SOTQIN":
+            prompt_header = "<b>Kimni tekshirmoqchisiz?</b>"
+        elif rname == "FOTOPARATCHI":
+            prompt_header = "<b>Kimni suratga olmoqchisiz?</b>"
+        elif rname == "JURNALIST":
+            prompt_header = "<b>Kimning xonadonini kuzatmoqchisiz?</b>"
+        elif rname == "AYGOQCHI":
+            prompt_header = "<b>Kimning rolini aniqlamoqchisiz?</b>"
+        elif rname == "ROBINGUD":
+            prompt_header = "<b>Kimni nishonga olib otasiz?</b>"
+        elif rname == "LABORANT":
+            prompt_header = "<b>Kimga zardob ishlatasiz?</b>"
+        elif rname == "GAZABKOR":
+            prompt_header = "<b>Kimni nishonlab belgilaysiz?</b>"
+        elif rname == "SEHRGAR":
+            prompt_header = "<b>Kimga sehr ta'sirini o'tkazasiz?</b>"
+        elif rname == "AFERIST":
+            prompt_header = "<b>Kimning ovozini o'g'irlaysiz?</b>"
 
         confirm_msg = (
             f"{prompt_header}\n\n"
@@ -1514,38 +1768,68 @@ async def handle_night_action_callback(callback: CallbackQuery, bot: Bot):
         group_action_msg = None
         rname = actor.role.name if actor.role else ''
         if rname == "DON":
-            group_action_msg = "🤵🏻 <b>Don o'ljasini tanladi...</b>"
+            group_action_msg = "🤵🏻 <b>Don o'zining navbatdagi nishonini tanladi...</b>"
+        elif rname == "MAFIA":
+            group_action_msg = "🤵🏼 <b>Mafiya a'zosi qorong'ulik bag'rida o'ljasini poylamoqda...</b>"
         elif rname in ["DOCTOR", "HAMSHIRA"]:
-            group_action_msg = "👨🏼‍⚕️ <b>Shifokor kimnidir davolashga yo'l oldi...</b>"
+            group_action_msg = "👨🏼‍⚕️ <b>Shifokor xavf ostidagi fuqaroni qutqarishga shoshildi...</b>"
         elif rname in ["DETECTIVE", "KOMISSAR", "SHERIFF"]:
             if act_code == "sht":
-                group_action_msg = "🔫 <b>Komissar qurolini shaylab, nishonni tanladi...</b>"
+                group_action_msg = "🔫 <b>Komissar qurolini shaylab, nishonga o'q uzishga qaror qildi...</b>"
             else:
-                group_action_msg = "🕵🏻‍♂️ <b>Komissar shubhali shaxsni tekshirishga kirishdi...</b>"
+                group_action_msg = "🕵🏻‍♂️ <b>Komissar shubhali shaxsni tekshirish uchun uning iziga tushdi...</b>"
+        elif rname == "SERJANT":
+            group_action_msg = "👮🏼‍♂️ <b>Serjant tungi patrulga chiqib, shahar osoyishtaligini kuzatmoqda...</b>"
         elif rname == "QOTIL":
-            group_action_msg = "🔪 <b>Qotil o'zining qonli o'ljasini belgiladi...</b>"
+            group_action_msg = "🔪 <b>Qonxo'r Qotil pichoqlarini charxlab, qurbonini poylamoqda...</b>"
         elif rname == "KEZUVCHI":
             group_action_msg = "💃 <b>Kezuvchi bugun tunni kim bilan o'tkazishni tanladi...</b>"
         elif rname == "DAYDI":
-            group_action_msg = "🍾 <b>Daydi kimnikigadir mehmonga ketdi...</b>"
+            group_action_msg = "🍾 <b>Daydi qayerdandir ichkilik topish ilinjida mehmonga yo'l oldi...</b>"
         elif rname == "ADVOKAT":
-            group_action_msg = "💼 <b>Advokat o'z himoyasidagi shaxsni tanladi...</b>"
+            group_action_msg = "💼 <b>Advokat o'z mijozini himoya qilish choralarini ko'rdi...</b>"
         elif rname == "UBIYTSA":
-            group_action_msg = "🥷 <b>Ubiytsa pinhona qadamlar bilan nishon tomon yo'l oldi...</b>"
+            group_action_msg = "🥷 <b>Ubiytsa qorong'ulik bag'rida o'ljasini nishonga oldi...</b>"
         elif rname == "TUZOQCHI":
-            group_action_msg = "🕸 <b>Tuzoqchi o'z tuzog'ini joylashtirdi...</b>"
+            group_action_msg = "🕸 <b>Tuzoqchi ko'z ilg'amas joyga o'lim tuzog'ini o'rnatdi...</b>"
         elif rname == "ZOMBI":
-            group_action_msg = "🧟 <b>Zombi navbatdagi qurbonini tishlashga oshiqmoqda...</b>"
+            group_action_msg = "🧟 <b>Zombi yangi qurbonni o'z safiga qo'shish uchun tishlashga oshiqmoqda...</b>"
         elif rname == "KIMYOGAR":
-            group_action_msg = "🧪 <b>Kimyogar maxfiy eliksirini tayyorlab, nishonni tanladi...</b>"
+            group_action_msg = "🧪 <b>Kimyogar maxfiy kolbasidagi sehrli eliksirni ishga soldi...</b>"
         elif rname == "AXMOQ":
             group_action_msg = "🤪 <b>Axmoq ko'chada tentirab yurib, bir eshikni taqillatdi...</b>"
         elif rname == "BUQALAMUN":
-            group_action_msg = "🦎 <b>Buqalamun o'z yangi qiyofasini tanladi...</b>"
+            group_action_msg = "🦎 <b>Buqalamun yangi qiyofaga kirish uchun o'z nusxasini tanladi...</b>"
         elif rname == "RAIS":
-            group_action_msg = "🏛 <b>Rais shahar xazinasidan kimnidir mukofotlashga qaror qildi...</b>"
+            group_action_msg = "💰 <b>Saxiy Rais shahar xazinasidan kimnidir mukofotlashga qaror qildi...</b>"
         elif rname == "JOKER":
-            group_action_msg = "🃏 <b>Joker o'zining portlovchi sovg'asini tayyorladi...</b>"
+            group_action_msg = "🃏 <b>Joker o'zining portlovchi xavfli qutilarini hozirladi...</b>"
+        elif rname == "QORBOBO":
+            group_action_msg = "🎅🏻 <b>Qorbobo kimnidir xursand qilish uchun ajoyib sovg'a qutisini hozirladi...</b>"
+        elif rname == "OSHPAZ":
+            group_action_msg = "👨🏼‍🍳 <b>Oshpaz oshxonada maxsus sehrli taomini tayyorladi...</b>"
+        elif rname == "KONCHI":
+            group_action_msg = "⛏ <b>Konchi qorong'u konda qimmatbaho javohirlar qidirishga tushdi...</b>"
+        elif rname == "QAROQCHI":
+            group_action_msg = "🏴‍☠️ <b>Qaroqchi o'ljasini poylab, uning boyligini o'g'irlashga shaylandi...</b>"
+        elif rname == "SOTQIN":
+            group_action_msg = "🤓 <b>Sotqin shubhali shaxsning orqasidan pinhona ergashdi...</b>"
+        elif rname == "FOTOPARATCHI":
+            group_action_msg = "📸 <b>Fotoparatchi kamerasini shaylab, kimnidir poylashga kirishdi...</b>"
+        elif rname == "JURNALIST":
+            group_action_msg = "👩🏼‍💻 <b>Jurnalist shov-shuvli yangilik topish maqsadida xonadonni kuzatishga kirishdi...</b>"
+        elif rname == "AYGOQCHI":
+            group_action_msg = "🦇 <b>Ayg'oqchi tungi zulmatda kimningdir maxfiy sirini bilishga uchib ketdi...</b>"
+        elif rname == "ROBINGUD":
+            group_action_msg = "🏹 <b>Robin Gud o'z kamonidan o'q uzish uchun mo'ljal oldi...</b>"
+        elif rname == "LABORANT":
+            group_action_msg = "👩‍🔬 <b>Laborant maxsus kimyoviy zardob bilan o'z amalini bajardi...</b>"
+        elif rname == "GAZABKOR":
+            group_action_msg = "🧌 <b>G'azabkor qasos olish uchun qurboniga o'z nishonini qo'ydi...</b>"
+        elif rname == "SEHRGAR":
+            group_action_msg = "🧙‍♂️ <b>Sehrgar o'zining sehrli tayoqchasi bilan tanlov qildi...</b>"
+        elif rname == "AFERIST":
+            group_action_msg = "🤹🏻 <b>Aferist o'zining navbatdagi qalloblik rejasini tuzdi...</b>"
 
         if group_action_msg:
             try:
@@ -1819,8 +2103,9 @@ async def handle_private_message_relay(message: Message, bot: Bot):
             .filter(
                 telegram_user_id=user_id,
                 is_alive=True,
-                game__phase=GamePhase.NIGHT,
-            ).first()
+                game__phase__in=[GamePhase.NIGHT, GamePhase.DAY, GamePhase.DISCUSSION, GamePhase.VOTING, GamePhase.ELIMINATION],
+                game__status='ACTIVE'
+            ).order_by('-game__created_at').first()
         )()
 
         if not player or not player.role:
@@ -1865,12 +2150,12 @@ async def handle_private_message_relay(message: Message, bot: Bot):
             else:
                 await message.answer("📭 Hozirda sizdan boshqa tirik mafiya a'zosi yo'q.")
 
-        # Police Team Relay (Komissar <-> Serjant)
-        elif r_name in ['DETECTIVE', 'KOMISSAR', 'SHERIFF', 'SERJANT']:
+        # Police Team Relay (Komissar <-> Serjant <-> Admiral)
+        elif r_name in ['DETECTIVE', 'KOMISSAR', 'SHERIFF', 'SERJANT', 'ADMIRAL']:
             police_partners = await sync_to_async(
                 lambda: list(
                     Player.objects.filter(
-                        game=game, is_alive=True, role__name__in=['DETECTIVE', 'KOMISSAR', 'SHERIFF', 'SERJANT']
+                        game=game, is_alive=True, role__name__in=['DETECTIVE', 'KOMISSAR', 'SHERIFF', 'SERJANT', 'ADMIRAL']
                     ).exclude(telegram_user_id=user_id)
                 )
             )()
@@ -1891,7 +2176,9 @@ async def handle_private_message_relay(message: Message, bot: Bot):
                         await bot.send_message(pp.telegram_user_id, relay_text, parse_mode="HTML")
                     except Exception:
                         pass
-                await message.answer("✅ Politsiya xabari yetkazildi.")
+                await message.answer(f"✅ {len(police_partners)} ta politsiya sherigingizga yetkazildi.")
+            else:
+                await message.answer("📭 Hozirda sizdan boshqa tirik politsiya xodimi yo'q.")
 
     except Exception as e:
         logger.exception("Error in night relay handler:")
@@ -1986,6 +2273,15 @@ async def handle_konchi_mine_callback(callback: CallbackQuery, bot: Bot):
             reply_markup=build_back_to_group_keyboard(chat_id=game.chat_id),
             parse_mode="HTML"
         )
+
+        try:
+            await bot.send_message(
+                game.chat_id,
+                "⛏ <b>Konchi qorong'u konda qimmatbaho javohirlar qidirishga tushdi...</b>",
+                parse_mode="HTML"
+            )
+        except Exception as g_err:
+            logger.warning(f"Could not send Konchi group action info: {g_err}")
 
         await _check_and_advance_night_if_ready(game, bot)
     except Exception as e:

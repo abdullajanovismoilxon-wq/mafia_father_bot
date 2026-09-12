@@ -563,13 +563,22 @@ class GameService:
                     won_side = 'RED' if winner_team == 'TEAM_RED' else ('BLUE' if winner_team == 'TEAM_BLUE' else None)
                     won = (p_side == won_side) if won_side else False
                 else:
-                    team_won = (
-                        role_team == winner_team or
-                        (winner_team in ['CIVILIAN', RoleTeam.CIVILIAN] and role_team in ['CIVILIAN', RoleTeam.CIVILIAN]) or
-                        (winner_team in ['MAFIA', RoleTeam.MAFIA] and role_team in ['MAFIA', RoleTeam.MAFIA]) or
-                        (winner_team in ['ZOMBIE', RoleTeam.ZOMBIE] and role_team in ['ZOMBIE', RoleTeam.ZOMBIE]) or
-                        (winner_team in ['SOLO', RoleTeam.SOLO] and role_team in ['SOLO', RoleTeam.SOLO])
-                    )
+                    rname = player.role.name if player.role else 'CITIZEN'
+                    benign_solo_roles = {
+                        'RAIS', 'QORBOBO', 'OSHPAZ', 'KONCHI', 'AFERIST', 'BUQALAMUN', 'SUIDSID', 'SUITSID', 'BORI', "BO'RI", 'AXMOQ', 'QAROQCHI'
+                    }
+
+                    if winner_team in ['CIVILIAN', RoleTeam.CIVILIAN]:
+                        team_won = (role_team in ['CIVILIAN', RoleTeam.CIVILIAN] or rname in benign_solo_roles)
+                    elif winner_team in ['MAFIA', RoleTeam.MAFIA]:
+                        team_won = (role_team in ['MAFIA', RoleTeam.MAFIA])
+                    elif winner_team in ['ZOMBIE', RoleTeam.ZOMBIE]:
+                        team_won = (role_team in ['ZOMBIE', RoleTeam.ZOMBIE])
+                    elif winner_team in ['SOLO', RoleTeam.SOLO]:
+                        team_won = (role_team in ['SOLO', RoleTeam.SOLO] and rname not in benign_solo_roles)
+                    else:
+                        team_won = (role_team == winner_team)
+
                     if player.role and player.role.name == 'AXMOQ' and player.is_alive:
                         team_won = True
 

@@ -73,6 +73,7 @@ class GameResolutionService:
 
             # Aferist (Steals vote for tomorrow)
             aferist_actions = [a for a in actions if a.action_type == NightActionType.AFERIST_STEAL and a.target]
+            aferist_stolen_players = []
             for aa in aferist_actions:
                 if aa.target_id in alive_player_map:
                     target_p = alive_player_map[aa.target_id]
@@ -81,9 +82,11 @@ class GameResolutionService:
                     target_p.metadata['blocked_voting_round'] = game.round_number
                     target_p.metadata['aferist_proxy_voter_id'] = str(aa.actor_id)
                     target_p.save(update_fields=['metadata'])
+                    aferist_stolen_players.append(target_p)
 
             # Oshpaz (Dizzy meal -> scrambles vote tomorrow)
             oshpaz_actions = [a for a in actions if a.action_type == NightActionType.OSHPAZ_FEED and a.target]
+            oshpaz_feed_players = []
             for oa in oshpaz_actions:
                 if oa.target_id in alive_player_map:
                     target_p = alive_player_map[oa.target_id]
@@ -91,6 +94,7 @@ class GameResolutionService:
                         target_p.metadata = {}
                     target_p.metadata['dizzy_voting_round'] = game.round_number
                     target_p.save(update_fields=['metadata'])
+                    oshpaz_feed_players.append(target_p)
 
             valid_actions = [a for a in actions if a.actor_id not in blocked_actor_ids]
 
@@ -139,6 +143,7 @@ class GameResolutionService:
 
             # Qorbobo (Gift random item)
             qorbobo_actions = [a for a in valid_actions if a.action_type == NightActionType.QORBOBO_GIFT and a.target]
+            qorbobo_gifts = []
             for qba in qorbobo_actions:
                 if qba.target_id in alive_player_map:
                     target_p = alive_player_map[qba.target_id]
@@ -146,6 +151,7 @@ class GameResolutionService:
                     gift_codes = ['himoya', 'osish_himoya', 'hujjat', 'dori_himoya', 'sirpanish_himoya']
                     picked_code = random.choice(gift_codes)
                     item = MarketplaceItem.objects.filter(code=picked_code).first()
+                    item_title = item.name if item else "Tungi himoya"
                     if item:
                         inv, _ = Inventory.objects.get_or_create(
                             telegram_id=target_p.telegram_user_id, item=item,
@@ -154,6 +160,14 @@ class GameResolutionService:
                         inv.quantity += 1
                         inv.is_active = True
                         inv.save(update_fields=['quantity', 'is_active'])
+                    qorbobo_gifts.append({
+                        'actor_user_id': qba.actor.telegram_user_id,
+                        'target': target_p,
+                        'target_user_id': target_p.telegram_user_id,
+                        'target_name': target_p.display_name,
+                        'item_name': item_title,
+                        'item_code': picked_code,
+                    })
 
             # -------------------------------------------------------------
             # 3. Traps & Shields / Protections (Doctor, Laborant, Advokat, Tuzoqchi)
@@ -305,6 +319,7 @@ class GameResolutionService:
             # -------------------------------------------------------------
             konchi_actions = [a for a in valid_actions if a.action_type == NightActionType.KONCHI_MINE]
             konchi_dead = set()
+            konchi_results = []
             for ka in konchi_actions:
                 picked_mine = (ka.metadata or {}).get('mine_index', random.randint(1, 10))
                 if picked_mine in (1, 4, 7):
@@ -321,16 +336,43 @@ class GameResolutionService:
                             s_inv.save(update_fields=['quantity', 'is_active'])
                             ka.actor.metadata['used_sirpanish_himoya'] = True
                             ka.actor.save(update_fields=['metadata'])
+                            konchi_results.append({
+                                'actor': ka.actor,
+                                'user_id': ka.actor.telegram_user_id,
+                                'mine': picked_mine,
+                                'status': 'saved_by_slip_shield',
+                            })
                             continue  # Saved by slip shield!
                     konchi_dead.add(ka.actor_id)
+                    konchi_results.append({
+                        'actor': ka.actor,
+                        'user_id': ka.actor.telegram_user_id,
+                        'mine': picked_mine,
+                        'status': 'died',
+                    })
                 elif picked_mine in (2, 5):
                     w, _ = Wallet.objects.get_or_create(telegram_id=ka.actor.telegram_user_id)
                     w.diamonds += 1
                     w.save(update_fields=['diamonds'])
+                    konchi_results.append({
+                        'actor': ka.actor,
+                        'user_id': ka.actor.telegram_user_id,
+                        'mine': picked_mine,
+                        'status': 'diamond',
+                        'diamonds': 1,
+                    })
                 else:
+                    coins_gained = random.randint(20, 100)
                     w, _ = Wallet.objects.get_or_create(telegram_id=ka.actor.telegram_user_id)
-                    w.money += Decimal(str(random.randint(20, 100)))
+                    w.money += Decimal(str(coins_gained))
                     w.save(update_fields=['money'])
+                    konchi_results.append({
+                        'actor': ka.actor,
+                        'user_id': ka.actor.telegram_user_id,
+                        'mine': picked_mine,
+                        'status': 'money',
+                        'coins': coins_gained,
+                    })
 
             # -------------------------------------------------------------
             # 7. Lethal Hits Resolution & Protections / Specials
@@ -575,6 +617,31 @@ class GameResolutionService:
                             'message': f"🍾 <b>Daydi guvohligi:</b> Siz borgan xonadonda {html.escape(da.target.display_name)} o'ldirildi. Qotil: {html.escape(killers[0].display_name)}!",
                         })
 
+            aygoqchi_spies = []
+            aygoqchi_actions = [a for a in valid_actions if a.action_type == NightActionType.AYGOQCHI_SPY and a.target]
+            for aa in aygoqchi_actions:
+                if aa.target:
+                    rname = aa.target.role.name if aa.target.role else 'CITIZEN'
+                    aygoqchi_spies.append({
+                        'actor_user_id': aa.actor.telegram_user_id,
+                        'target': aa.target,
+                        'target_user_id': aa.target.telegram_user_id,
+                        'target_name': aa.target.display_name,
+                        'role_name': rname,
+                    })
+
+            jurnalist_reports = []
+            jurnalist_actions = [a for a in valid_actions if a.action_type == NightActionType.JURNALIST_INVESTIGATE and a.target]
+            for ja in jurnalist_actions:
+                if ja.target:
+                    visitors = [x.actor for x in actions if x.target_id == ja.target_id and x.actor_id != ja.actor_id]
+                    jurnalist_reports.append({
+                        'actor_user_id': ja.actor.telegram_user_id,
+                        'target': ja.target,
+                        'target_name': ja.target.display_name,
+                        'visitors': visitors,
+                    })
+
             # -------------------------------------------------------------
             # 11. Zombie Infections & Joker
             # -------------------------------------------------------------
@@ -642,6 +709,12 @@ class GameResolutionService:
                 'investigation_results': investigation_results,
                 'daydi_results': daydi_results,
                 'rais_gifts': rais_gifts,
+                'qorbobo_gifts': qorbobo_gifts,
+                'konchi_results': konchi_results,
+                'aferist_stolen_players': aferist_stolen_players,
+                'oshpaz_feed_players': oshpaz_feed_players,
+                'aygoqchi_spies': aygoqchi_spies,
+                'jurnalist_reports': jurnalist_reports,
                 'joker_deliveries': joker_deliveries,
                 'infected_players': infected_players,
                 'new_don': new_don,

@@ -512,6 +512,15 @@ async def resolve_hanging(game: Game, bot: Bot, original_msg=None):
                 pass
 
         # Win check
+        if will_kill and rname in ["SUIDSID", "SUITSID"]:
+            # Suidsid won by getting hanged
+            winner = RoleTeam.SOLO
+            await sync_to_async(GameService.finish_game)(game, winner)
+            from bot_runtime.handlers.night import _announce_game_winner
+            v_story = [f"⚖️ {suspect_mention} shahar qarori bilan osildi! (U: 🤡 Suidsid edi va o'z maqsadiga yetib yakka o'zi g'alaba qozondi!)"]
+            await _announce_game_winner(game, winner, bot, story_lines=v_story)
+            return
+
         game = await sync_to_async(Game.objects.select_related('bot').get)(id=game.id)
         winner = await sync_to_async(WinConditionService.check_win_condition)(game)
 
@@ -597,7 +606,7 @@ async def _advance_to_next_night(game: Game, bot: Bot, reason: str = ""):
             lambda: list(game.players.filter(is_alive=True).select_related('role'))
         )()
 
-        from bot_runtime.handlers.night import _register_ids
+        from bot_runtime.handlers.night import _register_ids, role_label
         _register_ids(game_id, living_players)
 
         from bot_runtime.keyboards.inline import (
@@ -706,6 +715,14 @@ async def _advance_to_next_night(game: Game, bot: Bot, reason: str = ""):
                 elif rname == "JOKER":
                     kb = build_joker_boxes_setup_keyboard(game_id)
                     await bot.send_message(player.telegram_user_id, f"🌙 <b>{round_num}-TUN:</b> Bombani qaysi qutilarga joylaysiz?", reply_markup=kb, parse_mode="HTML")
+                elif rname in ["SERJANT", "ADMIRAL"]:
+                    await bot.send_message(
+                        player.telegram_user_id,
+                        f"🌙 <b>{round_num}-TUN boshlandi!</b>\n\n"
+                        f"👮🏼‍♂️ Siz {role_label(rname)}siz. Komissarning harakatlarini kuzating yoki bot orqali unga xabar yozing (Politsiya chati)!",
+                        reply_markup=build_back_to_group_keyboard(chat_id=game.chat_id),
+                        parse_mode="HTML"
+                    )
                 else:
                     await bot.send_message(
                         player.telegram_user_id,
