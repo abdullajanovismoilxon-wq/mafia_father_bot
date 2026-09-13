@@ -21,7 +21,6 @@ for b in Bot.objects.all():
         req = urllib.request.urlopen(url, timeout=5)
         res = json.loads(req.read().decode())
         actual_username = res.get('result', {}).get('username')
-        print(f"[VALID] DB Username: @{b.telegram_username} | Telegram Username: @{actual_username} | Status: {b.status} | ID: {b.id} | Token: {token[:10]}...")
+        print(f"[VALID] DB Username: @{b.telegram_username} | Telegram Username: @{actual_username} | Status: {b.status} | ID: {b.id} | Token: {token}")
     except Exception as e:
-        tok_show = f"{token[:15]}..." if token else "EMPTY"
-        print(f"[INVALID/UNAUTHORIZED] DB Username: @{b.telegram_username} | Status: {b.status} | ID: {b.id} | Token: {tok_show} | Error: {e}")
+        print(f"[INVALID/UNAUTHORIZED] DB Username: @{b.telegram_username} | Status: {b.status} | ID: {b.id} | Token: {token} | Error: {e}")
