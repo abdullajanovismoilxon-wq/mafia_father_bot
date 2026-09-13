@@ -146,11 +146,15 @@ async def handle_vote_callback(callback: CallbackQuery, bot: Bot):
             pass
 
         # Check if all voted → close early
-        living_count = await sync_to_async(lambda: game.players.filter(is_alive=True).count())()
+        eligible_voters = await sync_to_async(
+            lambda: game.players.filter(is_alive=True).exclude(
+                metadata__blocked_voting_round=game.round_number
+            ).count()
+        )()
         cast_count = await sync_to_async(lambda: game.votes.filter(round=game.round_number).count())()
 
-        if cast_count >= living_count:
-            logger.info(f"All {living_count} voted in game {game.id}. Closing early.")
+        if cast_count >= eligible_voters:
+            logger.info(f"⚡ All {eligible_voters} eligible players voted in game {game.id}. Closing voting immediately.")
             from bot_runtime.handlers.night import VOTING_TASKS
             task = VOTING_TASKS.pop(str(game.id), None) or HANGING_TASKS.pop(f"vote_{game.id}", None)
             if task and not task.done():
@@ -374,9 +378,17 @@ async def auto_close_voting(game: Game, bot: Bot):
 
 
 async def _hanging_timer(game_id: str, bot: Bot, original_msg=None):
-    """20-second timer before resolving hanging."""
+    """Timer before resolving hanging (12-15s max)."""
     try:
-        await asyncio.sleep(20)
+        from apps.superadmin.services import SettingService
+        game = await sync_to_async(Game.objects.select_related('bot').get)(id=game_id)
+        bot_id_str = str(game.bot_id) if game and getattr(game, 'bot_id', None) else ''
+        h_dur = await sync_to_async(SettingService.get_group_or_bot_timing)(game.chat_id, bot_id_str, 'last_words_duration', 12)
+        try:
+            h_dur = min(int(h_dur), 15)
+        except Exception:
+            h_dur = 12
+        await asyncio.sleep(h_dur)
         if game_id in HANGING_VOTES:
             game = await sync_to_async(Game.objects.select_related('bot').get)(id=game_id)
             if game.phase == GamePhase.VOTING and game.status not in ['FINISHED', 'CANCELED']:
