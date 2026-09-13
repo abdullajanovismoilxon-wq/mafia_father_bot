@@ -1147,10 +1147,30 @@ async def advance_night_to_day(game: Game, bot: Bot):
             dawn_wait = 15
         await asyncio.sleep(dawn_wait)
 
-        # Refresh game state after dawn wait
+        # Transition cleanly to voting phase
+        await transition_day_to_voting(game, bot)
+
+    except Exception as e:
+        logger.exception(f"Error in advance_night_to_day for game {game_id}: {e}")
+        try:
+            g = await sync_to_async(Game.objects.select_related('bot').get)(id=game_id)
+            if g.phase in [GamePhase.NIGHT, GamePhase.DAY, GamePhase.DISCUSSION] and g.status not in ['FINISHED', 'CANCELED']:
+                await transition_day_to_voting(g, bot)
+        except Exception as fb_err:
+            logger.error(f"Fallback transition in advance_night_to_day failed: {fb_err}")
+    finally:
+        ADVANCING_NIGHT_GAMES.discard(game_id)
+
+
+async def transition_day_to_voting(game: Game, bot: Bot):
+    """Transitions game from DAY to VOTING phase and starts the exact cabinet voting timer."""
+    game_id = str(game.id)
+    try:
+        from bot_runtime.manager import BotRuntimeManager
+        bot = BotRuntimeManager.get_bot_for_game(game, bot)
+
         game = await sync_to_async(Game.objects.select_related('bot').get)(id=game_id)
-        if game.phase != GamePhase.DAY or game.status in [GamePhase.FINISHED, 'FINISHED', GamePhase.CANCELED, 'CANCELED']:
-            logger.info(f"Game {game_id} is no longer in DAY phase ({game.phase}/{game.status}). Skipping voting transition.")
+        if game.status in [GamePhase.FINISHED, 'FINISHED', GamePhase.CANCELED, 'CANCELED']:
             return
 
         winner = await sync_to_async(WinConditionService.check_win_condition)(game)
@@ -1169,8 +1189,20 @@ async def advance_night_to_day(game: Game, bot: Bot):
             await sync_to_async(game.save)(update_fields=['phase', 'status', 'updated_at'])
 
         game = await sync_to_async(Game.objects.select_related('bot').get)(id=game_id)
+        bot_id_str = str(game.bot_id) if getattr(game, 'bot_id', None) else ''
+        bot_username = "mafia_bot"
+        try:
+            bot_info = await bot.get_me()
+            bot_username = bot_info.username
+        except Exception:
+            pass
 
         voting_duration = await sync_to_async(SettingService.get_group_or_bot_timing)(game.chat_id, bot_id_str, 'voting_duration', 20)
+        try:
+            voting_duration = int(voting_duration)
+        except Exception:
+            voting_duration = 20
+
         try:
             await bot.send_message(
                 game.chat_id,
@@ -1183,9 +1215,13 @@ async def advance_night_to_day(game: Game, bot: Bot):
         except Exception:
             pass
 
+        living_players = await sync_to_async(
+            lambda: list(game.players.filter(is_alive=True).select_related('role'))
+        )()
+        _register_ids(game_id, living_players)
+
         # Send PM voting keyboards
         for player in living_players:
-            # If player was blocked by Kezuvchi, inform them
             if player.metadata and player.metadata.get('blocked_voting_round') == game.round_number:
                 try:
                     await bot.send_message(
@@ -1207,7 +1243,7 @@ async def advance_night_to_day(game: Game, bot: Bot):
             except Exception:
                 pass
 
-        # Auto-close voting task (non-blocking background task)
+        # Auto-close voting task (runs for exactly voting_duration)
         async def _voting_countdown():
             await asyncio.sleep(voting_duration)
             from bot_runtime.handlers.voting import auto_close_voting
@@ -1220,10 +1256,18 @@ async def advance_night_to_day(game: Game, bot: Bot):
             except Exception as v_err:
                 logger.warning(f"Voting auto-close error: {v_err}")
 
+        cancel_task = VOTING_TASKS.pop(game_id, None)
+        if cancel_task and not cancel_task.done():
+            try:
+                if asyncio.current_task() != cancel_task:
+                    cancel_task.cancel()
+            except Exception:
+                pass
+
         VOTING_TASKS[game_id] = asyncio.create_task(_voting_countdown())
 
     except Exception as e:
-        logger.exception(f"Error in advance_night_to_day for game {game_id}: {e}")
+        logger.exception(f"Error in transition_day_to_voting for game {game_id}: {e}")
         try:
             g = await sync_to_async(Game.objects.select_related('bot').get)(id=game_id)
             if g.phase in [GamePhase.NIGHT, GamePhase.DAY, GamePhase.DISCUSSION] and g.status not in ['FINISHED', 'CANCELED']:
@@ -1233,9 +1277,7 @@ async def advance_night_to_day(game: Game, bot: Bot):
                 from bot_runtime.handlers.voting import auto_close_voting
                 asyncio.create_task(auto_close_voting(g, bot))
         except Exception as fb_err:
-            logger.error(f"Fallback transition in advance_night_to_day failed: {fb_err}")
-    finally:
-        ADVANCING_NIGHT_GAMES.discard(game_id)
+            logger.error(f"Fallback transition in transition_day_to_voting failed: {fb_err}")
 
 
 # ---------------------------------------------------------------------------

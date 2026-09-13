@@ -29,7 +29,7 @@ async def resume_active_games_on_startup(master_bot: Bot):
     Resumes active in-flight games on bot startup so games seamlessly continue without freezing.
     """
     from apps.games.models import Game, GamePhase
-    from bot_runtime.handlers.night import start_night_timer, advance_night_to_day
+    from bot_runtime.handlers.night import start_night_timer, advance_night_to_day, transition_day_to_voting
     from bot_runtime.handlers.voting import auto_close_voting
 
     try:
@@ -48,7 +48,7 @@ async def resume_active_games_on_startup(master_bot: Bot):
                     start_night_timer(gid, game_bot)
                 elif g.phase in [GamePhase.DAY, GamePhase.DISCUSSION]:
                     logger.info(f"🔄 Resuming DAY phase for Game {gid} in Chat {g.chat_id}")
-                    asyncio.create_task(advance_night_to_day(g, game_bot))
+                    asyncio.create_task(transition_day_to_voting(g, game_bot))
                 elif g.phase == GamePhase.VOTING:
                     logger.info(f"🔄 Resuming VOTING phase for Game {gid} in Chat {g.chat_id}")
                     async def _delayed_close(game_obj, b_obj):
