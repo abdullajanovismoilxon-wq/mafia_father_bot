@@ -362,20 +362,41 @@ def build_voting_keyboard(
     living_players: list,
     voter_id: str
 ) -> InlineKeyboardMarkup:
-    """Builds PM voting keyboard (voter cannot vote for themselves)."""
+    """Builds PM voting keyboard with teammate badges (voter cannot vote for themselves)."""
     builder = InlineKeyboardBuilder()
     gid = _short(game_id)
     targets = [p for p in living_players if str(p.id) != str(voter_id)]
     if not targets:
         targets = list(living_players)
 
+    voter = next((p for p in living_players if str(p.id) == str(voter_id)), None)
+    voter_rname = voter.role.name if voter and voter.role else None
+
+    is_voter_mafia = bool(voter_rname and voter_rname in ["DON", "MAFIA", "ADVOKAT", "UBIYTSA", "JURNALIST", "AYGOQCHI", "LABORANT"])
+    is_voter_police = bool(voter_rname and voter_rname in ["DETECTIVE", "KOMISSAR", "SHERIFF", "SERJANT", "ADMIRAL"])
+    is_voter_medical = bool(voter_rname and voter_rname in ["DOCTOR", "SHIFOKOR", "DOKTOR", "HAMSHIRA"])
+
     for idx, player in enumerate(targets, 1):
-        display = (player.display_name or player.username or "O'yinchi")[:22]
+        display = (player.display_name or player.username or "O'yinchi")[:20]
         team_badge = _player_team_badge(player)
         hp_badge = _player_health_badge(player)
         pid = _short(str(player.id))
+
+        p_rname = player.role.name if player.role else None
+        role_hint = ""
+        if p_rname:
+            if is_voter_mafia and p_rname in ["DON", "MAFIA", "ADVOKAT", "UBIYTSA", "JURNALIST", "AYGOQCHI", "LABORANT"]:
+                from bot_runtime.handlers.night import role_icon
+                role_hint = f" {role_icon(p_rname)}"
+            elif is_voter_police and p_rname in ["DETECTIVE", "KOMISSAR", "SHERIFF", "SERJANT", "ADMIRAL"]:
+                from bot_runtime.handlers.night import role_icon
+                role_hint = f" {role_icon(p_rname)}"
+            elif is_voter_medical and p_rname in ["DOCTOR", "SHIFOKOR", "DOKTOR", "HAMSHIRA"]:
+                from bot_runtime.handlers.night import role_icon
+                role_hint = f" {role_icon(p_rname)}"
+
         builder.button(
-            text=f"{team_badge}{idx}. {display}{hp_badge}",
+            text=f"{team_badge}{idx}. {display}{role_hint}{hp_badge}",
             callback_data=f"v:{gid}:{pid}"
         )
     builder.adjust(1)

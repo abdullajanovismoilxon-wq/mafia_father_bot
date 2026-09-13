@@ -833,15 +833,30 @@ async def cmd_start_game(message: types.Message, bot: Bot):
             try:
                 if rname in ["DON", "MAFIA"]:
                     kb = build_night_target_keyboard(gid, "k", living_players, str(player.id))
-                    await safe_send_message(bot, player.telegram_user_id, "<b>Kimni o'ldiramiz?</b>", reply_markup=kb, parse_mode="HTML")
+                    maf_living = [mp for mp, mr in mafia_members if mp.id != player.id]
+                    partner_info = ""
+                    if maf_living:
+                        p_names = ", ".join([f"<b>{html.escape(mp.display_name)}</b> ({role_icon(mr.name)} {role_label(mr.name)})" for mp, mr in mafia_members if mp.id != player.id])
+                        partner_info = f"\n🤵🏻 <b>Mafiya sheriklaringiz:</b> {p_names}\n"
+                    await safe_send_message(bot, player.telegram_user_id, f"<b>Kimni o'ldiramiz?</b>{partner_info}", reply_markup=kb, parse_mode="HTML")
 
                 elif rname in ["DOCTOR", "HAMSHIRA"] and rname == "DOCTOR":
                     kb = build_night_target_keyboard(gid, "p", living_players, str(player.id))
-                    await safe_send_message(bot, player.telegram_user_id, "<b>Kimni davolaymiz?</b>", reply_markup=kb, parse_mode="HTML")
+                    ham_living = [mp for mp, mr in medical_members if mr.name == 'HAMSHIRA' and mp.id != player.id]
+                    partner_info = ""
+                    if ham_living:
+                        p_names = ", ".join([f"<b>{html.escape(mp.display_name)}</b> ({role_icon(mr.name)} {role_label(mr.name)})" for mp, mr in medical_members if mr.name == 'HAMSHIRA' and mp.id != player.id])
+                        partner_info = f"\n👩🏼‍⚕️ <b>Hamshirangiz:</b> {p_names}\n"
+                    await safe_send_message(bot, player.telegram_user_id, f"<b>Kimni davolaymiz?</b>{partner_info}", reply_markup=kb, parse_mode="HTML")
 
                 elif rname in ["DETECTIVE", "KOMISSAR", "SHERIFF"]:
                     kb = build_komissar_action_keyboard(gid)
-                    await safe_send_message(bot, player.telegram_user_id, "<b>Harakatingizni tanlang:</b>", reply_markup=kb, parse_mode="HTML")
+                    serj_living = [pp for pp, pr in police_members if pr.name in ['SERJANT', 'ADMIRAL'] and pp.id != player.id]
+                    partner_info = ""
+                    if serj_living:
+                        p_names = ", ".join([f"<b>{html.escape(pp.display_name)}</b> ({role_icon(pr.name)} {role_label(pr.name)})" for pp, pr in police_members if pr.name in ['SERJANT', 'ADMIRAL'] and pp.id != player.id])
+                        partner_info = f"\n👮🏼‍♂️ <b>Sizning Serjantingiz:</b> {p_names}\n"
+                    await safe_send_message(bot, player.telegram_user_id, f"<b>Harakatingizni tanlang:</b>{partner_info}", reply_markup=kb, parse_mode="HTML")
 
                 elif rname == "QOTIL":
                     kb = build_night_target_keyboard(gid, "qot", living_players, str(player.id))

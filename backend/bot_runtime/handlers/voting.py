@@ -741,29 +741,72 @@ async def _advance_to_next_night(game: Game, bot: Bot, reason: str = ""):
             try:
                 if rname in ["MAFIA", "DON"]:
                     kb = build_night_target_keyboard(game_id, "k", living_players, str(player.id))
+                    maf_living = [p for p in living_players if p.role and p.role.name in ['DON', 'MAFIA', 'ADVOKAT', 'UBIYTSA', 'JURNALIST', 'AYGOQCHI', 'LABORANT'] and p.id != player.id]
+                    partner_info = ""
+                    if maf_living:
+                        p_names = ", ".join([f"<b>{html.escape(mp.display_name)}</b> ({role_icon(mp.role.name)} {role_label(mp.role.name)})" for mp in maf_living])
+                        partner_info = f"\n🤵🏻 <b>Mafiya sheriklaringiz:</b> {p_names}\n"
                     await safe_send_message(
                         bot,
                         player.telegram_user_id,
-                        f"🌙 <b>{round_num}-TUN:</b> Kimni yo'q qilmoqchisiz?",
+                        f"🌙 <b>{round_num}-TUN:</b> Kimni yo'q qilmoqchisiz?{partner_info}",
                         reply_markup=kb,
                         parse_mode="HTML"
                     )
                 elif rname in ["DOCTOR", "HAMSHIRA"] and rname == "DOCTOR":
                     kb = build_night_target_keyboard(game_id, "p", living_players, str(player.id))
+                    ham_living = [p for p in living_players if p.role and p.role.name == 'HAMSHIRA' and p.id != player.id]
+                    partner_info = ""
+                    if ham_living:
+                        p_names = ", ".join([f"<b>{html.escape(hp.display_name)}</b> ({role_icon(hp.role.name)} {role_label(hp.role.name)})" for hp in ham_living])
+                        partner_info = f"\n👩🏼‍⚕️ <b>Hamshirangiz:</b> {p_names}\n"
                     await safe_send_message(
                         bot,
                         player.telegram_user_id,
-                        f"🌙 <b>{round_num}-TUN:</b> Kimni davolaysiz?",
+                        f"🌙 <b>{round_num}-TUN:</b> Kimni davolaysiz?{partner_info}",
                         reply_markup=kb,
                         parse_mode="HTML"
                     )
                 elif rname in ["DETECTIVE", "KOMISSAR", "SHERIFF"]:
                     kb = build_komissar_action_keyboard(game_id)
+                    serj_living = [p for p in living_players if p.role and p.role.name in ['SERJANT', 'ADMIRAL'] and p.id != player.id]
+                    partner_info = ""
+                    if serj_living:
+                        p_names = ", ".join([f"<b>{html.escape(sp.display_name)}</b> ({role_icon(sp.role.name)} {role_label(sp.role.name)})" for sp in serj_living])
+                        partner_info = f"\n👮🏼‍♂️ <b>Sizning Serjantingiz:</b> {p_names}\n"
                     await safe_send_message(
                         bot,
                         player.telegram_user_id,
-                        f"🌙 <b>{round_num}-TUN:</b> Harakatingizni tanlang:",
+                        f"🌙 <b>{round_num}-TUN:</b> Harakatingizni tanlang:{partner_info}",
                         reply_markup=kb,
+                        parse_mode="HTML"
+                    )
+                elif rname == "HAMSHIRA":
+                    doc_living = [p for p in living_players if p.role and p.role.name in ['DOCTOR', 'SHIFOKOR', 'DOKTOR'] and p.id != player.id]
+                    partner_info = ""
+                    if doc_living:
+                        p_names = ", ".join([f"<b>{html.escape(dp.display_name)}</b> ({role_icon(dp.role.name)} {role_label(dp.role.name)})" for dp in doc_living])
+                        partner_info = f"\n👨🏼‍⚕️ <b>Shifokoringiz:</b> {p_names}\n"
+                    await safe_send_message(
+                        bot,
+                        player.telegram_user_id,
+                        f"🌙 <b>{round_num}-TUN boshlandi!</b>\n\n"
+                        f"👩🏼‍⚕️ Siz Hamshirasiz.{partner_info}Shifokor halok bo'lsa, uning o'rniga o'tasiz. Shifokorni ehtiyot qiling!",
+                        reply_markup=build_back_to_group_keyboard(chat_id=game.chat_id),
+                        parse_mode="HTML"
+                    )
+                elif rname in ["SERJANT", "ADMIRAL"]:
+                    kom_living = [p for p in living_players if p.role and p.role.name in ['DETECTIVE', 'KOMISSAR', 'SHERIFF'] and p.id != player.id]
+                    partner_info = ""
+                    if kom_living:
+                        p_names = ", ".join([f"<b>{html.escape(kp.display_name)}</b> ({role_icon(kp.role.name)} {role_label(kp.role.name)})" for kp in kom_living])
+                        partner_info = f"\n🕵🏻‍♂️ <b>Sizning Komissaringiz:</b> {p_names}\n"
+                    await safe_send_message(
+                        bot,
+                        player.telegram_user_id,
+                        f"🌙 <b>{round_num}-TUN boshlandi!</b>\n\n"
+                        f"👮🏼‍♂️ Siz {role_label(rname)}siz.{partner_info}Komissarning harakatlarini kuzating yoki bot orqali unga xabar yozing (Politsiya chati)!",
+                        reply_markup=build_back_to_group_keyboard(chat_id=game.chat_id),
                         parse_mode="HTML"
                     )
                 elif rname == "QOTIL":

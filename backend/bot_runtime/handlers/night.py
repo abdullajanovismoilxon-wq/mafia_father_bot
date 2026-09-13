@@ -1234,9 +1234,32 @@ async def transition_day_to_voting(game: Game, bot: Bot):
 
             try:
                 kb = build_voting_keyboard(str(game.id), living_players, str(player.id))
+                rname = player.role.name if player.role else ''
+                partner_note = ""
+                if rname in ['DETECTIVE', 'KOMISSAR', 'SHERIFF']:
+                    serj_living = [p for p in living_players if p.role and p.role.name in ['SERJANT', 'ADMIRAL'] and p.id != player.id]
+                    if serj_living:
+                        p_names = ", ".join([f"<b>{html.escape(sp.display_name)}</b> ({role_icon(sp.role.name)} {role_label(sp.role.name)})" for sp in serj_living])
+                        partner_note = f"\n👮🏼‍♂️ <b>Sizning Serjantingiz:</b> {p_names}\n"
+                elif rname in ['SERJANT', 'ADMIRAL']:
+                    kom_living = [p for p in living_players if p.role and p.role.name in ['DETECTIVE', 'KOMISSAR', 'SHERIFF'] and p.id != player.id]
+                    if kom_living:
+                        p_names = ", ".join([f"<b>{html.escape(kp.display_name)}</b> ({role_icon(kp.role.name)} {role_label(kp.role.name)})" for kp in kom_living])
+                        partner_note = f"\n🕵🏻‍♂️ <b>Sizning Komissaringiz:</b> {p_names}\n"
+                elif rname in ['DON', 'MAFIA', 'ADVOKAT', 'UBIYTSA', 'JURNALIST', 'AYGOQCHI', 'LABORANT']:
+                    maf_living = [p for p in living_players if p.role and p.role.name in ['DON', 'MAFIA', 'ADVOKAT', 'UBIYTSA', 'JURNALIST', 'AYGOQCHI', 'LABORANT'] and p.id != player.id]
+                    if maf_living:
+                        p_names = ", ".join([f"<b>{html.escape(mp.display_name)}</b> ({role_icon(mp.role.name)} {role_label(mp.role.name)})" for mp in maf_living])
+                        partner_note = f"\n🤵🏻 <b>Mafiya sheriklaringiz:</b> {p_names}\n"
+                elif rname in ['DOCTOR', 'SHIFOKOR', 'DOKTOR', 'HAMSHIRA']:
+                    med_living = [p for p in living_players if p.role and p.role.name in ['DOCTOR', 'SHIFOKOR', 'DOKTOR', 'HAMSHIRA'] and p.id != player.id]
+                    if med_living:
+                        p_names = ", ".join([f"<b>{html.escape(mp.display_name)}</b> ({role_icon(mp.role.name)} {role_label(mp.role.name)})" for mp in med_living])
+                        partner_note = f"\n👨🏼‍⚕️ <b>Tibbiyot sheriklaringiz:</b> {p_names}\n"
+
                 await bot.send_message(
                     player.telegram_user_id,
-                    "⚖️ <b>Ovoz berish boshlandi!</b>\nKimni gumon qilyapsiz? Tanlang:",
+                    f"⚖️ <b>Ovoz berish boshlandi!</b>\n{partner_note}\nKimni gumon qilyapsiz? Tanlang:",
                     reply_markup=kb,
                     parse_mode="HTML"
                 )
@@ -1575,17 +1598,23 @@ async def handle_komissar_action_choice(callback: CallbackQuery, bot: Bot):
             await callback.answer("Siz tirik emassiz.", show_alert=True)
             return
 
+        police_partners = [p for p in living_players if p.role and p.role.name in ['SERJANT', 'ADMIRAL'] and p.id != actor.id]
+        partner_info = ""
+        if police_partners:
+            p_names = ", ".join([f"<b>{html.escape(p.display_name)}</b> ({role_icon(p.role.name)} {role_label(p.role.name)})" for p in police_partners])
+            partner_info = f"\n👮🏼‍♂️ <b>Sherigingiz (Serjant):</b> {p_names}\n"
+
         if choice == "inv":
             kb = build_night_target_keyboard(full_gid, "inv", living_players, str(actor.id))
             await callback.message.edit_text(
-                "🔍 <b>Kimni tekshirmoqchisiz?</b>\nO'yinchini tanlang:",
+                f"🔍 <b>Kimni tekshirmoqchisiz?</b>\n{partner_info}\nO'yinchini tanlang:",
                 reply_markup=kb,
                 parse_mode="HTML"
             )
         elif choice == "sht":
             kb = build_night_target_keyboard(full_gid, "sht", living_players, str(actor.id))
             await callback.message.edit_text(
-                "🔫 <b>Kimni otmoqchisiz?</b>\nO'yinchini tanlang:",
+                f"🔫 <b>Kimni otmoqchisiz?</b>\n{partner_info}\nO'yinchini tanlang:",
                 reply_markup=kb,
                 parse_mode="HTML"
             )
