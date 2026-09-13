@@ -572,7 +572,10 @@ class GameResolutionService:
                     kom_role = Role.objects.filter(name='DETECTIVE').first()
                     if kom_role:
                         ser_p.role = kom_role
-                        ser_p.save(update_fields=['role'])
+                        if not ser_p.metadata:
+                            ser_p.metadata = {}
+                        ser_p.metadata['afk_strikes'] = 0
+                        ser_p.save(update_fields=['role', 'metadata'])
                         new_komissar = ser_p
 
             new_doctor = None
@@ -583,7 +586,10 @@ class GameResolutionService:
                     doc_role = Role.objects.filter(name='DOCTOR').first()
                     if doc_role:
                         ham_p.role = doc_role
-                        ham_p.save(update_fields=['role'])
+                        if not ham_p.metadata:
+                            ham_p.metadata = {}
+                        ham_p.metadata['afk_strikes'] = 0
+                        ham_p.save(update_fields=['role', 'metadata'])
                         new_doctor = ham_p
 
             # -------------------------------------------------------------
@@ -664,16 +670,24 @@ class GameResolutionService:
                     joker_deliveries.append({'target_user_id': ja.target.telegram_user_id})
 
             # -------------------------------------------------------------
-            # 12. AFK Inactivity Check (Exempt passive roles & Mafia when Don is alive)
+            # 12. AFK Inactivity Check (Exempt passive roles, Serjant until promoted, & Mafia when Don is alive)
             # -------------------------------------------------------------
-            PASSIVE_ROLES = {'CITIZEN', 'OMADLI', 'JANOB', 'BORI', 'SEHRGAR', 'ADMIRAL', 'HAMSHIRA', 'SUIDSID'}
+            PASSIVE_ROLES = {'CITIZEN', 'OMADLI', 'JANOB', 'BORI', 'SEHRGAR', 'ADMIRAL', 'HAMSHIRA', 'SUIDSID', 'SERJANT'}
             afk_eliminated = []
             acted_actor_ids = {a.actor_id for a in actions}
             don_alive_in_game = any(p.is_alive and p.role and p.role.name == 'DON' for p in alive_players if p.id not in eliminated_player_ids)
+            promoted_player_ids = {p.id for p in [new_don, new_komissar, new_doctor] if p is not None}
 
             for p in alive_players:
                 if p.id in eliminated_player_ids:
                     continue
+                if p.id in promoted_player_ids:
+                    if not p.metadata:
+                        p.metadata = {}
+                    p.metadata['afk_strikes'] = 0
+                    p.save(update_fields=['metadata'])
+                    continue
+
                 rname = p.role.name if p.role else 'CITIZEN'
                 if rname in PASSIVE_ROLES:
                     continue  # EXEMPT from AFK penalty

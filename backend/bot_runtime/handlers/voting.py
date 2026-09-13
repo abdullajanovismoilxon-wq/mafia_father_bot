@@ -276,6 +276,16 @@ async def auto_close_voting(game: Game, bot: Bot, force: bool = False):
         tally_text = "\n".join(tally_lines) if tally_lines else "<i>Hech kim ovoz bermadi</i>"
 
         if not counts:
+            announcement = (
+                f"📊 <b>Ovoz berish natijalari:</b>\n\n"
+                f"<i>Hech kim ovoz bermadi.</i>\n\n"
+                f"⚖️ <b>Hech kim osilmadi.</b>"
+            )
+            try:
+                await bot.send_message(game.chat_id, announcement, parse_mode="HTML")
+            except Exception:
+                pass
+            await asyncio.sleep(2.0)
             await _advance_to_next_night(game, bot, reason="no_votes")
             return
 
@@ -294,6 +304,7 @@ async def auto_close_voting(game: Game, bot: Bot, force: bool = False):
                 await bot.send_message(game.chat_id, announcement, parse_mode="HTML")
             except Exception:
                 pass
+            await asyncio.sleep(2.0)
             await _advance_to_next_night(game, bot, reason="tie")
             return
 
@@ -385,7 +396,7 @@ async def _hanging_timer(game_id: str, bot: Bot, original_msg=None):
 
 
 async def resolve_hanging(game: Game, bot: Bot, original_msg=None):
-    """Resolves hanging: eliminates or saves, then win-check → next night."""
+    """Resolves hanging: eliminates or saves, sends group announcement, handles succession, then win-check → next night."""
     game_id = str(game.id)
     try:
         from bot_runtime.manager import BotRuntimeManager
@@ -501,7 +512,10 @@ async def resolve_hanging(game: Game, bot: Bot, original_msg=None):
                         from apps.games.models import Role
                         don_role = await sync_to_async(lambda: Role.objects.filter(name='DON').first())()
                         if don_role:
-                            await sync_to_async(lambda: Player.objects.filter(id=new_don.id).update(role=don_role))()
+                            if not new_don.metadata:
+                                new_don.metadata = {}
+                            new_don.metadata['afk_strikes'] = 0
+                            await sync_to_async(lambda: Player.objects.filter(id=new_don.id).update(role=don_role, metadata=new_don.metadata))()
                         try:
                             new_don_mention = f'{_player_team_badge(new_don)}<a href="tg://user?id={new_don.telegram_user_id}">{html.escape(new_don.display_name)}</a>{_player_health_badge(new_don)}'
                             await bot.send_message(
@@ -517,6 +531,68 @@ async def resolve_hanging(game: Game, bot: Bot, original_msg=None):
                             )
                         except Exception:
                             pass
+
+                # Detective/Komissar succession: promote Serjant or Admiral
+                if rname in ["DETECTIVE", "KOMISSAR", "SHERIFF"]:
+                    serj_p = await sync_to_async(
+                        lambda: Player.objects.filter(game=game, is_alive=True, role__name='SERJANT').select_related('role').first()
+                    )()
+                    if not serj_p:
+                        serj_p = await sync_to_async(
+                            lambda: Player.objects.filter(game=game, is_alive=True, role__name='ADMIRAL').select_related('role').first()
+                        )()
+                    if serj_p:
+                        from apps.games.models import Role
+                        kom_role = await sync_to_async(lambda: Role.objects.filter(name='DETECTIVE').first())()
+                        if kom_role:
+                            if not serj_p.metadata:
+                                serj_p.metadata = {}
+                            serj_p.metadata['afk_strikes'] = 0
+                            await sync_to_async(lambda: Player.objects.filter(id=serj_p.id).update(role=kom_role, metadata=serj_p.metadata))()
+                        try:
+                            serj_mention = f'{_player_team_badge(serj_p)}<a href="tg://user?id={serj_p.telegram_user_id}">{html.escape(serj_p.display_name)}</a>{_player_health_badge(serj_p)}'
+                            await bot.send_message(
+                                game.chat_id,
+                                f"🕵🏻‍♂️ {serj_mention} <b>Komissar bo'ldi!</b>\nO'yin davom etadi...",
+                                parse_mode="HTML"
+                            )
+                            await bot.send_message(
+                                serj_p.telegram_user_id,
+                                "🕵🏻‍♂️ <b>Siz endi KOMISSAR siz!</b>\n"
+                                "Komissar osildi. Endi siz shahar osoyishtaligini himoya qilasiz!",
+                                parse_mode="HTML"
+                            )
+                        except Exception:
+                            pass
+
+                # Doctor succession: promote Hamshira
+                if rname in ["DOCTOR", "SHIFOKOR"]:
+                    ham_p = await sync_to_async(
+                        lambda: Player.objects.filter(game=game, is_alive=True, role__name='HAMSHIRA').select_related('role').first()
+                    )()
+                    if ham_p:
+                        from apps.games.models import Role
+                        doc_role = await sync_to_async(lambda: Role.objects.filter(name='DOCTOR').first())()
+                        if doc_role:
+                            if not ham_p.metadata:
+                                ham_p.metadata = {}
+                            ham_p.metadata['afk_strikes'] = 0
+                            await sync_to_async(lambda: Player.objects.filter(id=ham_p.id).update(role=doc_role, metadata=ham_p.metadata))()
+                        try:
+                            ham_mention = f'{_player_team_badge(ham_p)}<a href="tg://user?id={ham_p.telegram_user_id}">{html.escape(ham_p.display_name)}</a>{_player_health_badge(ham_p)}'
+                            await bot.send_message(
+                                game.chat_id,
+                                f"👨🏼‍⚕️ {ham_mention} <b>Shifokor bo'ldi!</b>\nO'yin davom etadi...",
+                                parse_mode="HTML"
+                            )
+                            await bot.send_message(
+                                ham_p.telegram_user_id,
+                                "👨🏼‍⚕️ <b>Siz endi SHIFOKOR siz!</b>\n"
+                                "Shifokor osildi. Endi siz shahar aholisini davolaysiz!",
+                                parse_mode="HTML"
+                            )
+                        except Exception:
+                            pass
         else:
             tpl_pardon = await sync_to_async(TextService.get_text)(
                 'voting_pardon_format',
@@ -528,18 +604,17 @@ async def resolve_hanging(game: Game, bot: Bot, original_msg=None):
                 .replace('{save_votes}', str(save_votes))
             )
 
-        # Send/edit result
-        try:
-            if original_msg:
-                await original_msg.edit_text(result_text, parse_mode="HTML")
-            else:
-                await bot.send_message(game.chat_id, result_text, parse_mode="HTML")
-        except Exception as e:
-            logger.warning(f"Could not send hanging result: {e}")
+        # Clear inline keyboard on original prompt and broadcast result to group
+        if original_msg:
             try:
-                await bot.send_message(game.chat_id, result_text, parse_mode="HTML")
+                await original_msg.edit_reply_markup(reply_markup=None)
             except Exception:
                 pass
+
+        try:
+            await bot.send_message(game.chat_id, result_text, parse_mode="HTML")
+        except Exception as e:
+            logger.warning(f"Could not send hanging result to group: {e}")
 
         # Win check
         game = await sync_to_async(Game.objects.select_related('bot').get)(id=game.id)
@@ -551,7 +626,17 @@ async def resolve_hanging(game: Game, bot: Bot, original_msg=None):
             from bot_runtime.handlers.night import _announce_game_winner
             await _announce_game_winner(game, winner, bot)
         else:
+            await asyncio.sleep(3.0)
             await _advance_to_next_night(game, bot, reason="hanging_done")
+
+    except Exception as h_err:
+        logger.exception(f"Error in resolve_hanging for game {game_id}: {h_err}")
+        try:
+            game = await sync_to_async(Game.objects.select_related('bot').get)(id=game_id)
+            if game.phase in [GamePhase.VOTING, GamePhase.DAY] and game.status not in ['FINISHED', 'CANCELED']:
+                await _advance_to_next_night(game, bot, reason="resolve_hanging_error_fallback")
+        except Exception as fb_err2:
+            logger.error(f"Fallback to next night after resolve_hanging error failed: {fb_err2}")
 
     except Exception as h_err:
         logger.exception(f"Error in resolve_hanging for game {game_id}: {h_err}")
