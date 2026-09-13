@@ -95,11 +95,11 @@ async def periodic_game_watchdog(master_bot: Bot):
                 await sync_to_async(g.save)(update_fields=['phase', 'status', 'updated_at'])
                 logger.info(f"Watchdog auto-cancelled expired lobby {g.id} in chat {g.chat_id}")
 
-            # 2. Recover genuinely stuck NIGHT games (updated_at > 5 mins ago and not currently advancing)
+            # 2. Recover genuinely stuck NIGHT games (updated_at > 60s ago and not currently advancing)
             stuck_night_games = await sync_to_async(lambda: list(
                 Game.objects.filter(
                     phase=GamePhase.NIGHT,
-                    updated_at__lt=now - timedelta(minutes=5)
+                    updated_at__lt=now - timedelta(seconds=60)
                 ).select_related('bot', 'bot__credential')
             ))()
             for g in stuck_night_games:
@@ -113,11 +113,11 @@ async def periodic_game_watchdog(master_bot: Bot):
                 except Exception as ne:
                     logger.exception(f"Watchdog night advance error for game {g.id}: {ne}")
 
-            # 3. Recover genuinely stuck DAY / DISCUSSION games (updated_at > 5 mins ago)
+            # 3. Recover genuinely stuck DAY / DISCUSSION games (updated_at > 45s ago)
             stuck_day_games = await sync_to_async(lambda: list(
                 Game.objects.filter(
                     phase__in=[GamePhase.DAY, GamePhase.DISCUSSION],
-                    updated_at__lt=now - timedelta(minutes=5)
+                    updated_at__lt=now - timedelta(seconds=45)
                 ).select_related('bot', 'bot__credential')
             ))()
             for g in stuck_day_games:
@@ -128,31 +128,29 @@ async def periodic_game_watchdog(master_bot: Bot):
                     g.phase = GamePhase.VOTING
                     g.status = GamePhase.VOTING
                     await sync_to_async(g.save)(update_fields=['phase', 'status', 'updated_at'])
-                    await auto_close_voting(g, game_bot)
+                    await auto_close_voting(g, game_bot, force=True)
                 except Exception as de:
                     logger.exception(f"Watchdog day advance error for game {g.id}: {de}")
 
-            # 4. Recover genuinely stuck VOTING games (updated_at > 5 mins ago and not currently closing)
+            # 4. Recover genuinely stuck VOTING games (updated_at > 45s ago)
             stuck_voting_games = await sync_to_async(lambda: list(
                 Game.objects.filter(
                     phase=GamePhase.VOTING,
-                    updated_at__lt=now - timedelta(minutes=5)
+                    updated_at__lt=now - timedelta(seconds=45)
                 ).select_related('bot', 'bot__credential')
             ))()
             for g in stuck_voting_games:
                 gid = str(g.id)
-                if gid in CLOSING_VOTING_GAMES or gid in HANGING_VOTES:
-                    continue
-                logger.warning(f"Watchdog detected stuck VOTING in game {g.id}. Closing voting.")
+                logger.warning(f"Watchdog detected stuck VOTING in game {g.id}. Force closing voting.")
                 try:
                     game_bot = BotRuntimeManager.get_bot_for_game(g, master_bot)
-                    await auto_close_voting(g, game_bot)
+                    await auto_close_voting(g, game_bot, force=True)
                 except Exception as ve:
                     logger.exception(f"Watchdog voting close error for game {g.id}: {ve}")
 
         except Exception as e:
             logger.debug(f"Watchdog check error: {e}")
-        await asyncio.sleep(15)
+        await asyncio.sleep(5)
 
 
 async def periodic_bot_sync_task(master_bot: Bot):

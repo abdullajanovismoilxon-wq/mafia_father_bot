@@ -43,8 +43,6 @@ router = Router(name="voting_router")
 HANGING_VOTES: dict = {}
 HANGING_TASKS: dict = {}
 CLOSING_VOTING_GAMES: set = set()
-CLOSED_VOTING_ROUNDS: set = set()
-RESOLVED_HANGING_ROUNDS: set = set()
 
 
 # ---------------------------------------------------------------------------
@@ -263,16 +261,12 @@ async def handle_hanging_callback(callback: CallbackQuery, bot: Bot):
 # Core: auto_close_voting
 # ---------------------------------------------------------------------------
 
-async def auto_close_voting(game: Game, bot: Bot):
+async def auto_close_voting(game: Game, bot: Bot, force: bool = False):
     """Tallies votes, announces result, starts hanging confirmation."""
     game_id = str(game.id)
-    round_num = game.round_number
-    round_key = (game_id, round_num)
-
-    if round_key in CLOSED_VOTING_ROUNDS or game_id in CLOSING_VOTING_GAMES or game_id in HANGING_VOTES:
-        logger.info(f"Game {game_id} round {round_num} is already closing voting or hanging prompt is active.")
+    if not force and (game_id in CLOSING_VOTING_GAMES or game_id in HANGING_VOTES):
+        logger.info(f"Game {game_id} is already closing voting or hanging prompt is active.")
         return
-    CLOSED_VOTING_ROUNDS.add(round_key)
     CLOSING_VOTING_GAMES.add(game_id)
     try:
         from bot_runtime.manager import BotRuntimeManager
@@ -284,7 +278,7 @@ async def auto_close_voting(game: Game, bot: Bot):
             task.cancel()
 
         game = await sync_to_async(Game.objects.select_related('bot').get)(id=game.id)
-        if game.phase != GamePhase.VOTING:
+        if game.phase != GamePhase.VOTING or game.status in ['FINISHED', 'CANCELED']:
             return
 
         votes = await sync_to_async(
@@ -395,6 +389,13 @@ async def _hanging_timer(game_id: str, bot: Bot, original_msg=None):
                 await resolve_hanging(game, bot, original_msg)
     except asyncio.CancelledError:
         logger.info(f"Hanging timer cancelled for game {game_id}.")
+        try:
+            if game_id in HANGING_VOTES:
+                game = await sync_to_async(Game.objects.select_related('bot').get)(id=game_id)
+                if game.phase == GamePhase.VOTING and game.status not in ['FINISHED', 'CANCELED']:
+                    await resolve_hanging(game, bot, original_msg)
+        except Exception:
+            pass
     except Exception as e:
         logger.exception(f"Error in hanging timer: {e}")
         try:
@@ -410,14 +411,6 @@ async def _hanging_timer(game_id: str, bot: Bot, original_msg=None):
 async def resolve_hanging(game: Game, bot: Bot, original_msg=None):
     """Resolves hanging: eliminates or saves, then win-check → next night."""
     game_id = str(game.id)
-    round_num = game.round_number
-    round_key = (game_id, round_num)
-
-    if round_key in RESOLVED_HANGING_ROUNDS:
-        logger.info(f"Hanging for game {game_id} round {round_num} already resolved.")
-        return
-    RESOLVED_HANGING_ROUNDS.add(round_key)
-
     try:
         from bot_runtime.manager import BotRuntimeManager
         bot = BotRuntimeManager.get_bot_for_game(game, bot)
@@ -428,6 +421,9 @@ async def resolve_hanging(game: Game, bot: Bot, original_msg=None):
             task.cancel()
 
         if not h_data:
+            game = await sync_to_async(Game.objects.select_related('bot').get)(id=game_id)
+            if game.phase == GamePhase.VOTING and game.status not in ['FINISHED', 'CANCELED']:
+                await _advance_to_next_night(game, bot, reason="hanging_data_missing")
             return
 
         suspect = h_data['target']
