@@ -219,6 +219,8 @@ class BotRuntimeManager:
             except Exception:
                 pass
 
+            dp = cls.get_child_dispatcher()
+
             async def _polling_task():
                 try:
                     offset = None
