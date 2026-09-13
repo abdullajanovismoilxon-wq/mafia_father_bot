@@ -157,56 +157,70 @@ class BotRuntimeManager:
             await cls.stop_bot_polling(bot_id, mark_db=False)
 
             bot = Bot(token=raw_token)
-            dp = cls.get_child_dispatcher()
+            # Validate bot token and connectivity upfront before spawning background loop
+            try:
+                bot_info = await bot.get_me()
+            except TelegramAPIError as tg_err:
+                logger.error(f"❌ Cannot start bot {username} ({bot_id}): Telegram API error - {tg_err}")
+                def _mark_error():
+                    BotModel.objects.filter(id=bot_id).update(
+                        status=BotStatus.ERROR,
+                        runtime_status=RuntimeStatus.ERROR
+                    )
+                await sync_to_async(_mark_error)()
+                try:
+                    await bot.session.close()
+                except Exception:
+                    pass
+                return False
+
+            logger.info(f"✅ Child bot @{bot_info.username} (ID: {bot_info.id}) verified successfully.")
+
+            # Register Telegram UI Bot Commands matching Private & Group scopes
+            try:
+                from aiogram.types import BotCommand, BotCommandScopeAllPrivateChats, BotCommandScopeAllGroupChats
+                
+                pm_commands = [
+                    BotCommand(command="start", description="Botni ishga tushirish"),
+                    BotCommand(command="profile", description="Shaxsiy profil va do'kon"),
+                    BotCommand(command="roles", description="Rollar haqida ma'lumot"),
+                ]
+                await bot.set_my_commands(pm_commands, scope=BotCommandScopeAllPrivateChats())
+
+                group_commands = [
+                    BotCommand(command="game", description="O'yin yaratish"),
+                    BotCommand(command="team", description="Jamoaviy o'yin yaratish (Qizil vs Ko'k)"),
+                    BotCommand(command="start_game", description="O'yinni boshlash"),
+                    BotCommand(command="leave", description="O'yindan chiqish"),
+                    BotCommand(command="changegive", description="Guruhga olmos ulashish 💎"),
+                    BotCommand(command="changemoney", description="Guruhga dollar ulashish 💶"),
+                    BotCommand(command="utag", description="Guruh a'zolarini chaqirish"),
+                    BotCommand(command="stop_tag", description="Chaqirishni to'xtatish"),
+                    BotCommand(command="geroyinfo", description="Geroy ma'lumotlari"),
+                    BotCommand(command="stop", description="O'yinni to'xtatish"),
+                ]
+                await bot.set_my_commands(group_commands, scope=BotCommandScopeAllGroupChats())
+            except Exception as cmd_err:
+                logger.warning(f"Could not set commands for @{bot_info.username}: {cmd_err}")
+
+            # Sync bot_id and telegram_username to DB
+            def _update_bot_info():
+                BotModel.objects.filter(id=bot_id).update(
+                    telegram_bot_id=bot_info.id,
+                    telegram_username=bot_info.username,
+                    status=BotStatus.ACTIVE,
+                    runtime_status=RuntimeStatus.RUNNING
+                )
+            await sync_to_async(_update_bot_info)()
+
+            # Delete any previous webhook
+            try:
+                await bot.delete_webhook(drop_pending_updates=False)
+            except Exception:
+                pass
 
             async def _polling_task():
                 try:
-                    bot_info = await bot.get_me()
-                    logger.info(f"✅ Child bot @{bot_info.username} (ID: {bot_info.id}) polling loop started.")
-
-                    # Register Telegram UI Bot Commands matching Private & Group scopes
-                    try:
-                        from aiogram.types import BotCommand, BotCommandScopeAllPrivateChats, BotCommandScopeAllGroupChats
-                        
-                        pm_commands = [
-                            BotCommand(command="start", description="Botni ishga tushirish"),
-                            BotCommand(command="profile", description="Shaxsiy profil va do'kon"),
-                            BotCommand(command="roles", description="Rollar haqida ma'lumot"),
-                        ]
-                        await bot.set_my_commands(pm_commands, scope=BotCommandScopeAllPrivateChats())
-
-                        group_commands = [
-                            BotCommand(command="game", description="O'yin yaratish"),
-                            BotCommand(command="team", description="Jamoaviy o'yin yaratish (Qizil vs Ko'k)"),
-                            BotCommand(command="start_game", description="O'yinni boshlash"),
-                            BotCommand(command="leave", description="O'yindan chiqish"),
-                            BotCommand(command="changegive", description="Guruhga olmos ulashish 💎"),
-                            BotCommand(command="changemoney", description="Guruhga dollar ulashish 💶"),
-                            BotCommand(command="utag", description="Guruh a'zolarini chaqirish"),
-                            BotCommand(command="stop_tag", description="Chaqirishni to'xtatish"),
-                            BotCommand(command="geroyinfo", description="Geroy ma'lumotlari"),
-                            BotCommand(command="stop", description="O'yinni to'xtatish"),
-                        ]
-                        await bot.set_my_commands(group_commands, scope=BotCommandScopeAllGroupChats())
-                    except Exception as cmd_err:
-                        logger.warning(f"Could not set commands for @{bot_info.username}: {cmd_err}")
-
-                    # Sync bot_id and telegram_username to DB
-                    def _update_bot_info():
-                        BotModel.objects.filter(id=bot_id).update(
-                            telegram_bot_id=bot_info.id,
-                            telegram_username=bot_info.username,
-                            status=BotStatus.ACTIVE,
-                            runtime_status=RuntimeStatus.RUNNING
-                        )
-                    await sync_to_async(_update_bot_info)()
-
-                    # Delete any previous webhook
-                    try:
-                        await bot.delete_webhook(drop_pending_updates=False)
-                    except Exception:
-                        pass
-
                     offset = None
                     allowed = ["message", "callback_query", "chat_member", "my_chat_member", "poll_answer"]
 
@@ -222,6 +236,15 @@ class BotRuntimeManager:
                                 asyncio.create_task(dp.feed_update(bot, update))
                         except asyncio.CancelledError:
                             break
+                        except TelegramAPIError as tg_loop_err:
+                            if "unauthorized" in str(tg_loop_err).lower() or "blocked" in str(tg_loop_err).lower():
+                                logger.error(f"❌ Permanent Telegram error for @{bot_info.username}: {tg_loop_err}")
+                                def _mark_db_err():
+                                    BotModel.objects.filter(id=bot_id).update(status=BotStatus.ERROR, runtime_status=RuntimeStatus.ERROR)
+                                await sync_to_async(_mark_db_err)()
+                                break
+                            logger.warning(f"Telegram API warning for @{bot_info.username}: {tg_loop_err}")
+                            await asyncio.sleep(3)
                         except Exception as loop_err:
                             logger.warning(f"Update fetch error for @{bot_info.username}: {loop_err}")
                             await asyncio.sleep(2)

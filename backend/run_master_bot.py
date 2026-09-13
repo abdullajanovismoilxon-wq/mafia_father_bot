@@ -64,11 +64,11 @@ async def resume_active_games_on_startup(master_bot: Bot):
 
 async def periodic_game_watchdog(master_bot: Bot):
     """
-    Continuous self-healing watchdog:
-    1. Auto-cancels expired WAITING lobbies.
-    2. Auto-advances genuinely stuck NIGHT games that exceed timeout without interfering with active games.
-    3. Auto-advances genuinely stuck DAY / DISCUSSION games.
-    4. Auto-closes genuinely stuck VOTING games that exceed timeout without interfering with active games.
+    Continuous self-healing watchdog with generous timeouts:
+    1. Auto-cancels expired WAITING lobbies (>30 mins old).
+    2. Recovers genuinely stuck NIGHT games (>5 mins without progress).
+    3. Recovers genuinely stuck DAY / DISCUSSION games (>5 mins without progress).
+    4. Recovers genuinely stuck VOTING games (>5 mins without progress).
     """
     from apps.games.models import Game, GamePhase
     from django.utils import timezone
@@ -95,11 +95,11 @@ async def periodic_game_watchdog(master_bot: Bot):
                 await sync_to_async(g.save)(update_fields=['phase', 'status', 'updated_at'])
                 logger.info(f"Watchdog auto-cancelled expired lobby {g.id} in chat {g.chat_id}")
 
-            # 2. Recover genuinely stuck NIGHT games (updated_at > 120s ago and not currently advancing)
+            # 2. Recover genuinely stuck NIGHT games (updated_at > 5 mins ago and not currently advancing)
             stuck_night_games = await sync_to_async(lambda: list(
                 Game.objects.filter(
                     phase=GamePhase.NIGHT,
-                    updated_at__lt=now - timedelta(seconds=120)
+                    updated_at__lt=now - timedelta(minutes=5)
                 ).select_related('bot', 'bot__credential')
             ))()
             for g in stuck_night_games:
@@ -113,11 +113,11 @@ async def periodic_game_watchdog(master_bot: Bot):
                 except Exception as ne:
                     logger.exception(f"Watchdog night advance error for game {g.id}: {ne}")
 
-            # 3. Recover genuinely stuck DAY / DISCUSSION games (updated_at > 60s ago)
+            # 3. Recover genuinely stuck DAY / DISCUSSION games (updated_at > 5 mins ago)
             stuck_day_games = await sync_to_async(lambda: list(
                 Game.objects.filter(
                     phase__in=[GamePhase.DAY, GamePhase.DISCUSSION],
-                    updated_at__lt=now - timedelta(seconds=60)
+                    updated_at__lt=now - timedelta(minutes=5)
                 ).select_related('bot', 'bot__credential')
             ))()
             for g in stuck_day_games:
@@ -132,11 +132,11 @@ async def periodic_game_watchdog(master_bot: Bot):
                 except Exception as de:
                     logger.exception(f"Watchdog day advance error for game {g.id}: {de}")
 
-            # 4. Recover genuinely stuck VOTING games (updated_at > 60s ago and not currently closing)
+            # 4. Recover genuinely stuck VOTING games (updated_at > 5 mins ago and not currently closing)
             stuck_voting_games = await sync_to_async(lambda: list(
                 Game.objects.filter(
                     phase=GamePhase.VOTING,
-                    updated_at__lt=now - timedelta(seconds=60)
+                    updated_at__lt=now - timedelta(minutes=5)
                 ).select_related('bot', 'bot__credential')
             ))()
             for g in stuck_voting_games:
@@ -152,14 +152,14 @@ async def periodic_game_watchdog(master_bot: Bot):
 
         except Exception as e:
             logger.debug(f"Watchdog check error: {e}")
-        await asyncio.sleep(5)
+        await asyncio.sleep(15)
 
 
 async def periodic_bot_sync_task(master_bot: Bot):
     """
     Periodically synchronizes running child bots with the database:
-    1. If a bot is deleted or status changed to PAUSED/SUSPENDED/DELETED -> stops polling.
-    2. If a bot is active in database (status=ACTIVE) and not yet running -> starts polling.
+    1. If a bot is deleted or status changed to PAUSED/SUSPENDED/DELETED/ERROR -> stops polling.
+    2. If a bot is active in database (status=ACTIVE) and not yet running -> starts polling with cooldown.
     """
     master_bot_id = None
     try:
@@ -168,8 +168,13 @@ async def periodic_bot_sync_task(master_bot: Bot):
     except Exception as e:
         logger.warning(f"Could not get master bot ID for sync: {e}")
 
+    failed_cooldown: dict[str, float] = {}
+
     while True:
         try:
+            import time
+            current_time = time.time()
+
             db_query = BotModel.objects.filter(status=BotStatus.ACTIVE)
             if master_bot_id:
                 db_query = db_query.exclude(telegram_bot_id=master_bot_id)
@@ -184,18 +189,24 @@ async def periodic_bot_sync_task(master_bot: Bot):
                     logger.info(f"🛑 Stopping deactivated/paused bot {running_id}...")
                     await BotRuntimeManager.stop_bot_polling(running_id)
 
-            # 2. Start bots that are active in DB but not yet running
+            # 2. Start bots that are active in DB but not yet running (respecting 60s cooldown on failure)
             for b in active_db_bots:
                 bid = str(b.id)
                 task = BotRuntimeManager._active_tasks.get(bid)
                 if not task or task.done():
+                    last_fail = failed_cooldown.get(bid, 0)
+                    if current_time - last_fail < 60:
+                        continue  # Wait cooldown before attempting retry
+
                     logger.info(f"▶️ Starting active child bot @{b.telegram_username} ({bid})...")
-                    await BotRuntimeManager.start_bot_polling(bid)
+                    success = await BotRuntimeManager.start_bot_polling(bid)
+                    if not success:
+                        failed_cooldown[bid] = current_time
 
         except Exception as e:
             logger.debug(f"Bot sync error: {e}")
 
-        await asyncio.sleep(3)
+        await asyncio.sleep(10)
 
 
 async def main():
