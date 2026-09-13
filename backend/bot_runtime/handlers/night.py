@@ -289,99 +289,12 @@ def start_night_timer(game_id: str, bot: Any, duration: int = 60, **kwargs):
     NIGHT_TASKS[game_id] = new_task
 
 
-PASSIVE_NIGHT_ROLES = {
-    'CITIZEN', 'TINCH AHOLI', 'FUQARO', 'OMADLI', 'JANOB', 'BORI', "BO'RI", 'SEHRGAR', 'ADMIRAL', 'SUIDSID'
-}
-
-
 async def _check_and_advance_night_if_ready(game: Game, bot: Bot):
     """
-    Checks game state during Night phase:
-    Advances immediately to Dawn if:
-    1. No active night roles exist at all.
-    2. All living active night players have completed their night actions.
+    Night phase timing is strictly governed by run_night_timer (configured in GroupCabinet / SuperAdmin).
+    No early cutoff to ensure exact cabinet configured duration is respected.
     """
-    try:
-        game_id = str(game.id)
-        current_game = await sync_to_async(Game.objects.select_related('bot').get)(id=game_id)
-        if current_game.phase != GamePhase.NIGHT:
-            return
-
-        living_players = await sync_to_async(
-            lambda: list(current_game.players.filter(is_alive=True).select_related('role'))
-        )()
-        if not living_players:
-            return
-
-        # Determine living teams/roles that must act at night
-        has_living_mafia_team = any(
-            p.role and p.role.name in ['DON', 'MAFIA']
-            for p in living_players
-        )
-        has_living_komissar = any(
-            p.role and p.role.name in ['KOMISSAR', 'DETECTIVE', 'SHERIFF']
-            for p in living_players
-        )
-        has_living_doctor = any(
-            p.role and p.role.name in ['DOCTOR', 'SHIFOKOR', 'DOKTOR']
-            for p in living_players
-        )
-
-        required_actors = []
-        for p in living_players:
-            if not p.role:
-                continue
-            rname = p.role.name.upper()
-            if rname in PASSIVE_NIGHT_ROLES:
-                continue
-            if rname in ['DON', 'MAFIA']:
-                continue  # Checked collectively via Mafia team action
-            if rname == 'SERJANT' and has_living_komissar:
-                continue  # Komissar acts for Police
-            if rname == 'HAMSHIRA' and has_living_doctor:
-                continue  # Doctor acts for Medical
-            required_actors.append(p)
-
-        # 1. If no active night roles exist at all, advance immediately
-        if not has_living_mafia_team and not required_actors:
-            logger.info(f"⚡ No active night roles living in game {game_id}. Advancing to Dawn immediately.")
-            cancel_night_timer(game_id)
-            await advance_night_to_day(current_game, bot)
-            return
-
-        from apps.games.models import NightAction, NightActionType
-
-        # 2. Check Mafia team action
-        if has_living_mafia_team:
-            mafia_acted = await sync_to_async(
-                lambda: NightAction.objects.filter(
-                    game=current_game,
-                    round=current_game.round_number,
-                    action_type__in=[NightActionType.MAFIA_KILL, NightActionType.SKIP]
-                ).exists()
-            )()
-            if not mafia_acted:
-                return
-
-        # 3. Check other required actors (Doctor, Detective, Solo killers, etc.)
-        if required_actors:
-            required_pids = [p.id for p in required_actors]
-            acted_count = await sync_to_async(
-                lambda: NightAction.objects.filter(
-                    game=current_game,
-                    round=current_game.round_number,
-                    actor_id__in=required_pids
-                ).values('actor_id').distinct().count()
-            )()
-            if acted_count < len(required_actors):
-                return
-
-        logger.info(f"⚡ All living night actors completed actions in game {game_id}. Advancing to Dawn immediately!")
-        cancel_night_timer(game_id)
-        await advance_night_to_day(current_game, bot)
-
-    except Exception as e:
-        logger.warning(f"Error checking night state in game {game.id}: {e}")
+    pass
 
 
 # ---------------------------------------------------------------------------
@@ -1222,11 +1135,11 @@ async def advance_night_to_day(game: Game, bot: Bot):
 
         # --- Wait configured seconds then start voting ---
         bot_id_str = str(game.bot_id) if game and getattr(game, 'bot_id', None) else ''
-        dawn_wait = await sync_to_async(SettingService.get_group_or_bot_timing)(game.chat_id, bot_id_str, 'dawn_wait_duration', 5)
+        dawn_wait = await sync_to_async(SettingService.get_group_or_bot_timing)(game.chat_id, bot_id_str, 'dawn_wait_duration', 15)
         try:
-            dawn_wait = min(int(dawn_wait), 8)
+            dawn_wait = int(dawn_wait)
         except Exception:
-            dawn_wait = 5
+            dawn_wait = 15
         await asyncio.sleep(dawn_wait)
 
         # Refresh game state after dawn wait

@@ -143,22 +143,6 @@ async def handle_vote_callback(callback: CallbackQuery, bot: Bot):
         except Exception:
             pass
 
-        # Check if all voted → close early
-        eligible_voters = await sync_to_async(
-            lambda: game.players.filter(is_alive=True).exclude(
-                metadata__blocked_voting_round=game.round_number
-            ).count()
-        )()
-        cast_count = await sync_to_async(lambda: game.votes.filter(round=game.round_number).count())()
-
-        if cast_count >= eligible_voters:
-            logger.info(f"⚡ All {eligible_voters} eligible players voted in game {game.id}. Closing voting immediately.")
-            from bot_runtime.handlers.night import VOTING_TASKS
-            task = VOTING_TASKS.pop(str(game.id), None) or HANGING_TASKS.pop(f"vote_{game.id}", None)
-            if task and not task.done():
-                task.cancel()
-            await auto_close_voting(game, bot)
-
     except (Game.DoesNotExist, Player.DoesNotExist):
         await callback.answer("O'yin yoki o'yinchi topilmadi.", show_alert=True)
     except VoteValidationError as ve:
@@ -242,19 +226,6 @@ async def handle_hanging_callback(callback: CallbackQuery, bot: Bot):
         )
     except Exception:
         pass
-
-    try:
-        total_living = await sync_to_async(
-            lambda: Player.objects.filter(game__id=game_id_key, is_alive=True).count()
-        )()
-        if len(h_data['voters']) >= max(1, total_living - 1):
-            task = HANGING_TASKS.pop(game_id_key, None)
-            if task and not task.done():
-                task.cancel()
-            game = await sync_to_async(Game.objects.select_related('bot').get)(id=game_id_key)
-            await resolve_hanging(game, bot, callback.message)
-    except Exception as e:
-        logger.warning(f"Error checking hanging count: {e}")
 
 
 # ---------------------------------------------------------------------------
@@ -372,16 +343,16 @@ async def auto_close_voting(game: Game, bot: Bot, force: bool = False):
 
 
 async def _hanging_timer(game_id: str, bot: Bot, original_msg=None):
-    """Timer before resolving hanging (12-15s max)."""
+    """Timer before resolving hanging (respecting GroupCabinet setting)."""
     try:
         from apps.superadmin.services import SettingService
         game = await sync_to_async(Game.objects.select_related('bot').get)(id=game_id)
         bot_id_str = str(game.bot_id) if game and getattr(game, 'bot_id', None) else ''
-        h_dur = await sync_to_async(SettingService.get_group_or_bot_timing)(game.chat_id, bot_id_str, 'last_words_duration', 12)
+        h_dur = await sync_to_async(SettingService.get_group_or_bot_timing)(game.chat_id, bot_id_str, 'last_words_duration', 15)
         try:
-            h_dur = min(int(h_dur), 15)
+            h_dur = int(h_dur)
         except Exception:
-            h_dur = 12
+            h_dur = 15
         await asyncio.sleep(h_dur)
         if game_id in HANGING_VOTES:
             game = await sync_to_async(Game.objects.select_related('bot').get)(id=game_id)

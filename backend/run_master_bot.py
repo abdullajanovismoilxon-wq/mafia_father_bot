@@ -95,11 +95,11 @@ async def periodic_game_watchdog(master_bot: Bot):
                 await sync_to_async(g.save)(update_fields=['phase', 'status', 'updated_at'])
                 logger.info(f"Watchdog auto-cancelled expired lobby {g.id} in chat {g.chat_id}")
 
-            # 2. Recover genuinely stuck NIGHT games (updated_at > 60s ago and not currently advancing)
+            # 2. Recover genuinely stuck NIGHT games (updated_at > 3 mins ago and not currently advancing)
             stuck_night_games = await sync_to_async(lambda: list(
                 Game.objects.filter(
                     phase=GamePhase.NIGHT,
-                    updated_at__lt=now - timedelta(seconds=60)
+                    updated_at__lt=now - timedelta(minutes=3)
                 ).select_related('bot', 'bot__credential')
             ))()
             for g in stuck_night_games:
@@ -113,11 +113,11 @@ async def periodic_game_watchdog(master_bot: Bot):
                 except Exception as ne:
                     logger.exception(f"Watchdog night advance error for game {g.id}: {ne}")
 
-            # 3. Recover genuinely stuck DAY / DISCUSSION games (updated_at > 45s ago)
+            # 3. Recover genuinely stuck DAY / DISCUSSION games (updated_at > 3 mins ago)
             stuck_day_games = await sync_to_async(lambda: list(
                 Game.objects.filter(
                     phase__in=[GamePhase.DAY, GamePhase.DISCUSSION],
-                    updated_at__lt=now - timedelta(seconds=45)
+                    updated_at__lt=now - timedelta(minutes=3)
                 ).select_related('bot', 'bot__credential')
             ))()
             for g in stuck_day_games:
@@ -132,11 +132,11 @@ async def periodic_game_watchdog(master_bot: Bot):
                 except Exception as de:
                     logger.exception(f"Watchdog day advance error for game {g.id}: {de}")
 
-            # 4. Recover genuinely stuck VOTING games (updated_at > 45s ago)
+            # 4. Recover genuinely stuck VOTING games (updated_at > 3 mins ago)
             stuck_voting_games = await sync_to_async(lambda: list(
                 Game.objects.filter(
                     phase=GamePhase.VOTING,
-                    updated_at__lt=now - timedelta(seconds=45)
+                    updated_at__lt=now - timedelta(minutes=3)
                 ).select_related('bot', 'bot__credential')
             ))()
             for g in stuck_voting_games:
@@ -150,7 +150,7 @@ async def periodic_game_watchdog(master_bot: Bot):
 
         except Exception as e:
             logger.debug(f"Watchdog check error: {e}")
-        await asyncio.sleep(5)
+        await asyncio.sleep(10)
 
 
 async def periodic_bot_sync_task(master_bot: Bot):
