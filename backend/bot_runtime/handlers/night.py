@@ -269,7 +269,12 @@ async def run_night_timer(game_id: str, bot: Any, night_duration: int = 60):
 def cancel_night_timer(game_id: str):
     task = NIGHT_TASKS.pop(game_id, None)
     if task and not task.done():
-        task.cancel()
+        try:
+            curr = asyncio.current_task()
+            if curr is None or curr != task:
+                task.cancel()
+        except Exception:
+            pass
 
 def start_night_timer(game_id: str, bot: Any, duration: int = 60, **kwargs):
     # Detect swapped arguments if any

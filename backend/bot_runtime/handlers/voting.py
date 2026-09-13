@@ -246,7 +246,12 @@ async def auto_close_voting(game: Game, bot: Bot, force: bool = False):
         from bot_runtime.handlers.night import VOTING_TASKS
         task = VOTING_TASKS.pop(game_id, None) or HANGING_TASKS.pop(f"vote_{game.id}", None)
         if task and not task.done():
-            task.cancel()
+            try:
+                curr = asyncio.current_task()
+                if curr is None or curr != task:
+                    task.cancel()
+            except Exception:
+                pass
 
         game = await sync_to_async(Game.objects.select_related('bot').get)(id=game.id)
         if game.phase != GamePhase.VOTING or game.status in ['FINISHED', 'CANCELED']:
@@ -389,7 +394,12 @@ async def resolve_hanging(game: Game, bot: Bot, original_msg=None):
         h_data = HANGING_VOTES.pop(game_id, None)
         task = HANGING_TASKS.pop(game_id, None)
         if task and not task.done():
-            task.cancel()
+            try:
+                curr = asyncio.current_task()
+                if curr is None or curr != task:
+                    task.cancel()
+            except Exception:
+                pass
 
         if not h_data:
             game = await sync_to_async(Game.objects.select_related('bot').get)(id=game_id)
